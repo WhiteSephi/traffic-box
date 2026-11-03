@@ -71,6 +71,8 @@ class AppConfig:
     switch_up_down: bool = True  # True = Download on top, Upload on bottom
     show_as_bits: bool = False  # False = kB/s & MB/s, True = kbit/s & Mbit/s
     show_session_totals: bool = True
+    # footer_counter_mode: "today", "yesterday", "week", "month", "last_month", "session"
+    footer_counter_mode: str = "today"
     show_connection_tooltip: bool = True
     opacity: int = 85  # 20..100 %
     widget_width: int = 260

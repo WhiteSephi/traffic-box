@@ -94,7 +94,7 @@ class SettingsDialog(QDialog):
         tab_general = QWidget()
         gen_layout = QVBoxLayout(tab_general)
 
-        conn_group = QGroupBox("Fritz!Box Verbindung (UPnP && Optionaler Gäste-WLAN Login)")
+        conn_group = QGroupBox("Fritz!Box Verbindung (UPnP && Optionaler Fritz!OS Login)")
         conn_form = QFormLayout(conn_group)
         self.txt_host = QLineEdit()
         self.txt_host.setPlaceholderText("z. B. fritz.box oder 192.168.178.1")
@@ -108,13 +108,13 @@ class SettingsDialog(QDialog):
         self.spin_delay.setSuffix(" Sek.")
 
         self.chk_guest = QCheckBox(
-            "Gäste-WLAN Traffic separat abfragen && im Graphen einfärben"
+            "Fritz!OS Login aktivieren (für Online-Zähler && Gäste-WLAN Anteil)"
         )
         self.txt_user = QLineEdit()
         self.txt_user.setPlaceholderText("Optional (leer lassen für Standard-Benutzer)")
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_pass.setPlaceholderText("Fritz!Box Passwort (nur für Gäste-WLAN nötig)")
+        self.txt_pass.setPlaceholderText("Fritz!Box Passwort (für Online-Zähler & Gäste-WLAN)")
         self.chk_guest.toggled.connect(self._on_guest_toggled)
 
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
@@ -135,7 +135,15 @@ class SettingsDialog(QDialog):
         self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
         self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
         self.chk_compact = QCheckBox("Kompakt-Modus (Graph ausblenden)")
-        self.chk_session_totals = QCheckBox("Session-Traffic im Footer anzeigen")
+        self.chk_session_totals = QCheckBox("Online- / Session-Zähler im Footer anzeigen")
+
+        self.cmb_footer_mode = QComboBox()
+        self.cmb_footer_mode.addItem("Heute (Fritz!Box Online-Zähler)", "today")
+        self.cmb_footer_mode.addItem("Gestern (Fritz!Box Online-Zähler)", "yesterday")
+        self.cmb_footer_mode.addItem("Aktuelle Woche (Fritz!Box Online-Zähler)", "week")
+        self.cmb_footer_mode.addItem("Aktueller Monat (Fritz!Box Online-Zähler)", "month")
+        self.cmb_footer_mode.addItem("Vormonat (Fritz!Box Online-Zähler)", "last_month")
+        self.cmb_footer_mode.addItem("Nur Widget-Session (UPnP ohne Login)", "session")
 
         beh_grid.addWidget(self.chk_autostart, 0, 0)
         beh_grid.addWidget(self.chk_always_on_top, 0, 1)
@@ -143,7 +151,8 @@ class SettingsDialog(QDialog):
         beh_grid.addWidget(self.chk_switch_up_down, 1, 1)
         beh_grid.addWidget(self.chk_show_bits, 2, 0)
         beh_grid.addWidget(self.chk_compact, 2, 1)
-        beh_grid.addWidget(self.chk_session_totals, 3, 0, 1, 2)
+        beh_grid.addWidget(self.chk_session_totals, 3, 0)
+        beh_grid.addWidget(self.cmb_footer_mode, 3, 1)
 
         opacity_row = QHBoxLayout()
         opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
@@ -264,6 +273,8 @@ class SettingsDialog(QDialog):
         self.chk_show_bits.setChecked(self.config.show_as_bits)
         self.chk_compact.setChecked(self.config.compact_mode)
         self.chk_session_totals.setChecked(self.config.show_session_totals)
+        f_idx = self.cmb_footer_mode.findData(self.config.footer_counter_mode)
+        self.cmb_footer_mode.setCurrentIndex(max(0, f_idx))
         self.slider_opacity.setValue(self.config.opacity)
 
         idx = self.cmb_scale_mode.findData(self.config.scale_mode)
@@ -304,6 +315,7 @@ class SettingsDialog(QDialog):
         self.config.show_as_bits = self.chk_show_bits.isChecked()
         self.config.compact_mode = self.chk_compact.isChecked()
         self.config.show_session_totals = self.chk_session_totals.isChecked()
+        self.config.footer_counter_mode = str(self.cmb_footer_mode.currentData() or "today")
         self.config.opacity = self.slider_opacity.value()
 
         self.config.scale_mode = str(self.cmb_scale_mode.currentData() or "sqrt")

@@ -1,4 +1,4 @@
-"""Optional authenticated Fritz!OS Online-Monitor client for Guest Wi-Fi traffic share."""
+"""Authenticated Fritz!OS client for Online-Zähler (query.lua) & Guest Wi-Fi traffic (netMoni)."""
 
 from __future__ import annotations
 
@@ -9,16 +9,18 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from src.api.models import OnlineCounterStats, PeriodCounter
+
 
 class FritzGuestMonitorClient:
-    """Queries Fritz!OS login_sid.lua & netMoni to extract Guest network traffic share."""
+    """Queries Fritz!OS login_sid.lua, query.lua (Online-Zähler) & data.lua (netMoni)."""
 
     def __init__(
         self,
         host: str = "fritz.box",
         username: str = "",
         password: str = "",
-        timeout: float = 2.0,
+        timeout: float = 2.5,
     ) -> None:
         self.host = host.strip() or "fritz.box"
         self.username = username.strip()
@@ -119,7 +121,7 @@ class FritzGuestMonitorClient:
 
     @staticmethod
     def _first_numeric_value(val: object) -> float:
-        """Extract the latest numeric value (bits or bytes per sec) from Fritz!OS series."""
+        """Extract the latest numeric value from Fritz!OS series."""
         if isinstance(val, (int, float)):
             return float(val)
         if isinstance(val, list) and val:
@@ -134,6 +136,75 @@ class FritzGuestMonitorClient:
             except ValueError:
                 return 0.0
         return 0.0
+
+    @staticmethod
+    def _combine_high_low(data: dict[str, object], prefix: str, direction: str) -> int:
+        """Combine 32-bit High and Low counters from inetstat into a 64-bit integer."""
+        try:
+            high = int(str(data.get(f"{prefix}{direction}High", "0") or "0"))
+            low = int(str(data.get(f"{prefix}{direction}Low", "0") or "0"))
+            return (high << 32) + low
+        except ValueError:
+            return 0
+
+    def fetch_online_counters(self) -> OnlineCounterStats:
+        """Fetch Fritz!Box Online-Zähler (Heute, Gestern, Woche, Monat, Vormonat) via query.lua."""
+        stats = OnlineCounterStats()
+        if not self._ensure_session():
+            return stats
+
+        periods = [
+            ("Today", "Today"),
+            ("Yesterday", "Yesterday"),
+            ("Week", "ThisWeek"),
+            ("Month", "ThisMonth"),
+            ("LastMonth", "LastMonth"),
+        ]
+        params: dict[str, str] = {"sid": self._sid}
+        for short, f_key in periods:
+            params[f"{short}SentHigh"] = f"inetstat:status/{f_key}/BytesSentHigh"
+            params[f"{short}SentLow"] = f"inetstat:status/{f_key}/BytesSentLow"
+            params[f"{short}RecvHigh"] = f"inetstat:status/{f_key}/BytesReceivedHigh"
+            params[f"{short}RecvLow"] = f"inetstat:status/{f_key}/BytesReceivedLow"
+
+        query_str = urllib.parse.urlencode(params)
+        url = f"http://{self.host}/query.lua?{query_str}"
+
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                raw_json = resp.read().decode("utf-8", errors="replace")
+            data = json.loads(raw_json)
+        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError):
+            self._sid = "0000000000000000"
+            return stats
+
+        if not isinstance(data, dict) or "TodaySentLow" not in data:
+            self._sid = "0000000000000000"
+            return stats
+
+        stats.today = PeriodCounter(
+            received_bytes=self._combine_high_low(data, "Today", "Recv"),
+            sent_bytes=self._combine_high_low(data, "Today", "Sent"),
+        )
+        stats.yesterday = PeriodCounter(
+            received_bytes=self._combine_high_low(data, "Yesterday", "Recv"),
+            sent_bytes=self._combine_high_low(data, "Yesterday", "Sent"),
+        )
+        stats.this_week = PeriodCounter(
+            received_bytes=self._combine_high_low(data, "Week", "Recv"),
+            sent_bytes=self._combine_high_low(data, "Week", "Sent"),
+        )
+        stats.this_month = PeriodCounter(
+            received_bytes=self._combine_high_low(data, "Month", "Recv"),
+            sent_bytes=self._combine_high_low(data, "Month", "Sent"),
+        )
+        stats.last_month = PeriodCounter(
+            received_bytes=self._combine_high_low(data, "LastMonth", "Recv"),
+            sent_bytes=self._combine_high_low(data, "LastMonth", "Sent"),
+        )
+        stats.is_available = True
+        return stats
 
     def fetch_guest_rates_bps(self) -> tuple[float, float, bool]:
         """Return (guest_download_bps, guest_upload_bps, guest_active) in bytes/sec."""
@@ -162,7 +233,6 @@ class FritzGuestMonitorClient:
             self._sid = "0000000000000000"
             return (0.0, 0.0, False)
 
-        # If session expired, Fritz!OS returns pid="logout" or no data
         if not isinstance(data, dict) or "data" not in data:
             self._sid = "0000000000000000"
             return (0.0, 0.0, False)
@@ -176,7 +246,6 @@ class FritzGuestMonitorClient:
         if not isinstance(group, dict):
             return (0.0, 0.0, False)
 
-        # Fritz!OS reports ds_guest_bps / us_guest_bps (or guest_ds_bps) in bytes/sec or bits/sec
         ds_guest = (
             self._first_numeric_value(group.get("ds_guest_bps"))
             or self._first_numeric_value(group.get("guest_ds_bps"))
@@ -188,6 +257,4 @@ class FritzGuestMonitorClient:
             or self._first_numeric_value(group.get("us_guest"))
         )
 
-        # Note: In Fritz!OS netMoni, *_bps arrays are actually bytes per second (despite the name)
-        # just like ds_current_bps; we return them as float >= 0.0
         return (max(0.0, ds_guest), max(0.0, us_guest), True)

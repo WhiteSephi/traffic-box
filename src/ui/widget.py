@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.api.fritz_monitor import FritzGuestMonitorClient
-from src.api.models import TrafficSample
+from src.api.models import OnlineCounterStats, PeriodCounter, TrafficSample
 from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
@@ -63,6 +63,8 @@ class PollingWorker(QObject):
             username=self.config.fritz_username,
             password=self.config.fritz_password,
         )
+        self._cached_counters = OnlineCounterStats()
+        self._counter_tick: int = 0
         self._busy = False
 
     @Slot()
@@ -90,6 +92,16 @@ class PollingWorker(QObject):
                     sample.guest_download_bps = min(sample.download_bps, g_down)
                     sample.guest_upload_bps = min(sample.upload_bps, g_up)
                     sample.guest_active = True
+
+                if self._counter_tick % 15 == 0 or not self._cached_counters.is_available:
+                    fresh_counters = self.guest_client.fetch_online_counters()
+                    if fresh_counters.is_available:
+                        self._cached_counters = fresh_counters
+                self._counter_tick += 1
+                sample.online_counters = self._cached_counters
+            else:
+                self._counter_tick = 0
+                self._cached_counters = OnlineCounterStats()
 
             self.sample_ready.emit(sample)
         finally:
@@ -445,11 +457,9 @@ class TrafficBox(QWidget):
             self.lbl_guest_down.setVisible(False)
             self.lbl_guest_up.setVisible(False)
 
-        # Footer (Session traffic)
+        # Footer (Online-Zähler or Session traffic)
         if self.config.show_session_totals:
-            rx_str = format_bytes(sample.session_bytes_received)
-            tx_str = format_bytes(sample.session_bytes_sent)
-            self.lbl_footer.setText(f"Σ Down: {rx_str}   •   Σ Up: {tx_str}")
+            self.lbl_footer.setText(self._format_footer_text(sample))
 
         self.graph_widget.push_sample(
             sample.download_bps,
@@ -461,6 +471,28 @@ class TrafficBox(QWidget):
         )
 
         self._update_tooltip(sample, down_pct, up_pct)
+
+    def _format_footer_text(self, sample: TrafficSample) -> str:
+        """Build the footer text for the selected Online-Zähler period or local session."""
+        oc = sample.online_counters
+        mode = self.config.footer_counter_mode
+        if oc.is_available and mode != "session":
+            period_map: dict[str, tuple[str, PeriodCounter]] = {
+                "today": ("Heute", oc.today),
+                "yesterday": ("Gestern", oc.yesterday),
+                "week": ("Woche", oc.this_week),
+                "month": ("Monat", oc.this_month),
+                "last_month": ("Vormonat", oc.last_month),
+            }
+            label, counter = period_map.get(mode, ("Heute", oc.today))
+            rx_str = format_bytes(counter.received_bytes)
+            tx_str = format_bytes(counter.sent_bytes)
+            tot_str = format_bytes(counter.total_bytes)
+            return f"{label}: ⬇ {rx_str} • ⬆ {tx_str} (Σ {tot_str})"
+
+        rx_str = format_bytes(sample.session_bytes_received)
+        tx_str = format_bytes(sample.session_bytes_sent)
+        return f"Session: ⬇ {rx_str}  •  ⬆ {tx_str}"
 
     def _update_tooltip(
         self, sample: TrafficSample, down_pct: float, up_pct: float
@@ -486,15 +518,43 @@ class TrafficBox(QWidget):
 
         lines = [
             f"<b>Fritz!Box ({self.config.fritzbox_host})</b>",
-            f"Status: <b>{sample.connection_status}</b>",
+            f"Status: <b>{sample.connection_status}</b> | Uptime: {format_uptime(sample.uptime_seconds)}",
             f"Externe IP: <code>{sample.external_ip}</code>",
-            f"Verbindungsdauer: {format_uptime(sample.uptime_seconds)}",
             f"Leitungskapazität: ⬇ {max_down_mbps:.1f} Mbit/s | ⬆ {max_up_mbps:.1f} Mbit/s".replace(
                 ".", ","
             ),
             f"Session-Traffic: ⬇ {format_bytes(sample.session_bytes_received)} | ⬆ {format_bytes(sample.session_bytes_sent)}",
-            f"Gesamt-Zähler: ⬇ {format_bytes(sample.total_bytes_received)} | ⬆ {format_bytes(sample.total_bytes_sent)}",
         ]
+
+        oc = sample.online_counters
+        if oc.is_available:
+            rows = [
+                ("Heute", oc.today),
+                ("Gestern", oc.yesterday),
+                ("Aktuelle Woche", oc.this_week),
+                ("Aktueller Monat", oc.this_month),
+                ("Vormonat", oc.last_month),
+            ]
+            table_html = (
+                "<hr><b>Fritz!Box Online-Zähler:</b>"
+                "<table cellspacing='4' cellpadding='1'>"
+                "<tr><th align='left'>Zeitraum</th><th align='right'>Gesamt</th>"
+                "<th align='right'>⬆ Gesendet</th><th align='right'>⬇ Empfangen</th></tr>"
+            )
+            for p_name, p_cnt in rows:
+                table_html += (
+                    f"<tr><td>{p_name}</td>"
+                    f"<td align='right'><b>{format_bytes(p_cnt.total_bytes)}</b></td>"
+                    f"<td align='right'>{format_bytes(p_cnt.sent_bytes)}</td>"
+                    f"<td align='right'>{format_bytes(p_cnt.received_bytes)}</td></tr>"
+                )
+            table_html += "</table>"
+            lines.append(table_html)
+        else:
+            lines.append(
+                f"Gesamt-Zähler (UPnP): ⬇ {format_bytes(sample.total_bytes_received)} | ⬆ {format_bytes(sample.total_bytes_sent)}"
+            )
+
         if sample.error_message:
             lines.append(f"<span style='color:#FF5252;'>Fehler: {sample.error_message}</span>")
         self.setToolTip("<br>".join(lines))
@@ -595,6 +655,23 @@ class TrafficBox(QWidget):
             scale_group.addAction(act)
             scale_menu.addAction(act)
 
+        # Footer Counter Period Submenu
+        footer_menu = menu.addMenu("Footer-Zähler (Zeitraum)")
+        footer_group = QActionGroup(self)
+        for f_label, f_key in [
+            ("Heute (Online-Zähler)", "today"),
+            ("Gestern (Online-Zähler)", "yesterday"),
+            ("Aktuelle Woche (Online-Zähler)", "week"),
+            ("Aktueller Monat (Online-Zähler)", "month"),
+            ("Vormonat (Online-Zähler)", "last_month"),
+            ("Nur Widget-Session (ohne Login)", "session"),
+        ]:
+            act_f = QAction(f_label, self, checkable=True)
+            act_f.setChecked(self.config.footer_counter_mode == f_key)
+            act_f.triggered.connect(lambda _chk=False, k=f_key: self._set_footer_mode(k))
+            footer_group.addAction(act_f)
+            footer_menu.addAction(act_f)
+
         act_bits = QAction("Als Bit/s anzeigen (Mbit/s)", self, checkable=True)
         act_bits.setChecked(self.config.show_as_bits)
         act_bits.triggered.connect(self._toggle_bits)
@@ -639,6 +716,11 @@ class TrafficBox(QWidget):
         self.config.scale_mode = mode
         self.config.save()
         self._apply_config_visuals()
+
+    def _set_footer_mode(self, mode: str) -> None:
+        self.config.footer_counter_mode = mode
+        self.config.save()
+        self._on_sample_received(self._last_sample)
 
     def _toggle_bits(self, checked: bool) -> None:
         self.config.show_as_bits = checked
