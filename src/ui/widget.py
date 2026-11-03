@@ -698,19 +698,6 @@ class TrafficBox(QWidget):
         act_settings.triggered.connect(self.open_settings_dialog)
         menu.addAction(act_settings)
 
-        act_toggle_view = QAction(
-            "Ansicht: 📈 Live-Graph anzeigen"
-            if self.config.active_view == "counters"
-            else "Ansicht: 📊 Online-Zähler anzeigen",
-            self,
-        )
-        act_toggle_view.triggered.connect(
-            lambda: self._switch_active_view(
-                "graph" if self.config.active_view == "counters" else "counters"
-            )
-        )
-        menu.addAction(act_toggle_view)
-
         menu.addSeparator()
 
         # Scaling Submenu
