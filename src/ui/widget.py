@@ -115,6 +115,8 @@ class TrafficBox(QWidget):
         self._peak_up_bps: float = 0.0
         self._last_sample: TrafficSample = TrafficSample()
         self._settings_dlg: SettingsDialog | None = None
+        self._in_layout_transition: bool = False
+        self._was_compact: bool = self.config.compact_mode
 
         self._configure_window_flags()
         self._build_ui()
@@ -345,17 +347,31 @@ class TrafficBox(QWidget):
 
         self.lbl_footer.setStyleSheet(f"color: {self.config.title_color};")
         self.lbl_footer.setVisible(self.config.show_session_totals)
-        self.size_grip.setVisible(not self.config.locked_pos)
+        self.size_grip.setVisible(not self.config.locked_pos and not self.config.compact_mode)
 
-        self.graph_widget.setVisible(not self.config.compact_mode)
-        if self.config.compact_mode:
-            self.setMinimumHeight(88)
-            self.setMaximumHeight(115)
-            self.resize(self.width(), 98)
-        else:
-            self.setMinimumHeight(175)
-            self.setMaximumHeight(16777215)
-            self.resize(self.width(), max(175, self.config.widget_height))
+        self._in_layout_transition = True
+        try:
+            target_w = max(210, self.config.widget_width)
+            target_h = max(175, self.config.widget_height)
+
+            if self.config.compact_mode:
+                if not self._was_compact and self.isVisible() and self.height() >= 175:
+                    self.config.widget_width = self.width()
+                    self.config.widget_height = self.height()
+                    target_w = self.config.widget_width
+                self.graph_widget.setVisible(False)
+                self.setMinimumHeight(88)
+                self.setMaximumHeight(115)
+                self.resize(target_w, 98)
+            else:
+                self.graph_widget.setVisible(True)
+                self.setMinimumHeight(175)
+                self.setMaximumHeight(16777215)
+                self.resize(target_w, target_h)
+
+            self._was_compact = self.config.compact_mode
+        finally:
+            self._in_layout_transition = False
 
         if hasattr(self, "_poll_timer"):
             self._poll_timer.setInterval(max(500, self.config.refresh_interval_sec * 1000))
@@ -536,7 +552,12 @@ class TrafficBox(QWidget):
 
     def resizeEvent(self, event: object) -> None:
         super().resizeEvent(event)
-        if not self.config.compact_mode and self.isVisible():
+        if (
+            not self.config.compact_mode
+            and not self._in_layout_transition
+            and self.isVisible()
+            and self.height() >= 175
+        ):
             self.config.widget_width = self.width()
             self.config.widget_height = self.height()
 
@@ -596,7 +617,7 @@ class TrafficBox(QWidget):
 
         menu.addSeparator()
 
-        act_reset_peak = QAction("Peak- & Session-Zähler zurücksetzen", self)
+        act_reset_peak = QAction("Peak- && Session-Zähler zurücksetzen", self)
         act_reset_peak.triggered.connect(self._reset_peaks_and_session)
         menu.addAction(act_reset_peak)
 

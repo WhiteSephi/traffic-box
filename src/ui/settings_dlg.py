@@ -90,11 +90,11 @@ class SettingsDialog(QDialog):
         tabs = QTabWidget(self)
         root_layout.addWidget(tabs)
 
-        # --- TAB 1: Allgemein & Skalierung ---
+        # --- TAB 1: Allgemein, Verbindung & Skalierung ---
         tab_general = QWidget()
         gen_layout = QVBoxLayout(tab_general)
 
-        conn_group = QGroupBox("Fritz!Box Verbindung (UPnP)")
+        conn_group = QGroupBox("Fritz!Box Verbindung (UPnP && Optionaler Gäste-WLAN Login)")
         conn_form = QFormLayout(conn_group)
         self.txt_host = QLineEdit()
         self.txt_host.setPlaceholderText("z. B. fritz.box oder 192.168.178.1")
@@ -107,14 +107,27 @@ class SettingsDialog(QDialog):
         self.spin_delay.setRange(0, 120)
         self.spin_delay.setSuffix(" Sek.")
 
+        self.chk_guest = QCheckBox(
+            "Gäste-WLAN Traffic separat abfragen && im Graphen einfärben"
+        )
+        self.txt_user = QLineEdit()
+        self.txt_user.setPlaceholderText("Optional (leer lassen für Standard-Benutzer)")
+        self.txt_pass = QLineEdit()
+        self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.setPlaceholderText("Fritz!Box Passwort (nur für Gäste-WLAN nötig)")
+        self.chk_guest.toggled.connect(self._on_guest_toggled)
+
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
         conn_form.addRow("UPnP Port:", self.spin_port)
         conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
         conn_form.addRow("Startverzögerung:", self.spin_delay)
+        conn_form.addRow("", self.chk_guest)
+        conn_form.addRow("Fritz!Box Benutzer:", self.txt_user)
+        conn_form.addRow("Fritz!Box Passwort:", self.txt_pass)
         gen_layout.addWidget(conn_group)
 
         # Behavior & Display
-        beh_group = QGroupBox("Darstellung & Verhalten")
+        beh_group = QGroupBox("Darstellung && Verhalten")
         beh_grid = QGridLayout(beh_group)
         self.chk_autostart = QCheckBox("Autostart mit System")
         self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
@@ -146,7 +159,7 @@ class SettingsDialog(QDialog):
         gen_layout.addWidget(beh_group)
 
         # Scaling Group
-        scale_group = QGroupBox("Graph-Skalierung & Leitungskapazität")
+        scale_group = QGroupBox("Graph-Skalierung && Leitungskapazität")
         scale_form = QFormLayout(scale_group)
 
         self.cmb_scale_mode = QComboBox()
@@ -182,9 +195,9 @@ class SettingsDialog(QDialog):
         scale_form.addRow("Max. Upload (Manuell):", self.spin_max_up)
         gen_layout.addWidget(scale_group)
 
-        tabs.addTab(tab_general, "Allgemein & Skalierung")
+        tabs.addTab(tab_general, "Allgemein && Skalierung")
 
-        # --- TAB 2: Farben & Gäste-WLAN ---
+        # --- TAB 2: Farben ---
         tab_colors = QWidget()
         col_layout = QVBoxLayout(tab_colors)
 
@@ -208,25 +221,9 @@ class SettingsDialog(QDialog):
         colors_form.addRow("Rasterfarbe (Grid):", self.btn_col_grid)
         colors_form.addRow("Titelfarbe:", self.btn_col_title)
         col_layout.addWidget(colors_group)
-
-        guest_group = QGroupBox("Optional: Gäste-WLAN Anteil (Fritz!OS Online-Monitor)")
-        guest_form = QFormLayout(guest_group)
-        self.chk_guest = QCheckBox(
-            "Gäste-WLAN Traffic separat abfragen & im Graphen einfärben"
-        )
-        self.txt_user = QLineEdit()
-        self.txt_user.setPlaceholderText("Optional (leer lassen für Standard-Benutzer)")
-        self.txt_pass = QLineEdit()
-        self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_pass.setPlaceholderText("Fritz!Box Passwort (nur für Gäste-WLAN nötig)")
-
-        guest_form.addRow("", self.chk_guest)
-        guest_form.addRow("Fritz!Box Benutzer:", self.txt_user)
-        guest_form.addRow("Fritz!Box Passwort:", self.txt_pass)
-        col_layout.addWidget(guest_group)
         col_layout.addStretch(1)
 
-        tabs.addTab(tab_colors, "Farben & Gäste-WLAN")
+        tabs.addTab(tab_colors, "Farben")
 
         # --- Bottom Action Buttons ---
         btn_row = QHBoxLayout()
@@ -247,6 +244,10 @@ class SettingsDialog(QDialog):
     def _on_auto_link_toggled(self, checked: bool) -> None:
         self.spin_max_down.setEnabled(not checked)
         self.spin_max_up.setEnabled(not checked)
+
+    def _on_guest_toggled(self, checked: bool) -> None:
+        self.txt_user.setEnabled(checked)
+        self.txt_pass.setEnabled(checked)
 
     def _load_from_config(self) -> None:
         self.txt_host.setText(self.config.fritzbox_host)
@@ -284,6 +285,7 @@ class SettingsDialog(QDialog):
         self.chk_guest.setChecked(self.config.enable_guest_monitor)
         self.txt_user.setText(self.config.fritz_username)
         self.txt_pass.setText(self.config.fritz_password)
+        self._on_guest_toggled(self.config.enable_guest_monitor)
 
     def _apply_changes(self) -> None:
         self.config.fritzbox_host = self.txt_host.text().strip() or "fritz.box"
