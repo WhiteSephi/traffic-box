@@ -37,10 +37,15 @@
      pip install -r requirements.txt
      ```
 
-3. **Konfiguration (optional):**
-   ```bash
-   cp .env.example .env
-   ```
+3. **Konfiguration & Speicherort:**
+   - **Standard-Speicherort:** Einstellungen werden automatisch im benutzerspezifischen Systemordner als `config.json` abgelegt:
+     - Windows: `%APPDATA%\traffic-box\config.json`
+     - Linux/CachyOS: `~/.config/traffic-box/config.json`
+   - **Portabler Modus (z. B. USB-Stick):** Liegt im Projekt- bzw. Programmverzeichnis der Ordner `local/` und befindet sich darin eine `config.json`, liest und schreibt das Widget alle Einstellungen direkt dort hinein, ohne das Betriebssystem zu berühren.
+   - **Umgebungsvariablen (optional):**
+     ```bash
+     cp .env.example .env
+     ```
    *(Alle Einstellungen lassen sich bequem direkt über den Einstellungs-Dialog im Rechtsklick- bzw. System-Tray-Menü anpassen.)*
 
 ---
