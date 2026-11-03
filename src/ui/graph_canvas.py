@@ -37,6 +37,16 @@ class SplitTrafficGraphWidget(QWidget):
         self._max_down_bps: float = (self.config.manual_download_mbps * 1_000_000.0) / 8.0
         self._max_up_bps: float = (self.config.manual_upload_mbps * 1_000_000.0) / 8.0
 
+    @property
+    def current_peak_down_bps(self) -> float:
+        """Return the highest download rate within the visible graph time window."""
+        return max(self._down_history) if self._down_history else 0.0
+
+    @property
+    def current_peak_up_bps(self) -> float:
+        """Return the highest upload rate within the visible graph time window."""
+        return max(self._up_history) if self._up_history else 0.0
+
     def push_sample(
         self,
         down_bps: float,

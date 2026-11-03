@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from src.api.models import OnlineCounterStats, TrafficSample
 from src.config import AppConfig
-from src.ui.formatters import format_bytes
+from src.ui.formatters import format_bytes, format_uptime
 
 
 class OnlineCounterView(QWidget):
@@ -188,15 +188,20 @@ class OnlineCounterView(QWidget):
             self.btn_login_hint.setVisible(True)
             sess_tot = sample.session_bytes_received + sample.session_bytes_sent
             upnp_tot = sample.total_bytes_received + sample.total_bytes_sent
+            uptime_label = (
+                f"Seit Verbindung ({format_uptime(sample.uptime_seconds)})"
+                if sample.uptime_seconds > 0
+                else "Seit Router-Start"
+            )
             fallback_rows = [
                 (
-                    "Widget-Session",
+                    "Seit Widget-Start",
                     format_bytes(sess_tot),
                     format_bytes(sample.session_bytes_sent),
                     format_bytes(sample.session_bytes_received),
                 ),
                 (
-                    "Seit Sync (UPnP)",
+                    uptime_label,
                     format_bytes(upnp_tot),
                     format_bytes(sample.total_bytes_sent),
                     format_bytes(sample.total_bytes_received),

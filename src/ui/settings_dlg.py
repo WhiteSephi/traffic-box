@@ -143,7 +143,7 @@ class SettingsDialog(QDialog):
         self.cmb_footer_mode.addItem("Aktuelle Woche (Fritz!Box Online-Zähler)", "week")
         self.cmb_footer_mode.addItem("Aktueller Monat (Fritz!Box Online-Zähler)", "month")
         self.cmb_footer_mode.addItem("Vormonat (Fritz!Box Online-Zähler)", "last_month")
-        self.cmb_footer_mode.addItem("Nur Widget-Session (UPnP ohne Login)", "session")
+        self.cmb_footer_mode.addItem("Seit Widget-Start (ohne Login)", "session")
 
         beh_grid.addWidget(self.chk_autostart, 0, 0)
         beh_grid.addWidget(self.chk_always_on_top, 0, 1)

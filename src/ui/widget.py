@@ -471,8 +471,18 @@ class TrafficBox(QWidget):
             self._update_tooltip(sample, 0.0, 0.0)
             return
 
-        self._peak_down_bps = max(self._peak_down_bps, sample.download_bps)
-        self._peak_up_bps = max(self._peak_up_bps, sample.upload_bps)
+        self.graph_widget.push_sample(
+            sample.download_bps,
+            sample.upload_bps,
+            sample.guest_download_bps,
+            sample.guest_upload_bps,
+            sample.max_download_bps,
+            sample.max_upload_bps,
+        )
+
+        # Rolling peak across the visible graph window (auto-resets as spikes scroll out)
+        self._peak_down_bps = self.graph_widget.current_peak_down_bps
+        self._peak_up_bps = self.graph_widget.current_peak_up_bps
 
         bits = self.config.show_as_bits
         down_str = format_rate(sample.download_bps, bits)
@@ -491,10 +501,10 @@ class TrafficBox(QWidget):
         peak_down_str = format_rate(self._peak_down_bps, bits)
         peak_up_str = format_rate(self._peak_up_bps, bits)
         self.lbl_down_meta.setText(
-            f"{down_pct:.1f}% • Peak: {peak_down_str}".replace(".", ",")
+            f"{down_pct:.1f}% • Peak (60s): {peak_down_str}".replace(".", ",")
         )
         self.lbl_up_meta.setText(
-            f"{up_pct:.1f}% • Peak: {peak_up_str}".replace(".", ",")
+            f"{up_pct:.1f}% • Peak (60s): {peak_up_str}".replace(".", ",")
         )
 
         # Guest Wi-Fi readout (if enabled & active)
@@ -515,14 +525,6 @@ class TrafficBox(QWidget):
         if self.config.show_session_totals:
             self.lbl_footer.setText(self._format_footer_text(sample))
 
-        self.graph_widget.push_sample(
-            sample.download_bps,
-            sample.upload_bps,
-            sample.guest_download_bps,
-            sample.guest_upload_bps,
-            sample.max_download_bps,
-            sample.max_upload_bps,
-        )
         self.counter_view.update_from_sample(sample)
 
         self._update_tooltip(sample, down_pct, up_pct)
@@ -547,7 +549,7 @@ class TrafficBox(QWidget):
 
         rx_str = format_bytes(sample.session_bytes_received)
         tx_str = format_bytes(sample.session_bytes_sent)
-        return f"Session: ⬇ {rx_str}  •  ⬆ {tx_str}"
+        return f"Seit Widget-Start: ⬇ {rx_str}  •  ⬆ {tx_str}"
 
     def _update_tooltip(
         self, sample: TrafficSample, down_pct: float, up_pct: float
@@ -573,12 +575,12 @@ class TrafficBox(QWidget):
 
         lines = [
             f"<b>Fritz!Box ({self.config.fritzbox_host})</b>",
-            f"Status: <b>{sample.connection_status}</b> | Uptime: {format_uptime(sample.uptime_seconds)}",
+            f"Status: <b>{sample.connection_status}</b> | Verbunden seit: {format_uptime(sample.uptime_seconds)}",
             f"Externe IP: <code>{sample.external_ip}</code>",
             f"Leitungskapazität: ⬇ {max_down_mbps:.1f} Mbit/s | ⬆ {max_up_mbps:.1f} Mbit/s".replace(
                 ".", ","
             ),
-            f"Session-Traffic: ⬇ {format_bytes(sample.session_bytes_received)} | ⬆ {format_bytes(sample.session_bytes_sent)}",
+            f"Seit Widget-Start: ⬇ {format_bytes(sample.session_bytes_received)} | ⬆ {format_bytes(sample.session_bytes_sent)}",
         ]
 
         oc = sample.online_counters
@@ -606,8 +608,10 @@ class TrafficBox(QWidget):
             table_html += "</table>"
             lines.append(table_html)
         else:
+            uptime_str = format_uptime(sample.uptime_seconds)
+            since_lbl = f"Seit Verbindung ({uptime_str})" if sample.uptime_seconds > 0 else "Seit Router-Start"
             lines.append(
-                f"Gesamt-Zähler (UPnP): ⬇ {format_bytes(sample.total_bytes_received)} | ⬆ {format_bytes(sample.total_bytes_sent)}"
+                f"{since_lbl}: ⬇ {format_bytes(sample.total_bytes_received)} | ⬆ {format_bytes(sample.total_bytes_sent)}"
             )
 
         if sample.error_message:
@@ -732,7 +736,7 @@ class TrafficBox(QWidget):
             ("Aktuelle Woche (Online-Zähler)", "week"),
             ("Aktueller Monat (Online-Zähler)", "month"),
             ("Vormonat (Online-Zähler)", "last_month"),
-            ("Nur Widget-Session (ohne Login)", "session"),
+            ("Seit Widget-Start (ohne Login)", "session"),
         ]:
             act_f = QAction(f_label, self, checkable=True)
             act_f.setChecked(self.config.footer_counter_mode == f_key)
@@ -762,9 +766,9 @@ class TrafficBox(QWidget):
 
         menu.addSeparator()
 
-        act_reset_peak = QAction("Peak- && Session-Zähler zurücksetzen", self)
-        act_reset_peak.triggered.connect(self._reset_peaks_and_session)
-        menu.addAction(act_reset_peak)
+        act_reset_session = QAction("Zähler „Seit Widget-Start“ zurücksetzen", self)
+        act_reset_session.triggered.connect(self._reset_session_counter)
+        menu.addAction(act_reset_session)
 
         act_hide = QAction(
             "Widget ausblenden" if self.isVisible() else "Widget einblenden", self
@@ -810,9 +814,7 @@ class TrafficBox(QWidget):
         self.config.save()
         self._apply_config_visuals()
 
-    def _reset_peaks_and_session(self) -> None:
-        self._peak_down_bps = 0.0
-        self._peak_up_bps = 0.0
+    def _reset_session_counter(self) -> None:
         self.request_reset_session.emit()
         self.request_poll.emit()
 
