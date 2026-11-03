@@ -1,0 +1,336 @@
+"""Settings dialog for configuring the Fritz!Box Traffic Widget."""
+
+from __future__ import annotations
+
+from typing import Callable
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSlider,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from src.autostart import is_autostart_enabled, set_autostart
+from src.config import AppConfig
+
+
+class ColorButton(QPushButton):
+    """Button that displays and selects a hex color."""
+
+    def __init__(self, hex_color: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._color = hex_color
+        self.setFixedHeight(26)
+        self.setMinimumWidth(110)
+        self._update_style()
+        self.clicked.connect(self._pick_color)
+
+    @property
+    def hex_color(self) -> str:
+        return self._color
+
+    @hex_color.setter
+    def hex_color(self, value: str) -> None:
+        self._color = value
+        self._update_style()
+
+    def _update_style(self) -> None:
+        qcol = QColor(self._color)
+        luminance = 0.299 * qcol.red() + 0.587 * qcol.green() + 0.114 * qcol.blue()
+        text_col = "#111111" if luminance > 140 else "#F5F5F5"
+        self.setText(self._color.upper())
+        self.setStyleSheet(
+            f"QPushButton {{ background-color: {self._color}; color: {text_col}; "
+            "border: 1px solid #666; border-radius: 4px; font-weight: bold; }}"
+        )
+
+    def _pick_color(self) -> None:
+        chosen = QColorDialog.getColor(QColor(self._color), self, "Farbe wählen")
+        if chosen.isValid():
+            self.hex_color = chosen.name()
+
+
+class SettingsDialog(QDialog):
+    """Comprehensive settings window modeled after TrafficBox Settings with modern tabs."""
+
+    def __init__(
+        self,
+        config: AppConfig,
+        on_apply: Callable[[], None],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.config = config
+        self.on_apply = on_apply
+
+        self.setWindowTitle("TrafficBox Einstellungen")
+        self.setMinimumWidth(480)
+        self._build_ui()
+        self._load_from_config()
+
+    def _build_ui(self) -> None:
+        root_layout = QVBoxLayout(self)
+
+        tabs = QTabWidget(self)
+        root_layout.addWidget(tabs)
+
+        # --- TAB 1: Allgemein & Skalierung ---
+        tab_general = QWidget()
+        gen_layout = QVBoxLayout(tab_general)
+
+        conn_group = QGroupBox("Fritz!Box Verbindung (UPnP)")
+        conn_form = QFormLayout(conn_group)
+        self.txt_host = QLineEdit()
+        self.txt_host.setPlaceholderText("z. B. 192.168.178.1 oder fritz.box")
+        self.spin_port = QSpinBox()
+        self.spin_port.setRange(1, 65535)
+        self.spin_refresh = QSpinBox()
+        self.spin_refresh.setRange(1, 60)
+        self.spin_refresh.setSuffix(" Sek.")
+        self.spin_delay = QSpinBox()
+        self.spin_delay.setRange(0, 120)
+        self.spin_delay.setSuffix(" Sek.")
+
+        conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
+        conn_form.addRow("UPnP Port:", self.spin_port)
+        conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
+        conn_form.addRow("Startverzögerung:", self.spin_delay)
+        gen_layout.addWidget(conn_group)
+
+        # Behavior & Display
+        beh_group = QGroupBox("Darstellung & Verhalten")
+        beh_grid = QGridLayout(beh_group)
+        self.chk_autostart = QCheckBox("Autostart mit System")
+        self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
+        self.chk_locked_pos = QCheckBox("Position sperren (LockedPos)")
+        self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
+        self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
+        self.chk_compact = QCheckBox("Kompakt-Modus (Graph ausblenden)")
+        self.chk_session_totals = QCheckBox("Session-Traffic im Footer anzeigen")
+
+        beh_grid.addWidget(self.chk_autostart, 0, 0)
+        beh_grid.addWidget(self.chk_always_on_top, 0, 1)
+        beh_grid.addWidget(self.chk_locked_pos, 1, 0)
+        beh_grid.addWidget(self.chk_switch_up_down, 1, 1)
+        beh_grid.addWidget(self.chk_show_bits, 2, 0)
+        beh_grid.addWidget(self.chk_compact, 2, 1)
+        beh_grid.addWidget(self.chk_session_totals, 3, 0, 1, 2)
+
+        opacity_row = QHBoxLayout()
+        opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
+        self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.slider_opacity.setRange(25, 100)
+        self.lbl_opacity_val = QLabel("85%")
+        self.slider_opacity.valueChanged.connect(
+            lambda v: self.lbl_opacity_val.setText(f"{v}%")
+        )
+        opacity_row.addWidget(self.slider_opacity, 1)
+        opacity_row.addWidget(self.lbl_opacity_val)
+        beh_grid.addLayout(opacity_row, 4, 0, 1, 2)
+        gen_layout.addWidget(beh_group)
+
+        # Scaling Group
+        scale_group = QGroupBox("Graph-Skalierung & Leitungskapazität")
+        scale_form = QFormLayout(scale_group)
+
+        self.cmb_scale_mode = QComboBox()
+        self.cmb_scale_mode.addItem(
+            "Wurzel-Skala (Smart: kleine Raten sichtbar + bis 100% Leitung)", "sqrt"
+        )
+        self.cmb_scale_mode.addItem(
+            "Dynamisch (Skaliert auf aktuellen Peak, %-Balken zeigt echte Last)",
+            "dynamic",
+        )
+        self.cmb_scale_mode.addItem(
+            "Fix auf Leitungskapazität (Original-Verhalten)", "fixed"
+        )
+
+        self.chk_auto_link = QCheckBox(
+            "Maximale Bandbreite automatisch per UPnP von Fritz!Box lesen"
+        )
+        self.spin_max_down = QDoubleSpinBox()
+        self.spin_max_down.setRange(1.0, 10000.0)
+        self.spin_max_down.setDecimals(1)
+        self.spin_max_down.setSuffix(" Mbit/s")
+
+        self.spin_max_up = QDoubleSpinBox()
+        self.spin_max_up.setRange(0.5, 10000.0)
+        self.spin_max_up.setDecimals(1)
+        self.spin_max_up.setSuffix(" Mbit/s")
+
+        self.chk_auto_link.toggled.connect(self._on_auto_link_toggled)
+
+        scale_form.addRow("Skalierungs-Modus:", self.cmb_scale_mode)
+        scale_form.addRow("", self.chk_auto_link)
+        scale_form.addRow("Max. Download (Manuell):", self.spin_max_down)
+        scale_form.addRow("Max. Upload (Manuell):", self.spin_max_up)
+        gen_layout.addWidget(scale_group)
+
+        tabs.addTab(tab_general, "Allgemein & Skalierung")
+
+        # --- TAB 2: Farben & Gäste-WLAN ---
+        tab_colors = QWidget()
+        col_layout = QVBoxLayout(tab_colors)
+
+        colors_group = QGroupBox("Farben anpassen")
+        colors_form = QFormLayout(colors_group)
+        self.btn_col_down = ColorButton(self.config.download_color)
+        self.btn_col_up = ColorButton(self.config.upload_color)
+        self.btn_col_guest_down = ColorButton(self.config.guest_download_color)
+        self.btn_col_guest_up = ColorButton(self.config.guest_upload_color)
+        self.btn_col_bg = ColorButton(self.config.background_color)
+        self.btn_col_border = ColorButton(self.config.border_color)
+        self.btn_col_grid = ColorButton(self.config.grid_color)
+        self.btn_col_title = ColorButton(self.config.title_color)
+
+        colors_form.addRow("Download-Farbe:", self.btn_col_down)
+        colors_form.addRow("Upload-Farbe:", self.btn_col_up)
+        colors_form.addRow("Gäste-WLAN Download:", self.btn_col_guest_down)
+        colors_form.addRow("Gäste-WLAN Upload:", self.btn_col_guest_up)
+        colors_form.addRow("Hintergrundfarbe:", self.btn_col_bg)
+        colors_form.addRow("Rahmenfarbe:", self.btn_col_border)
+        colors_form.addRow("Rasterfarbe (Grid):", self.btn_col_grid)
+        colors_form.addRow("Titelfarbe:", self.btn_col_title)
+        col_layout.addWidget(colors_group)
+
+        guest_group = QGroupBox("Optional: Gäste-WLAN Anteil (Fritz!OS Online-Monitor)")
+        guest_form = QFormLayout(guest_group)
+        self.chk_guest = QCheckBox(
+            "Gäste-WLAN Traffic separat abfragen & im Graphen einfärben"
+        )
+        self.txt_user = QLineEdit()
+        self.txt_user.setPlaceholderText("Optional (leer lassen für Standard-Benutzer)")
+        self.txt_pass = QLineEdit()
+        self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.setPlaceholderText("Fritz!Box Passwort (nur für Gäste-WLAN nötig)")
+
+        guest_form.addRow("", self.chk_guest)
+        guest_form.addRow("Fritz!Box Benutzer:", self.txt_user)
+        guest_form.addRow("Fritz!Box Passwort:", self.txt_pass)
+        col_layout.addWidget(guest_group)
+        col_layout.addStretch(1)
+
+        tabs.addTab(tab_colors, "Farben & Gäste-WLAN")
+
+        # --- Bottom Action Buttons ---
+        btn_row = QHBoxLayout()
+        btn_reset = QPushButton("Reset (Standardwerte)")
+        btn_reset.clicked.connect(self._reset_defaults)
+        btn_apply = QPushButton("Übernehmen")
+        btn_apply.clicked.connect(self._apply_changes)
+        btn_ok = QPushButton("Speichern && Schließen")
+        btn_ok.setDefault(True)
+        btn_ok.clicked.connect(self._save_and_close)
+
+        btn_row.addWidget(btn_reset)
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_apply)
+        btn_row.addWidget(btn_ok)
+        root_layout.addLayout(btn_row)
+
+    def _on_auto_link_toggled(self, checked: bool) -> None:
+        self.spin_max_down.setEnabled(not checked)
+        self.spin_max_up.setEnabled(not checked)
+
+    def _load_from_config(self) -> None:
+        self.txt_host.setText(self.config.fritzbox_host)
+        self.spin_port.setValue(self.config.upnp_port)
+        self.spin_refresh.setValue(self.config.refresh_interval_sec)
+        self.spin_delay.setValue(self.config.start_delay_sec)
+
+        self.chk_autostart.setChecked(
+            is_autostart_enabled() or self.config.autostart
+        )
+        self.chk_always_on_top.setChecked(self.config.always_on_top)
+        self.chk_locked_pos.setChecked(self.config.locked_pos)
+        self.chk_switch_up_down.setChecked(self.config.switch_up_down)
+        self.chk_show_bits.setChecked(self.config.show_as_bits)
+        self.chk_compact.setChecked(self.config.compact_mode)
+        self.chk_session_totals.setChecked(self.config.show_session_totals)
+        self.slider_opacity.setValue(self.config.opacity)
+
+        idx = self.cmb_scale_mode.findData(self.config.scale_mode)
+        self.cmb_scale_mode.setCurrentIndex(max(0, idx))
+        self.chk_auto_link.setChecked(self.config.auto_link_scale)
+        self.spin_max_down.setValue(self.config.manual_download_mbps)
+        self.spin_max_up.setValue(self.config.manual_upload_mbps)
+        self._on_auto_link_toggled(self.config.auto_link_scale)
+
+        self.btn_col_down.hex_color = self.config.download_color
+        self.btn_col_up.hex_color = self.config.upload_color
+        self.btn_col_guest_down.hex_color = self.config.guest_download_color
+        self.btn_col_guest_up.hex_color = self.config.guest_upload_color
+        self.btn_col_bg.hex_color = self.config.background_color
+        self.btn_col_border.hex_color = self.config.border_color
+        self.btn_col_grid.hex_color = self.config.grid_color
+        self.btn_col_title.hex_color = self.config.title_color
+
+        self.chk_guest.setChecked(self.config.enable_guest_monitor)
+        self.txt_user.setText(self.config.fritz_username)
+        self.txt_pass.setText(self.config.fritz_password)
+
+    def _apply_changes(self) -> None:
+        self.config.fritzbox_host = self.txt_host.text().strip() or "192.168.178.1"
+        self.config.upnp_port = self.spin_port.value()
+        self.config.refresh_interval_sec = self.spin_refresh.value()
+        self.config.start_delay_sec = self.spin_delay.value()
+
+        want_autostart = self.chk_autostart.isChecked()
+        if want_autostart != is_autostart_enabled():
+            set_autostart(want_autostart)
+        self.config.autostart = want_autostart
+
+        self.config.always_on_top = self.chk_always_on_top.isChecked()
+        self.config.locked_pos = self.chk_locked_pos.isChecked()
+        self.config.switch_up_down = self.chk_switch_up_down.isChecked()
+        self.config.show_as_bits = self.chk_show_bits.isChecked()
+        self.config.compact_mode = self.chk_compact.isChecked()
+        self.config.show_session_totals = self.chk_session_totals.isChecked()
+        self.config.opacity = self.slider_opacity.value()
+
+        self.config.scale_mode = str(self.cmb_scale_mode.currentData() or "sqrt")
+        self.config.auto_link_scale = self.chk_auto_link.isChecked()
+        self.config.manual_download_mbps = self.spin_max_down.value()
+        self.config.manual_upload_mbps = self.spin_max_up.value()
+
+        self.config.download_color = self.btn_col_down.hex_color
+        self.config.upload_color = self.btn_col_up.hex_color
+        self.config.guest_download_color = self.btn_col_guest_down.hex_color
+        self.config.guest_upload_color = self.btn_col_guest_up.hex_color
+        self.config.background_color = self.btn_col_bg.hex_color
+        self.config.border_color = self.btn_col_border.hex_color
+        self.config.grid_color = self.btn_col_grid.hex_color
+        self.config.title_color = self.btn_col_title.hex_color
+
+        self.config.enable_guest_monitor = self.chk_guest.isChecked()
+        self.config.fritz_username = self.txt_user.text().strip()
+        self.config.fritz_password = self.txt_pass.text()
+
+        self.config.save()
+        self.on_apply()
+
+    def _save_and_close(self) -> None:
+        self._apply_changes()
+        self.accept()
+
+    def _reset_defaults(self) -> None:
+        self.config.reset_defaults()
+        self._load_from_config()
+        self.config.save()
+        self.on_apply()

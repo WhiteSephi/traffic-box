@@ -47,14 +47,16 @@
 
 ## 💻 Verwendung / Starten
 
-- **Mit aktivierter `.venv` oder System-Python:**
+- **Per Doppelklick / Starter-Skript:**
+  - **Windows (ohne Konsolenfenster):** Doppelklick auf `start_windows.vbs`
+  - **CachyOS / Linux:** `./start_linux.sh` (nach `chmod +x start_linux.sh`)
+- **Über das Terminal:**
   ```bash
   python -m src.main
   ```
-- **Windows (ohne Konsolenfenster im Hintergrund):**
-  ```powershell
-  .\.venv\Scripts\pythonw.exe -m src.main
-  ```
+- **Bedienung im Widget:**
+  - **Ziehen mit linker Maustaste:** Widget frei auf dem Desktop positionieren (sofern Position nicht gesperrt ist).
+  - **Doppelklick / Rechtsklick:** Öffnet die **Einstellungen** bzw. das Schnellmenü (Skalierungs-Modus, Bit/Byte-Umschaltung, Kompakt-Modus, Immer im Vordergrund, Position sperren).
 
 ---
 

@@ -1,0 +1,70 @@
+"""Entry point for the cross-platform Fritz!Box Live Traffic Widget."""
+
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import sys
+
+from PySide6.QtWidgets import QApplication
+
+from src.config import AppConfig
+from src.ui.widget import TrafficBox
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Fritz!Box Live Traffic Desktop Widget (UPnP & Fritz!OS)"
+    )
+    parser.add_argument(
+        "--workdir",
+        type=str,
+        default="",
+        help="Optional working directory (used by autostart entry).",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="",
+        help="Override Fritz!Box IP or hostname (e.g., 192.168.178.1).",
+    )
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="Run a short headless verification of UI & UPnP client and exit.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Launch the Fritz!Box Traffic Widget application."""
+    args = parse_args(argv if argv is not None else sys.argv[1:])
+
+    if args.workdir:
+        target_dir = Path(args.workdir)
+        if target_dir.is_dir():
+            os.chdir(target_dir)
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("TrafficBox Widget")
+    app.setQuitOnLastWindowClosed(False)
+
+    config = AppConfig.load()
+    if args.host:
+        config.fritzbox_host = args.host.strip()
+
+    widget = TrafficBox(config)
+    widget.show()
+
+    if args.self_test:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(1200, widget.quit_application)
+
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
