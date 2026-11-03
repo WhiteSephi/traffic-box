@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.4.2] - 2026-11-03
+### Fixed
+- Unterstützung für kompilierte Standalone-Binaries (`PyInstaller --onefile --windowed`) in `src/config.py` und `src/autostart.py` ergänzt (sicheres Logging ohne Konsole sowie direkter `.exe`-Pfad im Windows-Autostart).
+
 ## [0.4.1] - 2026-11-03
 ### Changed
 - **Peak-Anzeige als gleitendes 60s-Maximum (`Peak (60s)`):** Der Peak-Wert bezieht sich jetzt automatisch auf das sichtbare Zeitfenster des Graphen (letzte 60 Sekunden) und setzt sich von selbst zurück, sobald eine Lastspitze aus dem Graphen herauswandert.

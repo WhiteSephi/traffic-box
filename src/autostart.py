@@ -44,14 +44,18 @@ def set_autostart(enabled: bool) -> bool:
     """Enable or disable application autostart on Windows or Linux."""
     project_root = get_project_root()
     python_exe = Path(sys.executable)
+    is_frozen = getattr(sys, "frozen", False)
 
     if sys.platform == "win32":
         try:
             import winreg
 
-            pythonw = python_exe.with_name("pythonw.exe")
-            exe_to_use = pythonw if pythonw.is_file() else python_exe
-            cmd = f'"{exe_to_use}" -m src.main --workdir "{project_root}"'
+            if is_frozen:
+                cmd = f'"{python_exe}"'
+            else:
+                pythonw = python_exe.with_name("pythonw.exe")
+                exe_to_use = pythonw if pythonw.is_file() else python_exe
+                cmd = f'"{exe_to_use}" -m src.main --workdir "{project_root}"'
 
             with winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
@@ -68,7 +72,8 @@ def set_autostart(enabled: bool) -> bool:
                         pass
             return True
         except OSError as exc:
-            print(f"[WARN] Windows-Autostart konnte nicht gesetzt werden: {exc}", file=sys.stderr)
+            if sys.stderr is not None:
+                print(f"[WARN] Windows-Autostart konnte nicht gesetzt werden: {exc}", file=sys.stderr)
             return False
     else:
         desktop_file = _get_linux_autostart_file()
@@ -93,5 +98,6 @@ def set_autostart(enabled: bool) -> bool:
                     desktop_file.unlink()
             return True
         except OSError as exc:
-            print(f"[WARN] Linux-Autostart konnte nicht gesetzt werden: {exc}", file=sys.stderr)
+            if sys.stderr is not None:
+                print(f"[WARN] Linux-Autostart konnte nicht gesetzt werden: {exc}", file=sys.stderr)
             return False

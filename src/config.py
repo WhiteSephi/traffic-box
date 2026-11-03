@@ -9,6 +9,15 @@ from pathlib import Path
 import sys
 
 
+def _log_warn(msg: str) -> None:
+    """Safely log a warning even when running as a windowless GUI binary (sys.stderr is None)."""
+    if sys.stderr is not None:
+        try:
+            print(msg, file=sys.stderr)
+        except OSError:
+            pass
+
+
 def load_dotenv_file(env_path: Path | None = None) -> None:
     """Load key-value pairs from a local .env file without external dependencies."""
     target = env_path or Path.cwd() / ".env"
@@ -25,12 +34,16 @@ def load_dotenv_file(env_path: Path | None = None) -> None:
             if key and key not in os.environ:
                 os.environ[key] = value
     except OSError as exc:
-        print(f"[WARN] Konnte .env nicht lesen: {exc}", file=sys.stderr)
+        _log_warn(f"[WARN] Konnte .env nicht lesen: {exc}")
 
 
 def get_config_dir() -> Path:
     """Return platform-specific configuration directory with portable local/ fallback."""
-    local_dir = Path(__file__).resolve().parent.parent / "local"
+    if getattr(sys, "frozen", False):
+        base_root = Path(sys.executable).resolve().parent
+    else:
+        base_root = Path(__file__).resolve().parent.parent
+    local_dir = base_root / "local"
     if (local_dir / "config.json").is_file():
         return local_dir
 
@@ -119,7 +132,7 @@ class AppConfig:
                     if key in valid_keys:
                         setattr(cfg, key, value)
             except (OSError, json.JSONDecodeError) as exc:
-                print(f"[WARN] Konnte Konfiguration nicht laden ({path}): {exc}", file=sys.stderr)
+                _log_warn(f"[WARN] Konnte Konfiguration nicht laden ({path}): {exc}")
 
         # Environment variable overrides (.env)
         if os.environ.get("FRITZBOX_HOST"):
@@ -144,7 +157,7 @@ class AppConfig:
             data = asdict(self)
             path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError as exc:
-            print(f"[ERROR] Konnte Konfiguration nicht speichern ({path}): {exc}", file=sys.stderr)
+            _log_warn(f"[ERROR] Konnte Konfiguration nicht speichern ({path}): {exc}")
 
     def reset_defaults(self) -> None:
         """Reset all settings back to default values."""
