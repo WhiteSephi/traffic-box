@@ -97,7 +97,7 @@ class SettingsDialog(QDialog):
         conn_group = QGroupBox("Fritz!Box Verbindung (UPnP)")
         conn_form = QFormLayout(conn_group)
         self.txt_host = QLineEdit()
-        self.txt_host.setPlaceholderText("z. B. 192.168.178.1 oder fritz.box")
+        self.txt_host.setPlaceholderText("z. B. fritz.box oder 192.168.178.1")
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
         self.spin_refresh = QSpinBox()
@@ -286,7 +286,7 @@ class SettingsDialog(QDialog):
         self.txt_pass.setText(self.config.fritz_password)
 
     def _apply_changes(self) -> None:
-        self.config.fritzbox_host = self.txt_host.text().strip() or "192.168.178.1"
+        self.config.fritzbox_host = self.txt_host.text().strip() or "fritz.box"
         self.config.upnp_port = self.spin_port.value()
         self.config.refresh_interval_sec = self.spin_refresh.value()
         self.config.start_delay_sec = self.spin_delay.value()

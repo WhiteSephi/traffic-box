@@ -28,7 +28,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--host",
         type=str,
         default="",
-        help="Override Fritz!Box IP or hostname (e.g., 192.168.178.1).",
+        help="Override Fritz!Box IP or hostname (default: fritz.box).",
     )
     parser.add_argument(
         "--self-test",

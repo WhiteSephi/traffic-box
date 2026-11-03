@@ -52,7 +52,7 @@ class AppConfig:
     """Persistent configuration for the Fritz!Box Traffic Widget."""
 
     # Connection
-    fritzbox_host: str = "192.168.178.1"
+    fritzbox_host: str = "fritz.box"
     upnp_port: int = 49000
     refresh_interval_sec: int = 1
     start_delay_sec: int = 0

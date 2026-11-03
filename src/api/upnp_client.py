@@ -16,7 +16,7 @@ WAN_PPP_SERVICE = "urn:schemas-upnp-org:service:WANPPPConnection:1"
 class FritzUpnpClient:
     """Queries live WAN throughput and line capacity via Fritz!Box UPnP SOAP."""
 
-    def __init__(self, host: str = "192.168.178.1", port: int = 49000, timeout: float = 1.8) -> None:
+    def __init__(self, host: str = "fritz.box", port: int = 49000, timeout: float = 1.8) -> None:
         self.host = host.strip() or "fritz.box"
         self.port = port
         self.timeout = timeout

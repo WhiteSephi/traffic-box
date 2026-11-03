@@ -15,7 +15,7 @@ class FritzGuestMonitorClient:
 
     def __init__(
         self,
-        host: str = "192.168.178.1",
+        host: str = "fritz.box",
         username: str = "",
         password: str = "",
         timeout: float = 2.0,
