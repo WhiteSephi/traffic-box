@@ -72,10 +72,11 @@
 │   │   ├── upnp_client.py   # Passwortfreier UPnP-SOAP-Client (Port 49000)
 │   │   └── fritz_monitor.py # Optionaler Fritz!OS-Client für Gäste-WLAN & Prioritäten
 │   └── ui/
-│       ├── widget.py        # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
-│       ├── graph_canvas.py  # Custom Qt6-Graph (Fix, Dynamisch, Wurzel-Skala + Gäste-Anteil)
-│       ├── settings_dlg.py  # Einstellungs-Dialog
-│       └── tray.py          # System-Tray-Integration & Kontextmenü
+│       ├── widget.py              # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
+│       ├── graph_canvas.py        # Custom Qt6-Graph (Fix, Dynamisch, Wurzel-Skala + Gäste-Anteil)
+│       ├── online_counter_view.py # Integrierte Online-Zähler-Tabellenansicht im Widget
+│       ├── settings_dlg.py        # Einstellungs-Dialog
+│       └── tray.py                # System-Tray-Integration & Kontextmenü
 ├── requirements.txt         # Python-Abhängigkeiten (PySide6)
 ├── .env.example             # Vorlage für Umgebungsvariablen
 └── CHANGELOG.md             # Chronologische Änderungshistorie

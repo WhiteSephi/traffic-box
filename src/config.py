@@ -68,6 +68,8 @@ class AppConfig:
     always_on_top: bool = False
     locked_pos: bool = False
     compact_mode: bool = False
+    # active_view: "graph" (Live-Graph) or "counters" (Online-Zähler Tabelle)
+    active_view: str = "graph"
     switch_up_down: bool = True  # True = Download on top, Upload on bottom
     show_as_bits: bool = False  # False = kB/s & MB/s, True = kbit/s & Mbit/s
     show_session_totals: bool = True
@@ -75,8 +77,8 @@ class AppConfig:
     footer_counter_mode: str = "today"
     show_connection_tooltip: bool = True
     opacity: int = 85  # 20..100 %
-    widget_width: int = 260
-    widget_height: int = 235
+    widget_width: int = 340
+    widget_height: int = 255
     pos_x: int = -1
     pos_y: int = -1
 

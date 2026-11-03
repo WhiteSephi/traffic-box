@@ -30,7 +30,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QProgressBar,
+    QPushButton,
     QSizeGrip,
+    QStackedWidget,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -42,6 +44,7 @@ from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
 from src.ui.graph_canvas import SplitTrafficGraphWidget
+from src.ui.online_counter_view import OnlineCounterView
 from src.ui.settings_dlg import SettingsDialog
 from src.ui.tray import create_router_icon
 
@@ -152,10 +155,10 @@ class TrafficBox(QWidget):
         self.main_layout.setContentsMargins(9, 7, 9, 7)
         self.main_layout.setSpacing(5)
 
-        # --- 1. Header Bar (Icon + Title + Status Dot) ---
+        # --- 1. Header Bar (Icon + Title + View Switcher Pills) ---
         header_row = QHBoxLayout()
         header_row.setContentsMargins(2, 0, 2, 0)
-        header_row.setSpacing(6)
+        header_row.setSpacing(5)
 
         self.lbl_icon = QLabel()
         self.lbl_icon.setPixmap(create_router_icon(True).pixmap(QSize(18, 18)))
@@ -167,11 +170,22 @@ class TrafficBox(QWidget):
         badge_font = QFont("Segoe UI", 7)
         self.lbl_scale_badge.setFont(badge_font)
 
-        header_row.addStretch(1)
+        self.btn_view_graph = QPushButton("📈 Graph")
+        self.btn_view_graph.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_view_graph.setFixedHeight(20)
+        self.btn_view_graph.clicked.connect(lambda: self._switch_active_view("graph"))
+
+        self.btn_view_counters = QPushButton("📊 Zähler")
+        self.btn_view_counters.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_view_counters.setFixedHeight(20)
+        self.btn_view_counters.clicked.connect(lambda: self._switch_active_view("counters"))
+
         header_row.addWidget(self.lbl_icon)
         header_row.addWidget(self.lbl_title)
         header_row.addStretch(1)
         header_row.addWidget(self.lbl_scale_badge)
+        header_row.addWidget(self.btn_view_graph)
+        header_row.addWidget(self.btn_view_counters)
         self.main_layout.addLayout(header_row)
 
         # --- 2. Live Rate Readouts + Utilization % Bars (Down & Up) ---
@@ -247,9 +261,15 @@ class TrafficBox(QWidget):
         rates_row.addLayout(up_col, 1)
         self.main_layout.addLayout(rates_row)
 
-        # --- 3. Split Graph Canvas ---
+        # --- 3. Center Stacked Area (Split Graph vs. Online-Zähler Table) ---
+        self.center_stack = QStackedWidget(self)
         self.graph_widget = SplitTrafficGraphWidget(self.config, self)
-        self.main_layout.addWidget(self.graph_widget, 1)
+        self.counter_view = OnlineCounterView(
+            self.config, on_open_settings=self.open_settings_dialog, parent=self
+        )
+        self.center_stack.addWidget(self.graph_widget)
+        self.center_stack.addWidget(self.counter_view)
+        self.main_layout.addWidget(self.center_stack, 1)
 
         # --- 4. Footer Row (Session Totals + Resize Grip) ---
         footer_row = QHBoxLayout()
@@ -361,23 +381,29 @@ class TrafficBox(QWidget):
         self.lbl_footer.setVisible(self.config.show_session_totals)
         self.size_grip.setVisible(not self.config.locked_pos and not self.config.compact_mode)
 
+        is_counters = self.config.active_view == "counters"
+        self.center_stack.setCurrentIndex(1 if is_counters else 0)
+        self.lbl_scale_badge.setVisible(not is_counters and not self.config.compact_mode)
+        self.counter_view.apply_theme()
+        self._style_view_pills(is_counters)
+
         self._in_layout_transition = True
         try:
-            target_w = max(210, self.config.widget_width)
-            target_h = max(175, self.config.widget_height)
+            target_w = max(240, self.config.widget_width)
+            target_h = max(195, self.config.widget_height)
 
             if self.config.compact_mode:
                 if not self._was_compact and self.isVisible() and self.height() >= 175:
                     self.config.widget_width = self.width()
                     self.config.widget_height = self.height()
                     target_w = self.config.widget_width
-                self.graph_widget.setVisible(False)
+                self.center_stack.setVisible(False)
                 self.setMinimumHeight(88)
                 self.setMaximumHeight(115)
                 self.resize(target_w, 98)
             else:
-                self.graph_widget.setVisible(True)
-                self.setMinimumHeight(175)
+                self.center_stack.setVisible(True)
+                self.setMinimumHeight(195)
                 self.setMaximumHeight(16777215)
                 self.resize(target_w, target_h)
 
@@ -389,6 +415,34 @@ class TrafficBox(QWidget):
             self._poll_timer.setInterval(max(500, self.config.refresh_interval_sec * 1000))
 
         self.update()
+
+    def _style_view_pills(self, is_counters: bool) -> None:
+        """Style the header toggle buttons for Graph vs. Zähler view."""
+        active_col = self.config.download_color
+        qcol = QColor(active_col)
+        lum = 0.299 * qcol.red() + 0.587 * qcol.green() + 0.114 * qcol.blue()
+        active_text = "#111111" if lum > 140 else "#FFFFFF"
+
+        active_css = (
+            f"QPushButton {{ background-color: {active_col}; color: {active_text}; "
+            "font-weight: bold; font-size: 9px; border: none; border-radius: 4px; padding: 1px 6px; }}"
+        )
+        inactive_css = (
+            f"QPushButton {{ background-color: rgba(255,255,255,20); color: {self.config.title_color}; "
+            "font-size: 9px; border: 1px solid rgba(255,255,255,35); border-radius: 4px; padding: 1px 6px; }}"
+            "QPushButton:hover { background-color: rgba(255,255,255,38); }"
+        )
+        self.btn_view_graph.setStyleSheet(inactive_css if is_counters else active_css)
+        self.btn_view_counters.setStyleSheet(active_css if is_counters else inactive_css)
+
+    def _switch_active_view(self, view_name: str) -> None:
+        """Switch between 'graph' and 'counters' view inside the widget."""
+        self.config.active_view = view_name
+        if self.config.compact_mode:
+            self.config.compact_mode = False
+        self.config.save()
+        self._apply_config_visuals()
+        self.counter_view.update_from_sample(self._last_sample)
 
     def _effective_max_bandwidths(self, sample: TrafficSample) -> tuple[float, float]:
         """Return (max_down_bps, max_up_bps) in bytes/sec according to Auto vs Manual config."""
@@ -469,6 +523,7 @@ class TrafficBox(QWidget):
             sample.max_download_bps,
             sample.max_upload_bps,
         )
+        self.counter_view.update_from_sample(sample)
 
         self._update_tooltip(sample, down_pct, up_pct)
 
@@ -638,6 +693,19 @@ class TrafficBox(QWidget):
         act_settings = QAction("Einstellungen...", self)
         act_settings.triggered.connect(self.open_settings_dialog)
         menu.addAction(act_settings)
+
+        act_toggle_view = QAction(
+            "Ansicht: 📈 Live-Graph anzeigen"
+            if self.config.active_view == "counters"
+            else "Ansicht: 📊 Online-Zähler anzeigen",
+            self,
+        )
+        act_toggle_view.triggered.connect(
+            lambda: self._switch_active_view(
+                "graph" if self.config.active_view == "counters" else "counters"
+            )
+        )
+        menu.addAction(act_toggle_view)
 
         menu.addSeparator()
 
