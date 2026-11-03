@@ -1,13 +1,14 @@
-# [Projektname]
+# traffic-box
 
-> Kurze Beschreibung, was dieses Projekt macht und welchen Zweck es erfüllt.
+> Schlankes, plattformübergreifendes Live-Desktop-Widget (CachyOS / KDE Plasma & Windows) zur Echtzeit-Überwachung von Upload- und Download-Raten einer AVM FRITZ!Box per UPnP sowie optionaler Gäste-WLAN-Traffic-Analyse.
 
 ---
 
 ## 🛠️ Tech-Stack & Voraussetzungen
 
-- **Sprache / Runtime:** [z. B. Python 3.12 / Node.js 22 / Go]
-- **System-Abhängigkeiten:** [z. B. Docker, ffmpeg, etc. – falls vorhanden]
+- **Sprache / Runtime:** Python 3.11+ (getestet mit Python 3.12)
+- **GUI-Framework:** PySide6 (Qt6) – native Darstellung unter KDE Plasma (Wayland/X11) und Windows
+- **Netzwerk / Protokolle:** Python Standardbibliothek (`urllib`, `xml.etree`, `hashlib`) für UPnP SOAP (`WANCommonIFC1` über Port `49000`) & optional Fritz!OS Lua/TR-064 Online-Monitor
 
 ---
 
@@ -15,27 +16,45 @@
 
 1. **Repository klonen:**
    ```bash
-   git clone https://github.com/WhiteSephi/PROJEKTNAME.git
-   cd PROJEKTNAME
+   git clone https://github.com/WhiteSephi/traffic-box.git
+   cd traffic-box
    ```
 
 2. **Umgebung & Abhängigkeiten einrichten:**
-   ```bash
-   # Platzhalter für Installationsbefehl (wird vom Agenten ausgefüllt)
-   ```
+   - **Windows (PowerShell):**
+     ```powershell
+     python -m venv .venv
+     .\.venv\Scripts\Activate.ps1
+     pip install -r requirements.txt
+     ```
+   - **CachyOS / Arch Linux:**
+     ```bash
+     # Entweder über System-Paket (empfohlen unter KDE Plasma):
+     sudo pacman -S pyside6
+     # Oder in einer virtuellen Umgebung:
+     python -m venv .venv
+     source .venv/bin/activate
+     pip install -r requirements.txt
+     ```
 
 3. **Konfiguration (optional):**
    ```bash
    cp .env.example .env
    ```
+   *(Alle Einstellungen lassen sich bequem direkt über den Einstellungs-Dialog im Rechtsklick- bzw. System-Tray-Menü anpassen.)*
 
 ---
 
 ## 💻 Verwendung / Starten
 
-```bash
-# Platzhalter für den Startbefehl (wird vom Agenten ausgefüllt)
-```
+- **Mit aktivierter `.venv` oder System-Python:**
+  ```bash
+  python -m src.main
+  ```
+- **Windows (ohne Konsolenfenster im Hintergrund):**
+  ```powershell
+  .\.venv\Scripts\pythonw.exe -m src.main
+  ```
 
 ---
 
@@ -43,7 +62,19 @@
 
 ```text
 .
-├── src/             # Quellcode
-├── .env.example     # Vorlage für Umgebungsvariablen
-└── CHANGELOG.md     # Chronologische Änderungshistorie
+├── src/
+│   ├── main.py              # Einstiegspunkt der Anwendung
+│   ├── config.py            # Konfigurations-Management & .env-Support
+│   ├── autostart.py         # Cross-Platform Autostart (Windows Registry & Linux XDG)
+│   ├── api/
+│   │   ├── upnp_client.py   # Passwortfreier UPnP-SOAP-Client (Port 49000)
+│   │   └── fritz_monitor.py # Optionaler Fritz!OS-Client für Gäste-WLAN & Prioritäten
+│   └── ui/
+│       ├── widget.py        # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
+│       ├── graph_canvas.py  # Custom Qt6-Graph (Fix, Dynamisch, Wurzel-Skala + Gäste-Anteil)
+│       ├── settings_dlg.py  # Einstellungs-Dialog
+│       └── tray.py          # System-Tray-Integration & Kontextmenü
+├── requirements.txt         # Python-Abhängigkeiten (PySide6)
+├── .env.example             # Vorlage für Umgebungsvariablen
+└── CHANGELOG.md             # Chronologische Änderungshistorie
 ```
