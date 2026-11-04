@@ -197,11 +197,15 @@ class FritzUpnpClient:
                     link = self._call_common_ifc("GetCommonLinkProperties")
                     down_max_bits = float(link.get("NewLayer1DownstreamMaxBitRate", "0") or 0)
                     up_max_bits = float(link.get("NewLayer1UpstreamMaxBitRate", "0") or 0)
-                    if down_max_bits > 0:
-                        self._max_down_bps = down_max_bits / 8.0
-                    if up_max_bits > 0:
-                        self._max_up_bps = up_max_bits / 8.0
                     self._physical_status = link.get("NewPhysicalLinkStatus", "Up")
+                    if self._physical_status.lower() == "up":
+                        if down_max_bits > 0:
+                            self._max_down_bps = down_max_bits / 8.0
+                        if up_max_bits > 0:
+                            self._max_up_bps = up_max_bits / 8.0
+                    else:
+                        self._max_down_bps = 0.0
+                        self._max_up_bps = 0.0
                 except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError):
                     pass
 
@@ -227,15 +231,21 @@ class FritzUpnpClient:
                         pass
 
             self._tick_counter += 1
+            sample.box_reachable = True
+            sample.physical_link_up = self._physical_status.lower() == "up"
+            sample.wan_connected = sample.physical_link_up and (self._conn_status.lower() == "connected")
+            sample.is_connected = sample.wan_connected
             sample.max_download_bps = self._max_down_bps
             sample.max_upload_bps = self._max_up_bps
             sample.connection_status = self._conn_status
             sample.uptime_seconds = self._uptime_sec
             sample.external_ip = self._external_ip
-            sample.is_connected = self._physical_status.lower() == "up"
             return sample
 
         except Exception as exc:
+            sample.box_reachable = False
+            sample.physical_link_up = False
+            sample.wan_connected = False
             sample.is_connected = False
             sample.connection_status = "Nicht erreichbar"
             sample.error_message = str(exc)

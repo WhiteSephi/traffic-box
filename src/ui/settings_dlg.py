@@ -206,7 +206,36 @@ class SettingsDialog(QDialog):
 
         tabs.addTab(tab_general, "Allgemein && Skalierung")
 
-        # --- TAB 2: Farben ---
+        # --- TAB 2: Diagnose & Ping ---
+        tab_diag = QWidget()
+        diag_layout = QVBoxLayout(tab_diag)
+
+        ping_group = QGroupBox("Internet Ping- && Jitter-Graph")
+        ping_form = QFormLayout(ping_group)
+
+        self.chk_ping_graph = QCheckBox("Ping- && Jitter-Graph unterhalb von Down/Up anzeigen")
+        self.cmb_ping_endpoint = QComboBox()
+        self.cmb_ping_endpoint.setEditable(True)
+        self.cmb_ping_endpoint.addItems(["1.1.1.1", "8.8.8.8", "9.9.9.9", "heise.de", "google.com"])
+
+        ping_form.addRow("", self.chk_ping_graph)
+        ping_form.addRow("Ping-Ziel (Endpoint):", self.cmb_ping_endpoint)
+        diag_layout.addWidget(ping_group)
+
+        status_group = QGroupBox("Status- && Diagnose-Leiste (Footer-Pills)")
+        status_form = QFormLayout(status_group)
+
+        self.chk_wan_pill = QCheckBox("WAN-Status-Pill anzeigen (✓ WAN OK / ⚠ Kein Sync / ✕ Offline)")
+        self.chk_dns_pill = QCheckBox("Aktiven Betriebssystem-DNS überwachen (Antwortzeit in ms)")
+
+        status_form.addRow("", self.chk_wan_pill)
+        status_form.addRow("", self.chk_dns_pill)
+        diag_layout.addWidget(status_group)
+        diag_layout.addStretch(1)
+
+        tabs.addTab(tab_diag, "Diagnose && Ping")
+
+        # --- TAB 3: Farben ---
         tab_colors = QWidget()
         col_layout = QVBoxLayout(tab_colors)
 
@@ -216,6 +245,8 @@ class SettingsDialog(QDialog):
         self.btn_col_up = ColorButton(self.config.upload_color)
         self.btn_col_guest_down = ColorButton(self.config.guest_download_color)
         self.btn_col_guest_up = ColorButton(self.config.guest_upload_color)
+        self.btn_col_ping = ColorButton(self.config.ping_color)
+        self.btn_col_jitter = ColorButton(self.config.jitter_color)
         self.btn_col_bg = ColorButton(self.config.background_color)
         self.btn_col_border = ColorButton(self.config.border_color)
         self.btn_col_grid = ColorButton(self.config.grid_color)
@@ -225,6 +256,8 @@ class SettingsDialog(QDialog):
         colors_form.addRow("Upload-Farbe:", self.btn_col_up)
         colors_form.addRow("Gäste-WLAN Download:", self.btn_col_guest_down)
         colors_form.addRow("Gäste-WLAN Upload:", self.btn_col_guest_up)
+        colors_form.addRow("Ping-Farbe:", self.btn_col_ping)
+        colors_form.addRow("Jitter-Farbe:", self.btn_col_jitter)
         colors_form.addRow("Hintergrundfarbe:", self.btn_col_bg)
         colors_form.addRow("Rahmenfarbe:", self.btn_col_border)
         colors_form.addRow("Rasterfarbe (Grid):", self.btn_col_grid)
@@ -284,10 +317,17 @@ class SettingsDialog(QDialog):
         self.spin_max_up.setValue(self.config.manual_upload_mbps)
         self._on_auto_link_toggled(self.config.auto_link_scale)
 
+        self.chk_ping_graph.setChecked(self.config.enable_ping_graph)
+        self.cmb_ping_endpoint.setEditText(self.config.ping_endpoint)
+        self.chk_wan_pill.setChecked(self.config.show_wan_status_pill)
+        self.chk_dns_pill.setChecked(self.config.enable_dns_monitor)
+
         self.btn_col_down.hex_color = self.config.download_color
         self.btn_col_up.hex_color = self.config.upload_color
         self.btn_col_guest_down.hex_color = self.config.guest_download_color
         self.btn_col_guest_up.hex_color = self.config.guest_upload_color
+        self.btn_col_ping.hex_color = self.config.ping_color
+        self.btn_col_jitter.hex_color = self.config.jitter_color
         self.btn_col_bg.hex_color = self.config.background_color
         self.btn_col_border.hex_color = self.config.border_color
         self.btn_col_grid.hex_color = self.config.grid_color
@@ -323,10 +363,17 @@ class SettingsDialog(QDialog):
         self.config.manual_download_mbps = self.spin_max_down.value()
         self.config.manual_upload_mbps = self.spin_max_up.value()
 
+        self.config.enable_ping_graph = self.chk_ping_graph.isChecked()
+        self.config.ping_endpoint = self.cmb_ping_endpoint.currentText().strip() or "1.1.1.1"
+        self.config.show_wan_status_pill = self.chk_wan_pill.isChecked()
+        self.config.enable_dns_monitor = self.chk_dns_pill.isChecked()
+
         self.config.download_color = self.btn_col_down.hex_color
         self.config.upload_color = self.btn_col_up.hex_color
         self.config.guest_download_color = self.btn_col_guest_down.hex_color
         self.config.guest_upload_color = self.btn_col_guest_up.hex_color
+        self.config.ping_color = self.btn_col_ping.hex_color
+        self.config.jitter_color = self.btn_col_jitter.hex_color
         self.config.background_color = self.btn_col_bg.hex_color
         self.config.border_color = self.btn_col_border.hex_color
         self.config.grid_color = self.btn_col_grid.hex_color

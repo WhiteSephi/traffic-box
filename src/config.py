@@ -103,11 +103,19 @@ class AppConfig:
     manual_upload_mbps: float = 36.0
     history_seconds: int = 60
 
+    # Diagnostics & Network Health
+    enable_ping_graph: bool = True
+    ping_endpoint: str = "1.1.1.1"
+    show_wan_status_pill: bool = True
+    enable_dns_monitor: bool = True
+
     # Colors
     download_color: str = "#FFEA00"
     upload_color: str = "#4A5CFF"
     guest_download_color: str = "#00E676"
     guest_upload_color: str = "#FF9100"
+    ping_color: str = "#00E5FF"
+    jitter_color: str = "#FF9100"
     background_color: str = "#1C2428"
     border_color: str = "#5E616C"
     grid_color: str = "#32383D"

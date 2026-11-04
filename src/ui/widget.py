@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 
 from src.api.fritz_monitor import FritzGuestMonitorClient
 from src.api.models import OnlineCounterStats, PeriodCounter, TrafficSample
+from src.api.net_health import NetworkHealthMonitor
 from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
@@ -67,6 +68,7 @@ class PollingWorker(QObject):
             username=self.config.fritz_username,
             password=self.config.fritz_password,
         )
+        self.net_health = NetworkHealthMonitor(endpoint=self.config.ping_endpoint)
         self._cached_counters = OnlineCounterStats()
         self._counter_tick: int = 0
         self._busy = False
@@ -106,6 +108,17 @@ class PollingWorker(QObject):
             else:
                 self._counter_tick = 0
                 self._cached_counters = OnlineCounterStats()
+
+            # Execute network health diagnostics off the GUI thread
+            self.net_health.set_endpoint(self.config.ping_endpoint)
+            ping_val, jitter_val, dns_ip, dns_ms = self.net_health.tick(
+                check_ping=self.config.enable_ping_graph,
+                check_dns=self.config.enable_dns_monitor,
+            )
+            sample.ping_ms = ping_val
+            sample.jitter_ms = jitter_val
+            sample.active_dns_ip = dns_ip
+            sample.dns_ms = dns_ms
 
             self.sample_ready.emit(sample)
         finally:
@@ -168,10 +181,6 @@ class TrafficBox(QWidget):
         title_font = QFont("Segoe UI", 10, QFont.Weight.Bold)
         self.lbl_title.setFont(title_font)
 
-        self.lbl_scale_badge = QLabel("√-Skala")
-        badge_font = QFont("Segoe UI", 7)
-        self.lbl_scale_badge.setFont(badge_font)
-
         self.btn_view_graph = QPushButton(" Graph")
         self.btn_view_graph.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_view_graph.setFixedHeight(20)
@@ -191,7 +200,6 @@ class TrafficBox(QWidget):
         header_row.addWidget(self.lbl_icon)
         header_row.addWidget(self.lbl_title)
         header_row.addStretch(1)
-        header_row.addWidget(self.lbl_scale_badge)
         header_row.addWidget(self.btn_view_graph)
         header_row.addWidget(self.btn_view_counters)
         header_row.addWidget(self.btn_settings)
@@ -296,18 +304,29 @@ class TrafficBox(QWidget):
         self.center_stack.addWidget(self.counter_view)
         self.main_layout.addWidget(self.center_stack, 1)
 
-        # --- 4. Footer Row (Session Totals + Resize Grip) ---
+        # --- 4. Footer Row (Calm UI 3-Pill Bar + Resize Grip) ---
         footer_row = QHBoxLayout()
-        footer_row.setContentsMargins(2, 0, 0, 0)
-        footer_row.setSpacing(4)
+        footer_row.setContentsMargins(2, 2, 0, 0)
+        footer_row.setSpacing(5)
 
-        self.lbl_footer = QLabel("Σ Down: 0 B  •  Σ Up: 0 B")
+        self.lbl_wan_pill = QLabel("✓ WAN OK")
+        self.lbl_wan_pill.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
+        self.lbl_wan_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.lbl_footer = QLabel("Heute: 0 B")
         self.lbl_footer.setFont(QFont("Segoe UI", 7))
+        self.lbl_footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.lbl_dns_pill = QLabel("✓ DNS")
+        self.lbl_dns_pill.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
+        self.lbl_dns_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.size_grip = QSizeGrip(self)
         self.size_grip.setFixedSize(12, 12)
 
+        footer_row.addWidget(self.lbl_wan_pill, 0)
         footer_row.addWidget(self.lbl_footer, 1)
+        footer_row.addWidget(self.lbl_dns_pill, 0)
         footer_row.addWidget(
             self.size_grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight
         )
@@ -369,17 +388,6 @@ class TrafficBox(QWidget):
         self.lbl_title.setText(self.config.title)
         self.lbl_title.setStyleSheet(f"color: {self.config.title_color};")
 
-        scale_label = {
-            "sqrt": "√-Skala",
-            "dynamic": "Dyn-Peak",
-            "fixed": "Max-Fix",
-        }.get(self.config.scale_mode, "√-Skala")
-        self.lbl_scale_badge.setText(scale_label)
-        self.lbl_scale_badge.setStyleSheet(
-            f"color: {self.config.title_color}; background-color: rgba(255,255,255,18); "
-            "border-radius: 3px; padding: 1px 4px;"
-        )
-
         down_col = self.config.download_color
         up_col = self.config.upload_color
 
@@ -404,15 +412,20 @@ class TrafficBox(QWidget):
             f"QProgressBar::chunk {{ background-color: {up_col}; border-radius: 2px; }}"
         )
 
-        self.lbl_footer.setStyleSheet(f"color: {self.config.title_color};")
+        footer_css = (
+            f"color: {self.config.title_color}; "
+            "background-color: rgba(255, 255, 255, 12); "
+            "border: 1px solid rgba(255, 255, 255, 24); "
+            "border-radius: 9px; padding: 1px 7px;"
+        )
+        self.lbl_footer.setStyleSheet(footer_css)
         self.lbl_footer.setVisible(self.config.show_session_totals)
+        self.lbl_wan_pill.setVisible(self.config.show_wan_status_pill)
+        self.lbl_dns_pill.setVisible(self.config.enable_dns_monitor)
         self.size_grip.setVisible(not self.config.locked_pos and not self.config.compact_mode)
 
         is_counters = self.config.active_view == "counters"
         self.center_stack.setCurrentIndex(1 if is_counters else 0)
-        self.lbl_scale_badge.setVisible(
-            not is_counters and not self.config.compact_mode and self.width() >= 320
-        )
         self.counter_view.apply_theme()
         self._style_view_pills(is_counters)
 
@@ -493,7 +506,14 @@ class TrafficBox(QWidget):
         self.lbl_down_header.setFont(QFont("Segoe UI", hdr_pt, QFont.Weight.DemiBold))
         self.lbl_up_header.setFont(QFont("Segoe UI", hdr_pt, QFont.Weight.DemiBold))
 
-        # 5. Online Counter View scaling
+        # 5. Footer Pill Fonts scaling
+        footer_pt = max(7, min(9, int(round(7.2 * scale))))
+        self.lbl_footer.setFont(QFont("Segoe UI", footer_pt))
+        pill_font = QFont("Segoe UI", footer_pt, QFont.Weight.DemiBold)
+        self.lbl_wan_pill.setFont(pill_font)
+        self.lbl_dns_pill.setFont(pill_font)
+
+        # 6. Online Counter View scaling
         self.counter_view.set_scale(scale)
 
     def _style_view_pills(self, is_counters: bool) -> None:
@@ -558,36 +578,41 @@ class TrafficBox(QWidget):
         self._last_sample = sample
         self.lbl_icon.setPixmap(create_router_icon(sample.is_connected).pixmap(QSize(18, 18)))
 
-        if not sample.is_connected and sample.error_message:
+        bits = self.config.show_as_bits
+        down_str = format_rate(sample.download_bps, bits)
+        up_str = format_rate(sample.upload_bps, bits)
+
+        if not sample.box_reachable:
             self.lbl_down_rate.setText("Offline")
             self.lbl_up_rate.setText("Offline")
-            self.graph_widget.push_sample(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-            self._update_tooltip(sample, 0.0, 0.0)
-            return
+        elif not sample.physical_link_up:
+            self.lbl_down_rate.setText("Kein Sync")
+            self.lbl_up_rate.setText("Kein Sync")
+        elif not sample.wan_connected:
+            self.lbl_down_rate.setText("Kein Internet")
+            self.lbl_up_rate.setText("Kein Internet")
+        else:
+            self.lbl_down_rate.setText(down_str)
+            self.lbl_up_rate.setText(up_str)
 
         self.graph_widget.push_sample(
-            sample.download_bps,
-            sample.upload_bps,
-            sample.guest_download_bps,
-            sample.guest_upload_bps,
+            sample.download_bps if sample.is_connected else 0.0,
+            sample.upload_bps if sample.is_connected else 0.0,
+            sample.guest_download_bps if sample.is_connected else 0.0,
+            sample.guest_upload_bps if sample.is_connected else 0.0,
             sample.max_download_bps,
             sample.max_upload_bps,
+            ping_ms=sample.ping_ms,
+            jitter_ms=sample.jitter_ms,
         )
 
         # Rolling peak across the visible graph window (auto-resets as spikes scroll out)
         self._peak_down_bps = self.graph_widget.current_peak_down_bps
         self._peak_up_bps = self.graph_widget.current_peak_up_bps
 
-        bits = self.config.show_as_bits
-        down_str = format_rate(sample.download_bps, bits)
-        up_str = format_rate(sample.upload_bps, bits)
-
-        self.lbl_down_rate.setText(down_str)
-        self.lbl_up_rate.setText(up_str)
-
         max_down_bps, max_up_bps = self._effective_max_bandwidths(sample)
-        down_pct = min(100.0, (sample.download_bps / max_down_bps) * 100.0) if max_down_bps > 0 else 0.0
-        up_pct = min(100.0, (sample.upload_bps / max_up_bps) * 100.0) if max_up_bps > 0 else 0.0
+        down_pct = min(100.0, (sample.download_bps / max_down_bps) * 100.0) if (max_down_bps > 0 and sample.is_connected) else 0.0
+        up_pct = min(100.0, (sample.upload_bps / max_up_bps) * 100.0) if (max_up_bps > 0 and sample.is_connected) else 0.0
 
         self.bar_down_util.setValue(int(down_pct * 10))
         self.bar_up_util.setValue(int(up_pct * 10))
@@ -615,9 +640,68 @@ class TrafficBox(QWidget):
             self.lbl_guest_down.setVisible(False)
             self.lbl_guest_up.setVisible(False)
 
-        # Footer (Online-Zähler or Session traffic)
+        # 1. WAN Status Pill (✓ / ⚠ / ✕)
+        if not sample.box_reachable:
+            self.lbl_wan_pill.setText("✕ Box Offline")
+            self.lbl_wan_pill.setStyleSheet(
+                "color: #FF5252; background-color: rgba(255, 82, 82, 0.16); "
+                "border: 1px solid rgba(255, 82, 82, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+            )
+        elif not sample.physical_link_up:
+            self.lbl_wan_pill.setText("⚠ Kein Sync")
+            self.lbl_wan_pill.setStyleSheet(
+                "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
+                "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+            )
+        elif not sample.wan_connected:
+            self.lbl_wan_pill.setText("⚠ Kein Internet")
+            self.lbl_wan_pill.setStyleSheet(
+                "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
+                "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+            )
+        else:
+            self.lbl_wan_pill.setText("✓ WAN OK")
+            self.lbl_wan_pill.setStyleSheet(
+                "color: #00E5FF; background-color: rgba(0, 229, 255, 0.10); "
+                "border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+            )
+
+        # 2. Volume Footer Pill (Online-Zähler or Session traffic)
         if self.config.show_session_totals:
             self.lbl_footer.setText(self._format_footer_text(sample))
+
+        # 3. Active OS DNS Status Pill (✓ / ⚠ / ✕)
+        if sample.dns_ms is not None:
+            dns_ip_label = f"({sample.active_dns_ip}): " if (self.width() >= 490 and sample.active_dns_ip) else ": "
+            ms_str = f"{sample.dns_ms:.1f} ms".replace(".", ",")
+            if sample.dns_ms > 80.0:
+                self.lbl_dns_pill.setText(f"⚠ DNS{dns_ip_label}{ms_str}")
+                self.lbl_dns_pill.setStyleSheet(
+                    "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
+                    "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+                )
+            else:
+                self.lbl_dns_pill.setText(f"✓ DNS{dns_ip_label}{ms_str}")
+                self.lbl_dns_pill.setStyleSheet(
+                    "color: #00E5FF; background-color: rgba(0, 229, 255, 0.10); "
+                    "border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+                )
+            if sample.active_dns_ip:
+                self.lbl_dns_pill.setToolTip(f"Aktiver OS-DNS: {sample.active_dns_ip}\nAntwortzeit: {ms_str}")
+        elif sample.active_dns_ip:
+            self.lbl_dns_pill.setText("⚠ DNS: Timeout")
+            self.lbl_dns_pill.setToolTip(f"Aktiver OS-DNS: {sample.active_dns_ip} (Keine Antwort)")
+            self.lbl_dns_pill.setStyleSheet(
+                "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
+                "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+            )
+        else:
+            self.lbl_dns_pill.setText("✕ DNS: n/a")
+            self.lbl_dns_pill.setToolTip("Kein aktiver DNS-Server erkannt")
+            self.lbl_dns_pill.setStyleSheet(
+                "color: rgba(255, 255, 255, 0.4); background-color: rgba(255, 255, 255, 0.05); "
+                "border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 9px; padding: 1px 7px;"
+            )
 
         self.counter_view.update_from_sample(sample)
 
@@ -639,11 +723,20 @@ class TrafficBox(QWidget):
             rx_str = format_bytes(counter.received_bytes)
             tx_str = format_bytes(counter.sent_bytes)
             tot_str = format_bytes(counter.total_bytes)
+            
+            # Responsive abbreviation depending on width & visible pills
+            has_pills = self.config.show_wan_status_pill or self.config.enable_dns_monitor
+            if self.width() < 340 and has_pills:
+                return f"{label}: Σ {tot_str}"
+            if self.width() < 430 and has_pills:
+                return f"{label}: ↓ {rx_str} • ↑ {tx_str}"
             return f"{label}: ↓ {rx_str} • ↑ {tx_str} (Σ {tot_str})"
 
         rx_str = format_bytes(sample.session_bytes_received)
         tx_str = format_bytes(sample.session_bytes_sent)
-        return f"Seit Widget-Start: ↓ {rx_str}  •  ↑ {tx_str}"
+        if self.width() < 380 and (self.config.show_wan_status_pill or self.config.enable_dns_monitor):
+            return f"Session: ↓ {rx_str} • ↑ {tx_str}"
+        return f"Seit Widget-Start: ↓ {rx_str} • ↑ {tx_str}"
 
     def _update_tooltip(
         self, sample: TrafficSample, down_pct: float, up_pct: float
@@ -739,10 +832,6 @@ class TrafficBox(QWidget):
 
     def resizeEvent(self, event: object) -> None:
         super().resizeEvent(event)
-        is_counters = self.config.active_view == "counters"
-        self.lbl_scale_badge.setVisible(
-            not is_counters and not self.config.compact_mode and self.width() >= 320
-        )
         self._update_dynamic_scaling()
         if (
             not self.config.compact_mode

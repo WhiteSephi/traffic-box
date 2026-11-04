@@ -4,6 +4,20 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.7.0] - 2026-11-04
+### Added
+- **Barrierefreie Status- & Diagnose-Pills im 1-zeiligen Footer ("Calm UI"):**
+  - **WAN-Status (`lbl_wan_pill`):** Zeigt den Status mit barrierefreien Formen und kontrastreichen Farben (Rot-Grün-Schwäche-optimiert): `✓ WAN OK` (Cyan `#00E5FF`), `⚠ Kein Sync` (Amber `#FFAB00`), `⚠ Kein Internet` (Amber `#FFAB00`) oder `✕ Box Offline` (Crimson `#FF5252`).
+  - **Aktiver OS-DNS-Monitor (`lbl_dns_pill`):** Erkennt automatisch den aktuell vom Betriebssystem genutzten primären DNS-Server (über Windows-Registry / Linux `/etc/resolv.conf`) und misst live dessen Antwortzeit in Millisekunden per UDP Port 53.
+- **Kombinierter Internet Ping- & Jitter-Graph:**
+  - Drittes Diagramm-Band unterhalb von Download & Upload, das den echten Ping zu einem frei konfigurierbaren Endpoint (Standard `1.1.1.1`) sowie den berechneten Jitter (Latenzschwankung) in Echtzeit visualisiert.
+  - Eindeutige Formen in der Legende (`◆ Ping` in Cyan `#00E5FF` und `▲ Jitter` in Amber `#FF9100`), `Min / Max`-Anzeige und abgerundete Live-Wert-Badges am rechten Graphenrand.
+- **Neuer Einstellungs-Tab "Diagnose & Ping":** Sämtliche neuen Diagnose-Features (Ping-Graph, Endpoint-Auswahl, WAN-Pill, DNS-Monitor, Theme-Farben für Ping und Jitter) können individuell aktiviert und angepasst werden.
+
+### Changed
+- **Bereinigter Header:** Das passive Skalierungs-Badge (`√-Skala` / `Max-Fix`) oben neben den Tabs entfernt, sodass rechts im Header ausschließlich klickbare Elemente (`Graph`, `Zähler`, `⚙`) liegen.
+- **Echtes Sync-Loss-Handling:** Raten-Anzeigen und Status erkennen nun zuverlässig, wenn der DSL-/Glasfaser-Sync verloren geht (`Kein Sync`) oder die Einwahl fehlt (`Kein Internet`), und setzen die Leitungskapazität korrekt zurück.
+
 ## [0.6.1] - 2026-11-04
 ### Added
 - **Dynamische Schrift- & Elementskalierung:** Schriftgrößen, Verteilungs-Balkenhöhen, Pfeil-Icons und Auslastungsbalken passen sich nun dezent der aktuellen Fenstergröße an:

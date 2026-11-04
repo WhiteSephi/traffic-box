@@ -49,5 +49,12 @@ class TrafficSample:
     uptime_seconds: int = 0
     external_ip: str = "-"
     is_connected: bool = False
+    box_reachable: bool = True
+    physical_link_up: bool = True
+    wan_connected: bool = True
+    ping_ms: float | None = None
+    jitter_ms: float = 0.0
+    active_dns_ip: str = ""
+    dns_ms: float | None = None
     guest_active: bool = False
     error_message: str = ""
