@@ -24,13 +24,18 @@ def format_rate(bytes_per_sec: float, show_as_bits: bool = False) -> str:
     return formatted.replace(".", ",")
 
 
-def format_bytes(num_bytes: int | float) -> str:
-    """Format cumulative byte count into KB, MB, GB, or TB with comma decimal separator."""
+def format_bytes(num_bytes: int | float, use_decimal: bool = True) -> str:
+    """Format cumulative byte count into KB, MB, GB, or TB with comma decimal separator.
+
+    If use_decimal is True (default, matching Fritz!OS SI standard), uses divisor 1000.
+    If use_decimal is False, uses binary divisor 1024.
+    """
     val = max(0.0, float(num_bytes))
     units = ["B", "KB", "MB", "GB", "TB"]
     idx = 0
-    while val >= 1024.0 and idx < len(units) - 1:
-        val /= 1024.0
+    divisor = 1000.0 if use_decimal else 1024.0
+    while val >= divisor and idx < len(units) - 1:
+        val /= divisor
         idx += 1
     if idx == 0:
         return f"{int(val)} B"
