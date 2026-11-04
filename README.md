@@ -65,24 +65,47 @@
 
 ---
 
+## 🧪 Automatisierte Tests
+
+Das Projekt verfügt über eine schlanke Unit-Testsuite auf Basis der Python-Standardbibliothek (`unittest`), die ohne zusätzliche Abhängigkeiten direkt ausgeführt werden kann:
+
+```bash
+# Alle Tests ausführen
+python -m unittest discover -s tests -v
+```
+
+---
+
 ## 📂 Projektstruktur
 
 ```text
 .
 ├── src/
-│   ├── main.py              # Einstiegspunkt der Anwendung
-│   ├── config.py            # Konfigurations-Management & .env-Support
-│   ├── autostart.py         # Cross-Platform Autostart (Windows Registry & Linux XDG)
+│   ├── main.py                 # Einstiegspunkt der Anwendung
+│   ├── config.py               # Konfigurations-Management & .env-Support
+│   ├── autostart.py            # Cross-Platform Autostart (Windows Registry & Linux XDG)
 │   ├── api/
-│   │   ├── upnp_client.py   # Passwortfreier UPnP-SOAP-Client (Port 49000)
-│   │   └── fritz_monitor.py # Optionaler Fritz!OS-Client für Gäste-WLAN & Prioritäten
+│   │   ├── models.py           # Datenmodelle (TrafficSample, OnlineCounterStats, PeriodCounter)
+│   │   ├── worker.py           # Hintergrund-Thread & Polling-Orchestrierung (QObject)
+│   │   ├── upnp_client.py      # Passwortfreier UPnP-SOAP-Client (Port 49000)
+│   │   ├── fritz_monitor.py    # Optionaler Fritz!OS-Client für Online-Zähler & Gäste-WLAN
+│   │   ├── net_health.py       # Ping-, Jitter- und aktiver OS-DNS-Latenz-Monitor
+│   │   └── local_traffic.py    # Lokaler PC-Traffic-Monitor (Windows iphlpapi & Linux /proc/net/dev)
 │   └── ui/
-│       ├── widget.py              # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
-│       ├── graph_canvas.py        # Custom Qt6-Graph (Fix, Dynamisch, Wurzel-Skala + Gäste-Anteil)
-│       ├── online_counter_view.py # Integrierte Online-Zähler-Tabellenansicht im Widget
-│       ├── settings_dlg.py        # Einstellungs-Dialog
-│       └── tray.py                # System-Tray-Integration & Kontextmenü
-├── requirements.txt         # Python-Abhängigkeiten (PySide6)
-├── .env.example             # Vorlage für Umgebungsvariablen
-└── CHANGELOG.md             # Chronologische Änderungshistorie
+│       ├── widget.py           # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
+│       ├── graph_canvas.py     # Custom Qt6-Graph mit Oszilloskop-Hover-HUD & Mehrschicht-Flächen
+│       ├── online_counter_view.py # Integrierte Online-Zähler-Tabellenansicht
+│       ├── settings_dlg.py     # Umfangreicher Einstellungs-Dialog (Tabs, Farb-Picker, Cooldowns)
+│       ├── formatters.py       # Formatierungshelfer für Raten, Einheiten (SI-Dezimal/Binär) & Zeiten
+│       ├── icons.py            # Vektorgrafiken & Icons (Pfeile, UI-Symbole)
+│       └── tray.py             # System-Tray-Integration & Schnellzugriff-Menü
+├── tests/                      # Automatisierte Unit-Tests (unittest)
+│   ├── test_config.py          # Konfiguration, Standardwerte & .env-Parser
+│   ├── test_formatters.py      # Raten-, Datenvolumen- & Uptime-Formatierung
+│   ├── test_local_traffic.py   # Linux /proc/net/dev-Parsing & lokale Ratenberechnung
+│   ├── test_net_health.py      # Ping-Regex (Windows/Linux) & Jitter-Berechnung
+│   └── test_upnp_client.py     # UPnP-Session-Tracking & 32-Bit-Überlaufschutz
+├── requirements.txt            # Python-Abhängigkeiten (PySide6)
+├── .env.example                # Vorlage für Umgebungsvariablen
+└── CHANGELOG.md                # Chronologische Änderungshistorie
 ```

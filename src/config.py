@@ -165,9 +165,9 @@ class AppConfig:
 
         return cfg
 
-    def save(self) -> None:
+    def save(self, target_path: Path | None = None) -> None:
         """Save current configuration to disk."""
-        path = self.config_file_path()
+        path = target_path or self.config_file_path()
         try:
             data = asdict(self)
             path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")

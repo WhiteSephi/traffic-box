@@ -4,6 +4,23 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.9.2] - 2026-11-04
+### Refactored
+- **Entflechtung von UI und Hintergrund-Worker (`src/api/worker.py`):** Die Klasse `PollingWorker` (inklusive UPnP-, Fritz!OS Lua-, Ping- und Local-Traffic-Koordination) wurde aus `src/ui/widget.py` in ein eigenes Modul `src/api/worker.py` ausgelagert. Dadurch schrumpft das Haupt-Widget um über 100 Zeilen und trennt strikt die Datenabfrage von der UI-Darstellung.
+- **Flexibleres Config-Speichern:** Die Methode `AppConfig.save(target_path=None)` akzeptiert nun optional einen benutzerdefinierten Zielpfad für vereinfachte Testbarkeit und Snapshot-Sicherungen.
+
+### Added
+- **Automatisierte Unit-Testsuite (`tests/`):** 17 modulare Tests auf Basis der Standardbibliothek (`unittest`) zur Absicherung der zentralen Komponenten ohne zusätzliche externe Abhängigkeiten:
+  - `test_config.py`: Standardwerte, JSON-Speichern/Laden, `.env`-Parser.
+  - `test_formatters.py`: Raten-Berechnung (Bits/Bytes), SI-Dezimalvolumen (GB/TB) und Uptime.
+  - `test_local_traffic.py`: Linux `/proc/net/dev`-Parser, Interface-Filterung und Delta-Berechnung.
+  - `test_net_health.py`: Ping-Regex (Windows & Linux) und gleitende Jitter-Glättung (EMA).
+  - `test_upnp_client.py`: Session-Byte-Zähler und 32-Bit-Überlaufschutz.
+
+### Changed
+- **Aktualisierte Dokumentation & Struktur:** Der Dateibaum in der `README.md` spiegelt nun alle Module (`models.py`, `worker.py`, `local_traffic.py`, `net_health.py`, `formatters.py`, `icons.py`) wider und enthält eine Anleitung zur Ausführung der Testsuite.
+- **Bereinigtes Arbeitsverzeichnis:** Temporäre Testskripte aus vorherigen Entwicklungsphasen in `local/` wurden sauber in `local/scratch/` einsortiert.
+
 ## [0.9.1] - 2026-11-04
 ### Fixed
 - **Keine störende Tooltip-Überlagerung mehr über dem Diagramm:** Der allgemeine Fritz!Box-Verbindungsdetails-Tooltip (`Status: Connected • Externe IP...`) wurde vom Hauptfenster entkoppelt und gezielt an das Router-Icon, den Titel und die WAN-Status-Pille gebunden. Zudem unterdrückt die Diagrammfläche (`SplitTrafficGraphWidget`) Tooltip-Events, sodass das schwebende HUD-Badge bei der Messpunkt-Inspektion niemals verdeckt wird.
