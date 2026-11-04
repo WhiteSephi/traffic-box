@@ -57,4 +57,8 @@ class TrafficSample:
     active_dns_ip: str = ""
     dns_ms: float | None = None
     guest_active: bool = False
+    local_pc_download_bps: float = 0.0  # Bytes per second (local machine internet share)
+    local_pc_upload_bps: float = 0.0  # Bytes per second (local machine internet share)
+    local_pc_active: bool = False
+    local_pc_is_lan_spike: bool = False
     error_message: str = ""

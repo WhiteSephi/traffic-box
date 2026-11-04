@@ -42,6 +42,8 @@ class SplitTrafficGraphWidget(QWidget):
         self._up_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
         self._guest_down_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
         self._guest_up_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
+        self._pc_down_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
+        self._pc_up_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
         self._ping_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
         self._jitter_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
 
@@ -68,6 +70,8 @@ class SplitTrafficGraphWidget(QWidget):
         link_max_up_bps: float,
         ping_ms: float | None = None,
         jitter_ms: float = 0.0,
+        pc_down_bps: float = 0.0,
+        pc_up_bps: float = 0.0,
     ) -> None:
         """Append a new sample to the time series and trigger a repaint."""
         target_len = max(15, self.config.history_seconds)
@@ -76,6 +80,8 @@ class SplitTrafficGraphWidget(QWidget):
             self._up_history = deque(self._up_history, maxlen=target_len)
             self._guest_down_history = deque(self._guest_down_history, maxlen=target_len)
             self._guest_up_history = deque(self._guest_up_history, maxlen=target_len)
+            self._pc_down_history = deque(self._pc_down_history, maxlen=target_len)
+            self._pc_up_history = deque(self._pc_up_history, maxlen=target_len)
             self._ping_history = deque(self._ping_history, maxlen=target_len)
             self._jitter_history = deque(self._jitter_history, maxlen=target_len)
 
@@ -83,6 +89,8 @@ class SplitTrafficGraphWidget(QWidget):
         self._up_history.append(max(0.0, up_bps))
         self._guest_down_history.append(max(0.0, min(down_bps, guest_down_bps)))
         self._guest_up_history.append(max(0.0, min(up_bps, guest_up_bps)))
+        self._pc_down_history.append(max(0.0, min(down_bps, pc_down_bps)))
+        self._pc_up_history.append(max(0.0, min(up_bps, pc_up_bps)))
         self._ping_history.append(max(0.0, ping_ms) if ping_ms is not None else 0.0)
         self._jitter_history.append(max(0.0, jitter_ms))
 
@@ -121,6 +129,7 @@ class SplitTrafficGraphWidget(QWidget):
         rect: QRectF,
         main_series: deque[float],
         guest_series: deque[float],
+        pc_series: deque[float],
         max_line_bps: float,
         main_color: QColor,
         guest_color: QColor,
@@ -181,6 +190,38 @@ class SplitTrafficGraphWidget(QWidget):
             grad.setColorAt(0.0, top_fill)
             grad.setColorAt(1.0, bottom_fill)
             painter.fillPath(area_path, grad)
+
+            # Optional Local PC share overlay (derived darker shade of main curve)
+            if (
+                self.config.enable_local_traffic_monitor
+                and self.config.show_local_traffic_in_graph
+                and any(v > 0 for v in pc_series)
+            ):
+                pc_line = QPainterPath()
+                pc_area = QPainterPath()
+                pc_area.moveTo(rect.left(), rect.bottom())
+                for idx, p_val in enumerate(pc_series):
+                    x = rect.left() + idx * step_x
+                    norm_h = self._compute_normalized_y(p_val, ceiling)
+                    y = rect.bottom() - (norm_h * (rect.height() - 3.0)) - 1.0
+                    if idx == 0:
+                        pc_line.moveTo(x, y)
+                    else:
+                        pc_line.lineTo(x, y)
+                    pc_area.lineTo(x, y)
+                pc_area.lineTo(rect.right(), rect.bottom())
+                pc_area.closeSubpath()
+
+                # Derive darker tone from main color
+                pc_color = QColor(main_color).darker(150)
+                pc_fill = QColor(pc_color)
+                pc_fill.setAlpha(175)
+                painter.fillPath(pc_area, pc_fill)
+
+                pc_pen = QPen(pc_color, 1.4, Qt.PenStyle.SolidLine)
+                pc_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pc_pen)
+                painter.drawPath(pc_line)
 
             # Stroke main curve
             curve_pen = QPen(main_color, 1.8)
@@ -468,22 +509,22 @@ class SplitTrafficGraphWidget(QWidget):
                 up_rect = bottom_rect
                 self._draw_single_graph(
                     painter, top_rect, self._down_history, self._guest_down_history,
-                    self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
                 )
                 self._draw_single_graph(
                     painter, bottom_rect, self._up_history, self._guest_up_history,
-                    self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
                 )
             else:
                 up_rect = top_rect
                 down_rect = bottom_rect
                 self._draw_single_graph(
                     painter, top_rect, self._up_history, self._guest_up_history,
-                    self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
                 )
                 self._draw_single_graph(
                     painter, bottom_rect, self._down_history, self._guest_down_history,
-                    self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
                 )
         else:
             # 3-graph layout: Traffic (Down/Up) + Ping/Jitter
@@ -501,22 +542,22 @@ class SplitTrafficGraphWidget(QWidget):
                 up_rect = mid_rect
                 self._draw_single_graph(
                     painter, top_rect, self._down_history, self._guest_down_history,
-                    self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
                 )
                 self._draw_single_graph(
                     painter, mid_rect, self._up_history, self._guest_up_history,
-                    self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
                 )
             else:
                 up_rect = top_rect
                 down_rect = mid_rect
                 self._draw_single_graph(
                     painter, top_rect, self._up_history, self._guest_up_history,
-                    self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
                 )
                 self._draw_single_graph(
                     painter, mid_rect, self._down_history, self._guest_down_history,
-                    self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
                 )
 
             self._draw_ping_jitter_graph(
@@ -606,9 +647,17 @@ class SplitTrafficGraphWidget(QWidget):
         age_sec = int(round((count - 1 - idx) * self.config.refresh_interval_sec))
         age_text = "Jetzt • Live" if age_sec == 0 else f"vor {age_sec}s"
 
+        val_pc_down = self._pc_down_history[idx] if idx < len(self._pc_down_history) else 0.0
+        val_pc_up = self._pc_up_history[idx] if idx < len(self._pc_up_history) else 0.0
+        show_pc = self.config.enable_local_traffic_monitor and (val_pc_down > 0 or val_pc_up > 0)
         show_ping = ping_rect is not None and (val_ping > 0 or val_jitter > 0)
-        badge_w = 140.0
-        badge_h = 70.0 if show_ping else 54.0
+
+        badge_w = 150.0 if show_pc else 140.0
+        badge_h = 54.0
+        if show_pc:
+            badge_h += 16.0
+        if show_ping:
+            badge_h += 16.0
 
         if x + 10.0 + badge_w <= w - 4.0:
             badge_x = x + 10.0
@@ -659,6 +708,21 @@ class SplitTrafficGraphWidget(QWidget):
             f"↑ Up:      {up_str}",
         )
 
+        curr_y = badge_y + 49.0
+
+        # Local PC row (if active)
+        if show_pc:
+            painter.setFont(font_sub)
+            pc_d = format_rate(val_pc_down, self.config.show_as_bits)
+            pc_u = format_rate(val_pc_up, self.config.show_as_bits)
+            painter.setPen(QColor("#94A3B8"))
+            painter.drawText(
+                QRectF(badge_x + 8.0, curr_y, badge_w - 16.0, 14.0),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                f"💻 PC: ↓ {pc_d}  ↑ {pc_u}",
+            )
+            curr_y += 15.0
+
         # Ping & Jitter row (if active)
         if show_ping:
             painter.setFont(font_sub)
@@ -667,13 +731,13 @@ class SplitTrafficGraphWidget(QWidget):
             j_str = f"▲ {val_jitter:.1f} ms"
             painter.setPen(QColor(self.config.ping_color))
             painter.drawText(
-                QRectF(ping_x, badge_y + 51.0, 62.0, 14.0),
+                QRectF(ping_x, curr_y, 62.0, 14.0),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 p_str,
             )
             painter.setPen(QColor(self.config.jitter_color))
             painter.drawText(
-                QRectF(ping_x + 64.0, badge_y + 51.0, 60.0, 14.0),
+                QRectF(ping_x + 64.0, curr_y, 60.0, 14.0),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 j_str,
             )

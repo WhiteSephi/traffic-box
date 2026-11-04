@@ -75,6 +75,11 @@ class AppConfig:
     fritz_username: str = ""
     fritz_password: str = ""
 
+    # Optional Local Device (PC) Traffic Monitor
+    enable_local_traffic_monitor: bool = False
+    show_local_traffic_in_graph: bool = True
+    show_local_traffic_in_header: bool = False
+
     # Window & Behavior
     title: str = "TrafficBox"
     autostart: bool = False

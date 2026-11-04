@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.9.0] - 2026-11-04
+### Added
+- **Lokaler PC-Traffic-Monitor (Eigener Internet-Anteil im Graphen):**
+  - **Plattformunabhängig ohne Fremdbibliotheken:** Ermittelt den lokalen Netzwerkdurchsatz des Rechners auf Windows (native `iphlpapi.dll` via `ctypes`) und Linux (`/proc/net/dev`) rein über die Python-Standardbibliothek.
+  - **Harmonische Farbkopplung:** Der eigene PC-Anteil leitet sich automatisch als dunklere Nuance der Hauptfarben ab (`color.darker(150)`), sodass bei einem Wechsel des Farbschemas alles perfekt abgestimmt bleibt.
+  - **Smarte NAS-Filterung (Plausibilitäts-Clamp):** Der PC-Anteil wird an die gemessene Fritz!Box-WAN-Rate gedeckelt. Massive lokale Kopiervorgänge (z. B. 1 Gbit/s auf ein lokales NAS) verzerren den Internet-Graphen nicht und werden bei Bedarf mit `[LAN]` markiert.
+  - **Standardmäßig deaktiviert (Default AUS):** Kann in den Einstellungen unter *Lokales Gerät (Eigener PC-Traffic Anteil)* aktiviert und separat für den Graphen-Layer und/oder die Textzeile unter den Raten zugeschaltet werden.
+  - **HUD-Badge-Erweiterung:** Bei aktiver Überwachung zeigt die schwebende Hover-Infokarte im Diagramm auch den genauen PC-Anteil des gewählten Zeitpunkts (`💻 PC: ↓ ... ↑ ...`).
+
 ## [0.8.1] - 2026-11-04
 ### Removed
 - **Header-Scrubbing (Variante 3):** Die oberen Raten- und Balkenanzeigen verbleiben nun auch beim Überfahren des Graphen mit der Maus stabil und ruhig auf den aktuellen Live-Echtzeitwerten. Die Detailinspektion historischer Punkte erfolgt fokussiert im Diagramm (Fadenkreuz, Kurven-Marker und schwebendes HUD-Badge).

@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.api.fritz_monitor import FritzGuestMonitorClient
+from src.api.local_traffic import LocalTrafficMonitor
 from src.api.models import OnlineCounterStats, PeriodCounter, TrafficSample
 from src.api.net_health import NetworkHealthMonitor
 from src.api.upnp_client import FritzUpnpClient
@@ -69,6 +70,7 @@ class PollingWorker(QObject):
             password=self.config.fritz_password,
         )
         self.net_health = NetworkHealthMonitor(endpoint=self.config.ping_endpoint)
+        self.local_traffic = LocalTrafficMonitor()
         self._cached_counters = OnlineCounterStats()
         self._counter_tick: int = 0
         self._busy = False
@@ -121,6 +123,20 @@ class PollingWorker(QObject):
             sample.jitter_ms = jitter_val
             sample.active_dns_ip = dns_ip
             sample.dns_ms = dns_ms
+
+            # Measure local device (PC) traffic if enabled
+            if sample.is_connected and self.config.enable_local_traffic_monitor:
+                pc_down, pc_up, pc_ok = self.local_traffic.fetch_rates_bps()
+                if pc_ok:
+                    sample.local_pc_active = True
+                    # Detect LAN/NAS spikes (where local traffic significantly exceeds Fritz!Box WAN throughput)
+                    is_down_lan = pc_down > (sample.download_bps * 1.5) and pc_down > (5 * 1024 * 1024)
+                    is_up_lan = pc_up > (sample.upload_bps * 1.5) and pc_up > (5 * 1024 * 1024)
+                    sample.local_pc_is_lan_spike = is_down_lan or is_up_lan
+
+                    # Clamp internet share so it never exceeds WAN bandwidth in the graph
+                    sample.local_pc_download_bps = min(sample.download_bps, pc_down)
+                    sample.local_pc_upload_bps = min(sample.upload_bps, pc_up)
 
             self.sample_ready.emit(sample)
         finally:
@@ -253,6 +269,11 @@ class TrafficBox(QWidget):
         self.lbl_down_meta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_down_meta.setFont(QFont("Segoe UI", 7))
 
+        self.lbl_pc_down = QLabel("")
+        self.lbl_pc_down.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_pc_down.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
+        self.lbl_pc_down.setVisible(False)
+
         self.lbl_guest_down = QLabel("")
         self.lbl_guest_down.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_guest_down.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
@@ -262,6 +283,7 @@ class TrafficBox(QWidget):
         down_col.addWidget(self.lbl_down_rate)
         down_col.addWidget(self.bar_down_util)
         down_col.addWidget(self.lbl_down_meta)
+        down_col.addWidget(self.lbl_pc_down)
         down_col.addWidget(self.lbl_guest_down)
 
         # Upload Column
@@ -293,6 +315,11 @@ class TrafficBox(QWidget):
         self.lbl_up_meta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_up_meta.setFont(QFont("Segoe UI", 7))
 
+        self.lbl_pc_up = QLabel("")
+        self.lbl_pc_up.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_pc_up.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
+        self.lbl_pc_up.setVisible(False)
+
         self.lbl_guest_up = QLabel("")
         self.lbl_guest_up.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_guest_up.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
@@ -302,6 +329,7 @@ class TrafficBox(QWidget):
         up_col.addWidget(self.lbl_up_rate)
         up_col.addWidget(self.bar_up_util)
         up_col.addWidget(self.lbl_up_meta)
+        up_col.addWidget(self.lbl_pc_up)
         up_col.addWidget(self.lbl_guest_up)
 
         rates_row.addLayout(down_col, 1)
@@ -482,6 +510,16 @@ class TrafficBox(QWidget):
         if hasattr(self, "_poll_timer"):
             self._poll_timer.setInterval(max(500, self.config.refresh_interval_sec * 1000))
 
+        # Coupled darker shade for PC labels
+        pc_down_col = QColor(self.config.download_color).darker(125).name()
+        pc_up_col = QColor(self.config.upload_color).darker(125).name()
+        self.lbl_pc_down.setStyleSheet(f"color: {pc_down_col};")
+        self.lbl_pc_up.setStyleSheet(f"color: {pc_up_col};")
+
+        if not (self.config.enable_local_traffic_monitor and self.config.show_local_traffic_in_header):
+            self.lbl_pc_down.setVisible(False)
+            self.lbl_pc_up.setVisible(False)
+
         if not (self.config.enable_guest_monitor and self.config.show_guest_rate_labels):
             self.lbl_guest_down.setVisible(False)
             self.lbl_guest_up.setVisible(False)
@@ -653,6 +691,8 @@ class TrafficBox(QWidget):
             sample.max_upload_bps,
             ping_ms=sample.ping_ms,
             jitter_ms=sample.jitter_ms,
+            pc_down_bps=sample.local_pc_download_bps if sample.is_connected else 0.0,
+            pc_up_bps=sample.local_pc_upload_bps if sample.is_connected else 0.0,
         )
 
         # Rolling peak across the visible graph window (auto-resets as spikes scroll out)
@@ -662,6 +702,26 @@ class TrafficBox(QWidget):
         down_pct, up_pct = self._update_live_rate_displays(sample)
 
         bits = self.config.show_as_bits
+
+        # Local PC readout (if enabled & active & allowed in header)
+        if (
+            self.config.enable_local_traffic_monitor
+            and self.config.show_local_traffic_in_header
+            and sample.local_pc_active
+        ):
+            self.lbl_pc_down.setVisible(True)
+            self.lbl_pc_up.setVisible(True)
+            lan_tag = " [LAN]" if sample.local_pc_is_lan_spike else ""
+            self.lbl_pc_down.setText(
+                f"PC: {format_rate(sample.local_pc_download_bps, bits)}{lan_tag}"
+            )
+            self.lbl_pc_up.setText(
+                f"PC: {format_rate(sample.local_pc_upload_bps, bits)}{lan_tag}"
+            )
+        else:
+            self.lbl_pc_down.setVisible(False)
+            self.lbl_pc_up.setVisible(False)
+
         # Guest Wi-Fi readout (if enabled & active & allowed in header)
         if (
             self.config.enable_guest_monitor

@@ -184,6 +184,22 @@ class SettingsDialog(QDialog):
         beh_grid.addLayout(opacity_row, 5, 0, 1, 2)
         gen_layout.addWidget(beh_group)
 
+        # Local Device Group
+        pc_group = QGroupBox("Lokales Gerät (Eigener PC-Traffic Anteil)")
+        pc_layout = QVBoxLayout(pc_group)
+        self.chk_local_pc = QCheckBox("Eigenen PC-Traffic überwachen (Anteil am Internet-Traffic)")
+        self.chk_pc_in_graph = QCheckBox("Eigenen Anteil im Graphen einfärben (abgedunkelte Nuance)")
+        self.chk_pc_in_header = QCheckBox("Eigene Rate als Text unter den Haupt-Raten anzeigen")
+        self.chk_local_pc.toggled.connect(self._on_local_pc_toggled)
+
+        pc_layout.addWidget(self.chk_local_pc)
+        pc_sub_row = QHBoxLayout()
+        pc_sub_row.setContentsMargins(20, 0, 0, 0)
+        pc_sub_row.addWidget(self.chk_pc_in_graph)
+        pc_sub_row.addWidget(self.chk_pc_in_header)
+        pc_layout.addLayout(pc_sub_row)
+        gen_layout.addWidget(pc_group)
+
         # Scaling Group
         scale_group = QGroupBox("Graph-Skalierung && Leitungskapazität")
         scale_form = QFormLayout(scale_group)
@@ -308,6 +324,10 @@ class SettingsDialog(QDialog):
         self.txt_user.setEnabled(checked)
         self.txt_pass.setEnabled(checked)
 
+    def _on_local_pc_toggled(self, checked: bool) -> None:
+        self.chk_pc_in_graph.setEnabled(checked)
+        self.chk_pc_in_header.setEnabled(checked)
+
     def _on_test_connection(self) -> None:
         """Test UPnP reachability and Fritz!OS login and show immediate inline feedback."""
         host = self.txt_host.text().strip() or "fritz.box"
@@ -378,6 +398,10 @@ class SettingsDialog(QDialog):
         self.chk_session_totals.setChecked(self.config.show_session_totals)
         self.chk_show_peak.setChecked(self.config.show_peak_rate)
         self.chk_show_guest_meta.setChecked(self.config.show_guest_rate_labels)
+        self.chk_local_pc.setChecked(self.config.enable_local_traffic_monitor)
+        self.chk_pc_in_graph.setChecked(self.config.show_local_traffic_in_graph)
+        self.chk_pc_in_header.setChecked(self.config.show_local_traffic_in_header)
+        self._on_local_pc_toggled(self.config.enable_local_traffic_monitor)
         f_idx = self.cmb_footer_mode.findData(self.config.footer_counter_mode)
         self.cmb_footer_mode.setCurrentIndex(max(0, f_idx))
         self.slider_opacity.setValue(self.config.opacity)
@@ -429,6 +453,9 @@ class SettingsDialog(QDialog):
         self.config.show_session_totals = self.chk_session_totals.isChecked()
         self.config.show_peak_rate = self.chk_show_peak.isChecked()
         self.config.show_guest_rate_labels = self.chk_show_guest_meta.isChecked()
+        self.config.enable_local_traffic_monitor = self.chk_local_pc.isChecked()
+        self.config.show_local_traffic_in_graph = self.chk_pc_in_graph.isChecked()
+        self.config.show_local_traffic_in_header = self.chk_pc_in_header.isChecked()
         self.config.footer_counter_mode = str(self.cmb_footer_mode.currentData() or "today")
         self.config.opacity = self.slider_opacity.value()
 
