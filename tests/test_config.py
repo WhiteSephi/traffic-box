@@ -48,6 +48,27 @@ class TestConfig(unittest.TestCase):
             self.assertFalse(raw_json["show_peak_rate"])
             self.assertEqual(raw_json["opacity"], 90)
 
+    def test_encrypted_password_on_disk(self) -> None:
+        """Verify passwords are encrypted on disk but decrypted in memory."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "config.json"
+            cfg = AppConfig(fritz_password="my_secret_vault_pwd_123")
+            cfg.save(tmp_path)
+
+            raw_json = json.loads(tmp_path.read_text(encoding="utf-8"))
+            # Disk must NOT contain the plaintext password!
+            self.assertNotEqual(raw_json["fritz_password"], "my_secret_vault_pwd_123")
+            self.assertTrue(raw_json["fritz_password"].startswith("enc:"))
+
+            # Reloading must restore original plaintext password
+            original_fn = AppConfig.config_file_path
+            try:
+                AppConfig.config_file_path = classmethod(lambda cls: tmp_path)  # type: ignore[assignment]
+                loaded = AppConfig.load()
+                self.assertEqual(loaded.fritz_password, "my_secret_vault_pwd_123")
+            finally:
+                AppConfig.config_file_path = original_fn  # type: ignore[assignment]
+
     def test_load_ignores_unknown_keys(self) -> None:
         """Verify loading safely ignores keys that do not belong to AppConfig."""
         with tempfile.TemporaryDirectory() as tmp_dir:

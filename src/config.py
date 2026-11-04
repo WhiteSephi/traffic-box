@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import sys
 
+from src.api.crypto import decrypt_secret, encrypt_secret
+
 
 def _log_warn(msg: str) -> None:
     """Safely log a warning even when running as a windowless GUI binary (sys.stderr is None)."""
@@ -148,6 +150,8 @@ class AppConfig:
                 for key, value in raw_data.items():
                     if key in valid_keys:
                         setattr(cfg, key, value)
+                # Transparently decrypt stored password if encrypted
+                cfg.fritz_password = decrypt_secret(cfg.fritz_password)
             except (OSError, json.JSONDecodeError) as exc:
                 _log_warn(f"[WARN] Konnte Konfiguration nicht laden ({path}): {exc}")
 
@@ -168,10 +172,12 @@ class AppConfig:
         return cfg
 
     def save(self, target_path: Path | None = None) -> None:
-        """Save current configuration to disk."""
+        """Save current configuration to disk with encrypted credentials."""
         path = target_path or self.config_file_path()
         try:
             data = asdict(self)
+            if data.get("fritz_password"):
+                data["fritz_password"] = encrypt_secret(self.fritz_password)
             path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError as exc:
             _log_warn(f"[ERROR] Konnte Konfiguration nicht speichern ({path}): {exc}")

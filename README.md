@@ -90,7 +90,8 @@ python -m unittest discover -s tests -v
 │   │   ├── upnp_client.py      # Passwortfreier UPnP-SOAP-Client (Port 49000)
 │   │   ├── fritz_monitor.py    # Optionaler Fritz!OS-Client für Online-Zähler & Gäste-WLAN
 │   │   ├── net_health.py       # Ping-, Jitter- und aktiver OS-DNS-Latenz-Monitor
-│   │   └── local_traffic.py    # Lokaler PC-Traffic-Monitor (Windows iphlpapi & Linux /proc/net/dev)
+│   │   ├── local_traffic.py    # Lokaler PC-Traffic-Monitor (Windows iphlpapi & Linux /proc/net/dev)
+│   │   └── crypto.py           # Sichere Passwort-Verschlüsselung (Windows DPAPI & PBKDF2)
 │   └── ui/
 │       ├── widget.py           # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
 │       ├── graph_canvas.py     # Custom Qt6-Graph mit Oszilloskop-Hover-HUD & Mehrschicht-Flächen
@@ -101,6 +102,7 @@ python -m unittest discover -s tests -v
 │       └── tray.py             # System-Tray-Integration & Schnellzugriff-Menü
 ├── tests/                      # Automatisierte Unit-Tests (unittest)
 │   ├── test_config.py          # Konfiguration, Standardwerte & .env-Parser
+│   ├── test_crypto.py          # Ver-/Entschlüsselung & Windows DPAPI Roundtrip
 │   ├── test_formatters.py      # Raten-, Datenvolumen- & Uptime-Formatierung
 │   ├── test_local_traffic.py   # Linux /proc/net/dev-Parsing & lokale Ratenberechnung
 │   ├── test_net_health.py      # Ping-Regex (Windows/Linux) & Jitter-Berechnung

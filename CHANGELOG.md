@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.0] - 2026-11-04
+### Added
+- **Sichere Passwort-Verschlüsselung (Encryption at Rest) ohne Zusatzabhängigkeiten:**
+  - **Native Windows DPAPI:** Verschlüsselt hinterlegte Fritz!OS-Passwörter in `config.json` über `CryptProtectData` (in `crypt32.dll` via `ctypes`) mit dem Masterschlüssel des aktuellen Windows-Benutzerkontos.
+  - **Plattformunabhängiger Krypto-Fallback:** Schützt Passwörter auf Linux mittels symmetrischer PBKDF2-HMAC-SHA256-Schlüsselableitung (`/etc/machine-id` + User-UID).
+  - **Vollkommen transparente Speicherung:** Im Arbeitsspeicher bleibt das Passwort unberührt, während auf der Festplatte ausschließlich sichere `enc:...`-Blobs gespeichert werden.
+  - **Abwärtskompatibler Import:** Erkennt legacy Klartext-Passwörter beim Laden automatisch und überführt sie beim nächsten Speichern in den verschlüsselten Zustand.
+  - **Unit-Testsuite erweitert:** Neue Tests in `tests/test_crypto.py` und `tests/test_config.py` sichern Ver- und Entschlüsselung sowie Roundtrip-Szenarien ab.
+
 ## [0.10.0] - 2026-11-04
 ### Added
 - **Intelligente Box-Erkennung & Schutz fremder FRITZ!Boxen bei Standortwechsel (Roaming):**
