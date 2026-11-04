@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Callable
 import urllib.request
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -36,16 +37,196 @@ from src.autostart import is_autostart_enabled, set_autostart
 from src.config import AppConfig
 
 
+def make_swatch_icon(hex_color: str, size: int = 16) -> QIcon:
+    """Generate a clean rounded color chip icon."""
+    pix = QPixmap(size, size)
+    pix.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(QColor(hex_color))
+    painter.setPen(QColor("#FFFFFF" if QColor(hex_color).lightness() < 60 else "#222222"))
+    painter.drawRoundedRect(1, 1, size - 2, size - 2, 4, 4)
+    painter.end()
+    return QIcon(pix)
+
+
+class ModernColorPickerPopup(QDialog):
+    """Modern dark-themed color picker popup with curated palette and hex input."""
+
+    PALETTE = [
+        ["#00E5FF", "#00E676", "#FFEA00", "#FF9100", "#FF1744", "#FF007F"],
+        ["#3D5AFE", "#7C4DFF", "#00B0FF", "#1DE9B6", "#76FF03", "#FFD600"],
+        ["#80D8FF", "#A7FFEB", "#CCFF90", "#FFE57F", "#FF8A80", "#EA80FC"],
+        ["#FFFFFF", "#CFD8DC", "#78909C", "#455A64", "#263238", "#121212"],
+    ]
+
+    def __init__(
+        self,
+        current_hex: str,
+        on_chosen: Callable[[str], None],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent, Qt.WindowType.Popup)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.on_chosen = on_chosen
+
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1A1E24;
+                border: 1px solid #3E4652;
+                border-radius: 8px;
+            }
+            QLabel {
+                color: #E0E4E8;
+                font-size: 8.5pt;
+            }
+            QLineEdit {
+                background-color: #262C36;
+                color: #FFFFFF;
+                border: 1px solid #444D5A;
+                border-radius: 4px;
+                padding: 4px 6px;
+                font-family: monospace;
+                font-weight: bold;
+                font-size: 8.5pt;
+            }
+            QLineEdit:focus {
+                border-color: #00E5FF;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        lbl_title = QLabel("Farbe wählen")
+        lbl_title.setStyleSheet("font-weight: bold; font-size: 9pt; color: #FFFFFF;")
+        layout.addWidget(lbl_title)
+
+        # Palette Grid
+        grid = QGridLayout()
+        grid.setSpacing(5)
+        for r, row in enumerate(self.PALETTE):
+            for c, hex_code in enumerate(row):
+                btn = QPushButton()
+                btn.setFixedSize(26, 26)
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.setToolTip(hex_code)
+                is_curr = hex_code.lower() == current_hex.lower()
+                border = "2px solid #FFFFFF" if is_curr else "1px solid rgba(255,255,255,0.2)"
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {hex_code};
+                        border: {border};
+                        border-radius: 4px;
+                    }}
+                    QPushButton:hover {{
+                        border: 2px solid #00E5FF;
+                    }}
+                """)
+                btn.clicked.connect(lambda _, h=hex_code: self._select_and_close(h))
+                grid.addWidget(btn, r, c)
+        layout.addLayout(grid)
+
+        # Hex Input Row with live preview swatch
+        hex_row = QHBoxLayout()
+        hex_row.setSpacing(6)
+        lbl_hex = QLabel("Hex:")
+        self.txt_hex = QLineEdit(current_hex)
+        self.txt_hex.setMaxLength(9)
+
+        self.lbl_swatch_preview = QLabel()
+        self.lbl_swatch_preview.setFixedSize(22, 22)
+        self._update_preview_swatch(current_hex)
+
+        self.txt_hex.textChanged.connect(self._on_hex_text_changed)
+        self.txt_hex.returnPressed.connect(lambda: self._select_and_close(self.txt_hex.text()))
+
+        btn_ok = QPushButton("✓")
+        btn_ok.setFixedSize(26, 26)
+        btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_ok.setStyleSheet("""
+            QPushButton {
+                background-color: #2D3748;
+                color: #00E5FF;
+                border: 1px solid #4A5568;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3A475C;
+                border-color: #00E5FF;
+            }
+        """)
+        btn_ok.clicked.connect(lambda: self._select_and_close(self.txt_hex.text()))
+
+        hex_row.addWidget(lbl_hex)
+        hex_row.addWidget(self.lbl_swatch_preview)
+        hex_row.addWidget(self.txt_hex, 1)
+        hex_row.addWidget(btn_ok)
+        layout.addLayout(hex_row)
+
+        # System Color Dialog fallback
+        btn_sys = QPushButton("🎨 Erweiterte Farbauswahl…")
+        btn_sys.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_sys.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #8E9297;
+                font-size: 8pt;
+                text-decoration: underline;
+                padding-top: 2px;
+            }
+            QPushButton:hover {
+                color: #00E5FF;
+            }
+        """)
+        btn_sys.clicked.connect(self._open_system_picker)
+        layout.addWidget(btn_sys)
+
+    def _update_preview_swatch(self, hex_code: str) -> None:
+        if not hex_code.startswith("#"):
+            hex_code = "#" + hex_code
+        col = QColor(hex_code)
+        if col.isValid():
+            self.lbl_swatch_preview.setStyleSheet(
+                f"background-color: {col.name()}; border: 1px solid #666; border-radius: 3px;"
+            )
+
+    def _on_hex_text_changed(self, text: str) -> None:
+        self._update_preview_swatch(text.strip())
+
+    def _select_and_close(self, hex_val: str) -> None:
+        hex_val = hex_val.strip()
+        if not hex_val.startswith("#"):
+            hex_val = "#" + hex_val
+        col = QColor(hex_val)
+        if col.isValid():
+            self.on_chosen(col.name().upper())
+            self.close()
+
+    def _open_system_picker(self) -> None:
+        init_col = QColor(self.txt_hex.text().strip())
+        if not init_col.isValid():
+            init_col = QColor("#FFEA00")
+        chosen = QColorDialog.getColor(init_col, self, "Erweiterte Farbe wählen")
+        if chosen.isValid():
+            self.on_chosen(chosen.name().upper())
+            self.close()
+
+
 class ColorButton(QPushButton):
-    """Button that displays and selects a hex color."""
+    """Button that displays a modern color swatch and opens the dark popover."""
 
     def __init__(self, hex_color: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._color = hex_color
-        self.setFixedHeight(26)
+        self._color = hex_color.upper() if hex_color.startswith("#") else f"#{hex_color.upper()}"
+        self.setFixedHeight(28)
         self.setMinimumWidth(110)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_style()
-        self.clicked.connect(self._pick_color)
+        self.clicked.connect(self._open_picker)
 
     @property
     def hex_color(self) -> str:
@@ -53,23 +234,106 @@ class ColorButton(QPushButton):
 
     @hex_color.setter
     def hex_color(self, value: str) -> None:
-        self._color = value
-        self._update_style()
+        if not value.startswith("#"):
+            value = "#" + value
+        if QColor(value).isValid():
+            self._color = value.upper()
+            self._update_style()
 
     def _update_style(self) -> None:
-        qcol = QColor(self._color)
-        luminance = 0.299 * qcol.red() + 0.587 * qcol.green() + 0.114 * qcol.blue()
-        text_col = "#111111" if luminance > 140 else "#F5F5F5"
-        self.setText(self._color.upper())
-        self.setStyleSheet(
-            f"QPushButton {{ background-color: {self._color}; color: {text_col}; "
-            "border: 1px solid #666; border-radius: 4px; font-weight: bold; }"
-        )
+        self.setIcon(make_swatch_icon(self._color, 16))
+        self.setText(f" {self._color}")
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #20262E;
+                color: #E0E4E8;
+                border: 1px solid #3E4652;
+                border-radius: 5px;
+                padding-left: 8px;
+                padding-right: 8px;
+                font-family: monospace;
+                font-weight: bold;
+                font-size: 8.5pt;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #272E38;
+                border-color: #00E5FF;
+            }
+        """)
 
-    def _pick_color(self) -> None:
-        chosen = QColorDialog.getColor(QColor(self._color), self, "Farbe wählen")
-        if chosen.isValid():
-            self.hex_color = chosen.name()
+    def _open_picker(self) -> None:
+        popup = ModernColorPickerPopup(self._color, self._set_color, parent=self)
+        pos = self.mapToGlobal(QPoint(0, self.height() + 2))
+        popup.move(pos)
+        popup.show()
+
+    def _set_color(self, new_color: str) -> None:
+        self.hex_color = new_color
+
+
+THEMES: dict[str, dict[str, str]] = {
+    "TrafficBox Standard (Gelb & Blau)": {
+        "down": "#FFEA00",
+        "up": "#4A5CFF",
+        "guest_down": "#00E676",
+        "guest_up": "#FF9100",
+        "ping": "#00E5FF",
+        "jitter": "#FF9100",
+        "bg": "#1C2428",
+        "border": "#5E616C",
+        "grid": "#32383D",
+        "title": "#E0E4E8",
+    },
+    "Cyberpunk Neon (Cyan & Pink)": {
+        "down": "#00E5FF",
+        "up": "#FF007F",
+        "guest_down": "#00E676",
+        "guest_up": "#FF9100",
+        "ping": "#D500F9",
+        "jitter": "#FFD600",
+        "bg": "#0D1117",
+        "border": "#00E5FF",
+        "grid": "#21262D",
+        "title": "#58A6FF",
+    },
+    "FRITZ!Box Classic (AVM Rot & Blau)": {
+        "down": "#E0001B",
+        "up": "#0066CC",
+        "guest_down": "#28A745",
+        "guest_up": "#FD7E14",
+        "ping": "#17A2B8",
+        "jitter": "#FFC107",
+        "bg": "#1F2326",
+        "border": "#495057",
+        "grid": "#343A40",
+        "title": "#F8F9FA",
+    },
+    "Emerald Matrix (Giftgrün & Minze)": {
+        "down": "#00E676",
+        "up": "#00B0FF",
+        "guest_down": "#76FF03",
+        "guest_up": "#1DE9B6",
+        "ping": "#69F0AE",
+        "jitter": "#FFD600",
+        "bg": "#0A140F",
+        "border": "#1B4D3E",
+        "grid": "#132E25",
+        "title": "#E8F5E9",
+    },
+    "Minimalist Monochrome (Weiß & Grau)": {
+        "down": "#FFFFFF",
+        "up": "#90CAF9",
+        "guest_down": "#B0BEC5",
+        "guest_up": "#78909C",
+        "ping": "#80D8FF",
+        "jitter": "#CFD8DC",
+        "bg": "#121212",
+        "border": "#37474F",
+        "grid": "#263238",
+        "title": "#ECEFF1",
+    },
+}
 
 
 class SettingsDialog(QDialog):
@@ -94,8 +358,8 @@ class SettingsDialog(QDialog):
     def _build_ui(self) -> None:
         root_layout = QVBoxLayout(self)
 
-        tabs = QTabWidget(self)
-        root_layout.addWidget(tabs)
+        self.tabs = QTabWidget(self)
+        root_layout.addWidget(self.tabs)
 
         # =========================================================================
         # TAB 1: FRITZ!Box (Verbindung & Login)
@@ -175,7 +439,7 @@ class SettingsDialog(QDialog):
         fritz_layout.addWidget(login_group)
         fritz_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_fritz), "FRITZ!Box")
+        self.tabs.addTab(self._wrap_in_scroll(tab_fritz), "FRITZ!Box")
 
         # =========================================================================
         # TAB 2: Allgemein (Systemstart, Fenster & Verhalten)
@@ -227,7 +491,7 @@ class SettingsDialog(QDialog):
         gen_layout.addWidget(win_group)
         gen_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein")
+        self.tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein")
 
         # =========================================================================
         # TAB 3: Anzeige (Skalierung, Graphen & Raten-Darstellung)
@@ -310,7 +574,7 @@ class SettingsDialog(QDialog):
         disp_layout.addWidget(rates_group)
         disp_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_display), "Anzeige")
+        self.tabs.addTab(self._wrap_in_scroll(tab_display), "Anzeige")
 
         # =========================================================================
         # TAB 4: Netzwerk (Eigener PC & Diagnose)
@@ -359,15 +623,30 @@ class SettingsDialog(QDialog):
         net_layout.addWidget(diag_group)
         net_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_net), "Netzwerk")
+        self.tabs.addTab(self._wrap_in_scroll(tab_net), "Netzwerk")
 
         # =========================================================================
-        # TAB 5: Farben
+        # TAB 5: Farben (Modernes Theme & Farbpalette)
         # =========================================================================
         tab_colors = QWidget()
         col_layout = QVBoxLayout(tab_colors)
         col_layout.setContentsMargins(8, 8, 8, 8)
         col_layout.setSpacing(8)
+
+        # Theme Schnellauswahl
+        theme_group = QGroupBox("Theme-Schnellauswahl (Farb-Vorlagen)")
+        theme_layout = QHBoxLayout(theme_group)
+        theme_layout.setContentsMargins(10, 8, 10, 8)
+        self.cmb_theme = QComboBox()
+        self.cmb_theme.addItems(list(THEMES.keys()))
+        btn_apply_theme = QPushButton("Theme anwenden")
+        btn_apply_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_apply_theme.clicked.connect(self._apply_selected_theme)
+
+        theme_layout.addWidget(QLabel("Vorlage:"))
+        theme_layout.addWidget(self.cmb_theme, 1)
+        theme_layout.addWidget(btn_apply_theme)
+        col_layout.addWidget(theme_group)
 
         colors_row = QHBoxLayout()
         colors_row.setSpacing(10)
@@ -393,8 +672,8 @@ class SettingsDialog(QDialog):
         colors_row.addWidget(traffic_group)
 
         # Widget Design & Hintergrund
-        theme_group = QGroupBox("Widget Design")
-        theme_form = QFormLayout(theme_group)
+        theme_box = QGroupBox("Widget Design")
+        theme_form = QFormLayout(theme_box)
         theme_form.setContentsMargins(10, 10, 10, 10)
         theme_form.setVerticalSpacing(6)
         self.btn_col_bg = ColorButton(self.config.background_color)
@@ -406,12 +685,12 @@ class SettingsDialog(QDialog):
         theme_form.addRow("Rahmen:", self.btn_col_border)
         theme_form.addRow("Raster (Grid):", self.btn_col_grid)
         theme_form.addRow("Titelfarbe:", self.btn_col_title)
-        colors_row.addWidget(theme_group)
+        colors_row.addWidget(theme_box)
 
         col_layout.addLayout(colors_row)
         col_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_colors), "Farben")
+        self.tabs.addTab(self._wrap_in_scroll(tab_colors), "Farben")
 
         # =========================================================================
         # Untere Aktions-Buttons
@@ -430,6 +709,23 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(btn_apply)
         btn_row.addWidget(btn_ok)
         root_layout.addLayout(btn_row)
+
+    def _apply_selected_theme(self) -> None:
+        """Apply a selected color theme preset across all color buttons."""
+        theme_name = self.cmb_theme.currentText()
+        theme = THEMES.get(theme_name)
+        if not theme:
+            return
+        self.btn_col_down.hex_color = theme["down"]
+        self.btn_col_up.hex_color = theme["up"]
+        self.btn_col_guest_down.hex_color = theme["guest_down"]
+        self.btn_col_guest_up.hex_color = theme["guest_up"]
+        self.btn_col_ping.hex_color = theme["ping"]
+        self.btn_col_jitter.hex_color = theme["jitter"]
+        self.btn_col_bg.hex_color = theme["bg"]
+        self.btn_col_border.hex_color = theme["border"]
+        self.btn_col_grid.hex_color = theme["grid"]
+        self.btn_col_title.hex_color = theme["title"]
 
     @staticmethod
     def _wrap_in_scroll(content_widget: QWidget) -> QScrollArea:
@@ -654,7 +950,85 @@ class SettingsDialog(QDialog):
         self.accept()
 
     def _reset_defaults(self) -> None:
-        self.config.reset_defaults()
-        self._load_from_config()
-        self.config.save()
-        self.on_apply()
+        current_idx = self.tabs.currentIndex()
+        tab_name = self.tabs.tabText(current_idx).replace("&&", "&")
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Standardwerte wiederherstellen")
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setText(
+            f"Möchtest du nur den aktuellen Reiter '{tab_name}' oder alle Einstellungen auf die Standardwerte zurücksetzen?"
+        )
+        msg_box.setInformativeText(
+            "• Nur aktueller Reiter: Setzt die Optionen dieser Seite zurück, ohne andere Bereiche zu verändern.\n"
+            "• Alle Einstellungen: Setzt die gesamte Konfiguration auf Werkszustand (inkl. Zugangsdaten)."
+        )
+        btn_tab = msg_box.addButton(f"Nur '{tab_name}' zurücksetzen", QMessageBox.ButtonRole.ActionRole)
+        btn_all = msg_box.addButton("Alle Einstellungen zurücksetzen", QMessageBox.ButtonRole.DestructiveRole)
+        btn_cancel = msg_box.addButton("Abbrechen", QMessageBox.ButtonRole.RejectRole)
+        msg_box.setDefaultButton(btn_tab)
+
+        msg_box.exec()
+        clicked = msg_box.clickedButton()
+
+        if clicked == btn_tab:
+            self._reset_single_tab(current_idx)
+        elif clicked == btn_all:
+            self.config.reset_defaults()
+            self._load_from_config()
+            self.config.save()
+            self.on_apply()
+
+    def _reset_single_tab(self, tab_idx: int) -> None:
+        """Reset only the settings belonging to a specific tab index."""
+        defaults = AppConfig()
+
+        if tab_idx == 0:  # FRITZ!Box
+            self.txt_host.setText(defaults.fritzbox_host)
+            self.spin_port.setValue(defaults.upnp_port)
+            self.spin_refresh.setValue(defaults.refresh_interval_sec)
+            self.chk_guest.setChecked(defaults.enable_guest_monitor)
+            self.txt_user.setText(defaults.fritz_username)
+            self.txt_pass.setText(defaults.fritz_password)
+            self.lbl_bound_box.setText("Nicht gekoppelt (wird beim ersten Login automatisch an die Box gebunden)")
+            self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
+            self.lbl_test_result.setVisible(False)
+        elif tab_idx == 1:  # Allgemein
+            self.chk_autostart.setChecked(defaults.autostart)
+            self.spin_delay.setValue(defaults.start_delay_sec)
+            self.chk_always_on_top.setChecked(defaults.always_on_top)
+            self.chk_locked_pos.setChecked(defaults.locked_pos)
+            self.slider_opacity.setValue(defaults.opacity)
+        elif tab_idx == 2:  # Anzeige
+            idx = self.cmb_scale_mode.findData(defaults.scale_mode)
+            self.cmb_scale_mode.setCurrentIndex(max(0, idx))
+            self.chk_auto_link.setChecked(defaults.auto_link_scale)
+            self.spin_max_down.setValue(defaults.manual_download_mbps)
+            self.spin_max_up.setValue(defaults.manual_upload_mbps)
+            self.chk_compact.setChecked(defaults.compact_mode)
+            self.chk_switch_up_down.setChecked(defaults.switch_up_down)
+            self.chk_show_bits.setChecked(defaults.show_as_bits)
+            self.chk_show_peak.setChecked(defaults.show_peak_rate)
+            self.chk_show_guest_meta.setChecked(defaults.show_guest_rate_labels)
+            self.chk_session_totals.setChecked(defaults.show_session_totals)
+            f_idx = self.cmb_footer_mode.findData(defaults.footer_counter_mode)
+            self.cmb_footer_mode.setCurrentIndex(max(0, f_idx))
+        elif tab_idx == 3:  # Netzwerk
+            self.chk_local_pc.setChecked(defaults.enable_local_traffic_monitor)
+            self.chk_pc_in_graph.setChecked(defaults.show_local_traffic_in_graph)
+            self.chk_pc_in_header.setChecked(defaults.show_local_traffic_in_header)
+            self.chk_ping_graph.setChecked(defaults.enable_ping_graph)
+            self.cmb_ping_endpoint.setEditText(defaults.ping_endpoint)
+            self.chk_wan_pill.setChecked(defaults.show_wan_status_pill)
+            self.chk_dns_pill.setChecked(defaults.enable_dns_monitor)
+        elif tab_idx == 4:  # Farben
+            self.btn_col_down.hex_color = defaults.download_color
+            self.btn_col_up.hex_color = defaults.upload_color
+            self.btn_col_guest_down.hex_color = defaults.guest_download_color
+            self.btn_col_guest_up.hex_color = defaults.guest_upload_color
+            self.btn_col_ping.hex_color = defaults.ping_color
+            self.btn_col_jitter.hex_color = defaults.jitter_color
+            self.btn_col_bg.hex_color = defaults.background_color
+            self.btn_col_border.hex_color = defaults.border_color
+            self.btn_col_grid.hex_color = defaults.grid_color
+            self.btn_col_title.hex_color = defaults.title_color

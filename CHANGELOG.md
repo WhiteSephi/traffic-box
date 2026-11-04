@@ -4,6 +4,16 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.12] - 2026-11-04
+### Added
+- **Modernes Dark-Mode Color-Picker Popover:**
+  - Die bisherigen Vollflächen-Farbbuttons wurden durch elegante Swatch-Pills (abgerundetes Farbfeld mit sauberem Monospace-Hex-Code `#FFEA00`) ersetzt.
+  - Beim Klick öffnet sich ein modernes, dunkles Popover mit einer kuratierten Palette aus 24 abgestimmten Akzentfarben, direktem Hex-Eingabefeld mit Live-Vorschau und Fallback-Möglichkeit zur erweiterten Palette.
+- **Theme-Schnellauswahl im Reiter Farben:**
+  - 5 vorkonfigurierte Farb-Themen auf 1 Klick anwendbar: *TrafficBox Standard (Gelb & Blau)*, *Cyberpunk Neon (Cyan & Pink)*, *FRITZ!Box Classic (AVM Rot & Blau)*, *Emerald Matrix (Giftgrün & Minze)* und *Minimalist Monochrome (Weiß & Grau)*.
+- **Sicherer, reiterbezogener Reset-Auswahldialog:**
+  - Der Reset-Button öffnet nun eine strukturierte Auswahlabfrage: Es kann gezielt **nur der aktuell geöffnete Reiter** auf Standardwerte zurückgesetzt werden (ohne Passwörter oder Router-Kopplungen auf anderen Reitern zu löschen) oder die gesamte Konfiguration auf Werkseinstellungen.
+
 ## [0.11.11] - 2026-11-04
 ### Changed
 - **Thematische Neustrukturierung der Einstellungs-Tabs (Variante C):**
