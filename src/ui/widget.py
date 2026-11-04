@@ -132,6 +132,7 @@ class TrafficBox(QWidget):
         self._settings_dlg: SettingsDialog | None = None
         self._in_layout_transition: bool = False
         self._was_compact: bool = self.config.compact_mode
+        self._was_counters: bool = self.config.active_view == "counters"
 
         self._configure_window_flags()
         self._build_ui()
@@ -389,25 +390,36 @@ class TrafficBox(QWidget):
 
         self._in_layout_transition = True
         try:
-            target_w = max(240, self.config.widget_width)
-            target_h = max(195, self.config.widget_height)
+            if (
+                not self._was_compact
+                and self.config.compact_mode
+                and self.isVisible()
+                and self.height() >= 220
+            ):
+                self.config.widget_width = self.width()
+                self.config.widget_height = self.height()
+
+            # Minimum dimensions that fit both Graph & 5-row Online-Zähler with Ratio Bar
+            min_w = 430 if is_counters else 260
+            min_h = 285 if is_counters else 210
+            target_w = max(min_w, self.config.widget_width)
+            target_h = max(min_h, self.config.widget_height)
 
             if self.config.compact_mode:
-                if not self._was_compact and self.isVisible() and self.height() >= 175:
-                    self.config.widget_width = self.width()
-                    self.config.widget_height = self.height()
-                    target_w = self.config.widget_width
                 self.center_stack.setVisible(False)
+                self.setMinimumWidth(260)
                 self.setMinimumHeight(88)
                 self.setMaximumHeight(115)
                 self.resize(target_w, 98)
             else:
                 self.center_stack.setVisible(True)
-                self.setMinimumHeight(195)
+                self.setMinimumWidth(min_w)
+                self.setMinimumHeight(min_h)
                 self.setMaximumHeight(16777215)
                 self.resize(target_w, target_h)
 
             self._was_compact = self.config.compact_mode
+            self._was_counters = is_counters
         finally:
             self._in_layout_transition = False
 
@@ -675,7 +687,7 @@ class TrafficBox(QWidget):
             not self.config.compact_mode
             and not self._in_layout_transition
             and self.isVisible()
-            and self.height() >= 175
+            and self.height() >= 210
         ):
             self.config.widget_width = self.width()
             self.config.widget_height = self.height()

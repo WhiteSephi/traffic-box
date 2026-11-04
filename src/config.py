@@ -90,8 +90,8 @@ class AppConfig:
     footer_counter_mode: str = "today"
     show_connection_tooltip: bool = True
     opacity: int = 85  # 20..100 %
-    widget_width: int = 340
-    widget_height: int = 255
+    widget_width: int = 460
+    widget_height: int = 300
     pos_x: int = -1
     pos_y: int = -1
 

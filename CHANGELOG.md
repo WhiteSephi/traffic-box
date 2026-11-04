@@ -4,6 +4,16 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.5.0] - 2026-11-04
+### Added
+- **Visuelle Verteilungs-Balken (`Anteil ⬇ / ⬆`) im Online-Zähler:** Fünfte Spalte (`RatioBarWidget`) in `src/ui/online_counter_view.py` ergänzt, die für jeden Zeitraum (`Heute`, `Gestern`, `Aktuelle Woche`, `Aktueller Monat`, `Vormonat`) das Verhältnis von Download (Gelb) zu Upload (Blau) grafisch darstellt und bei breiter gezogenem Fenster zusätzlich die Prozentwerte (`% ⬇ / % ⬆`) einblendet.
+
+### Changed
+- **Harmonisches Responsive-Layout für beide Tabs (`📈 Graph` & `📊 Zähler`):** Spalten `0..3` passen sich kompakt ihrem Inhalt an (`ResizeToContents`), während die Balken-Spalte (`Stretch`) und die Zeilenhöhen (`verticalHeader().setSectionResizeMode(Stretch)`) dynamisch jede vom Nutzer gewählte Fenstergröße ausfüllen.
+
+### Fixed
+- Störende graue Einzelzellen-Markierung (Windows-11-Hover-/Fokus-Rechteck) in der Online-Zähler-Tabelle entfernt.
+
 ## [0.4.4] - 2026-11-03
 ### Docs
 - Dokumentation der Standard-Speicherorte (`%APPDATA%` / `~/.config`) sowie des portablen Modus (`local/config.json`) in `README.md` ergänzt.
