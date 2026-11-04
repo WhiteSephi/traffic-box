@@ -222,11 +222,11 @@ class SettingsDialog(QDialog):
         ping_form.addRow("Ping-Ziel (Endpoint):", self.cmb_ping_endpoint)
         diag_layout.addWidget(ping_group)
 
-        status_group = QGroupBox("Status- && Diagnose-Leiste (Footer-Pills)")
+        status_group = QGroupBox("Status- && Diagnose-Anzeige (Fußzeile)")
         status_form = QFormLayout(status_group)
 
-        self.chk_wan_pill = QCheckBox("WAN-Status-Pill anzeigen (✓ WAN OK / ⚠ Kein Sync / ✕ Offline)")
-        self.chk_dns_pill = QCheckBox("Aktiven Betriebssystem-DNS überwachen (Antwortzeit in ms)")
+        self.chk_wan_pill = QCheckBox("WAN-Verbindungsstatus anzeigen (✓ WAN OK / ⚠ Kein Sync / ✕ Offline)")
+        self.chk_dns_pill = QCheckBox("Aktiven System-DNS-Server überwachen (Antwortzeit in ms)")
 
         status_form.addRow("", self.chk_wan_pill)
         status_form.addRow("", self.chk_dns_pill)

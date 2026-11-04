@@ -126,15 +126,16 @@ def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
         res = subprocess.run(
             cmd,
             capture_output=True,
-            text=True,
             timeout=max(1.5, timeout_ms / 1000.0 + 0.5),
             creationflags=flags,
         )
         if res.returncode == 0:
+            encoding = "cp850" if sys.platform == "win32" else "utf-8"
+            out_text = res.stdout.decode(encoding, errors="replace")
             # Parse time from stdout
             # Windows: "Zeit=14ms", "Zeit<1ms", "time=14ms", "time<1ms"
             # Linux: "time=14.2 ms"
-            match = re.search(r"(?:Zeit|time)[=<]\s*(\d+(?:\.\d+)?)\s*ms", res.stdout, re.IGNORECASE)
+            match = re.search(r"(?:Zeit|time)[=<]\s*(\d+(?:\.\d+)?)\s*ms", out_text, re.IGNORECASE)
             if match:
                 return float(match.group(1))
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
