@@ -87,7 +87,7 @@ class SettingsDialog(QDialog):
 
         self.setWindowTitle("TrafficBox Einstellungen")
         self.setMinimumSize(600, 480)
-        self.resize(660, 520)
+        self.resize(680, 540)
         self._build_ui()
         self._load_from_config()
 
@@ -102,12 +102,14 @@ class SettingsDialog(QDialog):
         # =========================================================================
         tab_fritz = QWidget()
         fritz_layout = QVBoxLayout(tab_fritz)
-        fritz_layout.setSpacing(12)
+        fritz_layout.setContentsMargins(8, 8, 8, 8)
+        fritz_layout.setSpacing(8)
 
         # Verbindungsparameter
         conn_group = QGroupBox("Verbindungsparameter (UPnP)")
         conn_form = QFormLayout(conn_group)
-        conn_form.setVerticalSpacing(8)
+        conn_form.setContentsMargins(10, 10, 10, 10)
+        conn_form.setVerticalSpacing(6)
 
         self.txt_host = QLineEdit()
         self.txt_host.setPlaceholderText("z. B. fritz.box oder 192.168.178.1")
@@ -121,15 +123,25 @@ class SettingsDialog(QDialog):
         self.spin_delay.setSuffix(" Sek.")
 
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
-        conn_form.addRow("UPnP Port:", self.spin_port)
-        conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
-        conn_form.addRow("Startverzögerung:", self.spin_delay)
+
+        row_nums = QHBoxLayout()
+        row_nums.addWidget(QLabel("UPnP Port:"))
+        row_nums.addWidget(self.spin_port)
+        row_nums.addSpacing(12)
+        row_nums.addWidget(QLabel("Aktualisierung:"))
+        row_nums.addWidget(self.spin_refresh)
+        row_nums.addSpacing(12)
+        row_nums.addWidget(QLabel("Startverzögerung:"))
+        row_nums.addWidget(self.spin_delay)
+        row_nums.addStretch(1)
+        conn_form.addRow(row_nums)
         fritz_layout.addWidget(conn_group)
 
         # Fritz!OS Login
-        login_group = QGroupBox("Fritz!OS Login (für Online-Zähler & Gäste-WLAN)")
+        login_group = QGroupBox("Fritz!OS Login (für Online-Zähler && Gäste-WLAN)")
         login_form = QFormLayout(login_group)
-        login_form.setVerticalSpacing(8)
+        login_form.setContentsMargins(10, 10, 10, 10)
+        login_form.setVerticalSpacing(6)
 
         self.chk_guest = QCheckBox("Fritz!OS Login aktivieren")
         self.chk_guest.toggled.connect(self._on_guest_toggled)
@@ -143,34 +155,29 @@ class SettingsDialog(QDialog):
         self.lbl_bound_box.setWordWrap(True)
         self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
-        self.btn_test_conn = QPushButton(" Verbindung & Login testen")
+        self.btn_test_conn = QPushButton(" Verbindung && Login testen")
         self.btn_test_conn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_test_conn.clicked.connect(self._on_test_connection)
         self.lbl_test_result = QLabel("")
         self.lbl_test_result.setWordWrap(True)
         self.lbl_test_result.setVisible(False)
 
-        box_status_layout = QVBoxLayout()
-        box_status_layout.setSpacing(6)
-        box_status_layout.setContentsMargins(0, 4, 0, 4)
-
         box_label_row = QHBoxLayout()
         lbl_box_title = QLabel("Box-Kopplung (Schutz):")
         lbl_box_title.setStyleSheet("font-weight: bold; color: #E0E4E8; font-size: 8.5pt;")
         box_label_row.addWidget(lbl_box_title)
         box_label_row.addWidget(self.lbl_bound_box, 1)
-        box_status_layout.addLayout(box_label_row)
 
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.btn_test_conn)
         btn_row.addStretch(1)
-        box_status_layout.addLayout(btn_row)
-        box_status_layout.addWidget(self.lbl_test_result)
 
         login_form.addRow(self.chk_guest)
         login_form.addRow("Fritz!Box Benutzer:", self.txt_user)
         login_form.addRow("Fritz!Box Passwort:", self.txt_pass)
-        login_form.addRow(box_status_layout)
+        login_form.addRow(box_label_row)
+        login_form.addRow(btn_row)
+        login_form.addRow(self.lbl_test_result)
         fritz_layout.addWidget(login_group)
         fritz_layout.addStretch(1)
 
@@ -181,11 +188,13 @@ class SettingsDialog(QDialog):
         # =========================================================================
         tab_disp = QWidget()
         disp_layout = QVBoxLayout(tab_disp)
-        disp_layout.setSpacing(12)
+        disp_layout.setContentsMargins(8, 8, 8, 8)
+        disp_layout.setSpacing(8)
 
-        beh_group = QGroupBox("Fenster & Verhalten")
+        beh_group = QGroupBox("Fenster && Verhalten")
         beh_grid = QGridLayout(beh_group)
-        beh_grid.setVerticalSpacing(8)
+        beh_grid.setContentsMargins(10, 10, 10, 10)
+        beh_grid.setVerticalSpacing(6)
         self.chk_autostart = QCheckBox("Autostart mit System")
         self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
         self.chk_locked_pos = QCheckBox("Position sperren (LockedPos)")
@@ -211,7 +220,8 @@ class SettingsDialog(QDialog):
 
         view_group = QGroupBox("Anzeige-Optionen")
         view_grid = QGridLayout(view_group)
-        view_grid.setVerticalSpacing(8)
+        view_grid.setContentsMargins(10, 10, 10, 10)
+        view_grid.setVerticalSpacing(6)
         self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
         self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
         self.chk_show_peak = QCheckBox("Peak-Rate anzeigen (z. B. Peak 60s)")
@@ -245,11 +255,13 @@ class SettingsDialog(QDialog):
         # =========================================================================
         tab_scale = QWidget()
         scale_layout = QVBoxLayout(tab_scale)
-        scale_layout.setSpacing(12)
+        scale_layout.setContentsMargins(8, 8, 8, 8)
+        scale_layout.setSpacing(8)
 
-        scale_group = QGroupBox("Graph-Skalierung & Leitungskapazität")
+        scale_group = QGroupBox("Graph-Skalierung && Leitungskapazität")
         scale_form = QFormLayout(scale_group)
-        scale_form.setVerticalSpacing(8)
+        scale_form.setContentsMargins(10, 10, 10, 10)
+        scale_form.setVerticalSpacing(6)
 
         self.cmb_scale_mode = QComboBox()
         self.cmb_scale_mode.addItem(
@@ -287,6 +299,7 @@ class SettingsDialog(QDialog):
         # Local Device Group
         pc_group = QGroupBox("Lokales Gerät (Eigener PC-Traffic Anteil)")
         pc_layout = QVBoxLayout(pc_group)
+        pc_layout.setContentsMargins(10, 10, 10, 10)
         self.chk_local_pc = QCheckBox("Eigenen PC-Traffic überwachen (Anteil am Internet-Traffic)")
         self.chk_pc_in_graph = QCheckBox("Eigenen Anteil im Graphen einfärben (abgedunkelte Nuance)")
         self.chk_pc_in_header = QCheckBox("Eigene Rate als Text unter den Haupt-Raten anzeigen")
@@ -302,20 +315,22 @@ class SettingsDialog(QDialog):
         scale_layout.addWidget(pc_group)
         scale_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_scale), "Graph & Leitung")
+        tabs.addTab(self._wrap_in_scroll(tab_scale), "Graph && Leitung")
 
         # =========================================================================
         # TAB 4: Diagnose & Ping
         # =========================================================================
         tab_diag = QWidget()
         diag_layout = QVBoxLayout(tab_diag)
-        diag_layout.setSpacing(12)
+        diag_layout.setContentsMargins(8, 8, 8, 8)
+        diag_layout.setSpacing(8)
 
-        ping_group = QGroupBox("Internet Ping- & Jitter-Graph")
+        ping_group = QGroupBox("Internet Ping- && Jitter-Graph")
         ping_form = QFormLayout(ping_group)
-        ping_form.setVerticalSpacing(8)
+        ping_form.setContentsMargins(10, 10, 10, 10)
+        ping_form.setVerticalSpacing(6)
 
-        self.chk_ping_graph = QCheckBox("Ping- & Jitter-Graph unterhalb von Down/Up anzeigen")
+        self.chk_ping_graph = QCheckBox("Ping- && Jitter-Graph unterhalb von Down/Up anzeigen")
         self.cmb_ping_endpoint = QComboBox()
         self.cmb_ping_endpoint.setEditable(True)
         self.cmb_ping_endpoint.addItems(["1.1.1.1", "8.8.8.8", "9.9.9.9", "heise.de", "google.com"])
@@ -324,9 +339,10 @@ class SettingsDialog(QDialog):
         ping_form.addRow("Ping-Ziel (Endpoint):", self.cmb_ping_endpoint)
         diag_layout.addWidget(ping_group)
 
-        status_group = QGroupBox("Status- & Diagnose-Anzeige (Fußzeile)")
+        status_group = QGroupBox("Status- && Diagnose-Anzeige (Fußzeile)")
         status_form = QFormLayout(status_group)
-        status_form.setVerticalSpacing(8)
+        status_form.setContentsMargins(10, 10, 10, 10)
+        status_form.setVerticalSpacing(6)
 
         self.chk_wan_pill = QCheckBox("WAN-Verbindungsstatus anzeigen (✓ WAN OK / ⚠ Kein Sync / ✕ Offline)")
         self.chk_dns_pill = QCheckBox("Aktiven System-DNS-Server überwachen (Antwortzeit in ms)")
@@ -336,21 +352,23 @@ class SettingsDialog(QDialog):
         diag_layout.addWidget(status_group)
         diag_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_diag), "Diagnose & Ping")
+        tabs.addTab(self._wrap_in_scroll(tab_diag), "Diagnose && Ping")
 
         # =========================================================================
         # TAB 5: Farben
         # =========================================================================
         tab_colors = QWidget()
         col_layout = QVBoxLayout(tab_colors)
-        col_layout.setSpacing(12)
+        col_layout.setContentsMargins(8, 8, 8, 8)
+        col_layout.setSpacing(8)
 
         colors_row = QHBoxLayout()
-        colors_row.setSpacing(12)
+        colors_row.setSpacing(10)
 
         # Traffic & Ping Graphen
-        traffic_group = QGroupBox("Traffic & Ping Graphen")
+        traffic_group = QGroupBox("Traffic && Ping Graphen")
         traffic_form = QFormLayout(traffic_group)
+        traffic_form.setContentsMargins(10, 10, 10, 10)
         traffic_form.setVerticalSpacing(6)
         self.btn_col_down = ColorButton(self.config.download_color)
         self.btn_col_up = ColorButton(self.config.upload_color)
@@ -370,6 +388,7 @@ class SettingsDialog(QDialog):
         # Widget Design & Hintergrund
         theme_group = QGroupBox("Widget Design")
         theme_form = QFormLayout(theme_group)
+        theme_form.setContentsMargins(10, 10, 10, 10)
         theme_form.setVerticalSpacing(6)
         self.btn_col_bg = ColorButton(self.config.background_color)
         self.btn_col_border = ColorButton(self.config.border_color)
@@ -395,7 +414,7 @@ class SettingsDialog(QDialog):
         btn_reset.clicked.connect(self._reset_defaults)
         btn_apply = QPushButton("Übernehmen")
         btn_apply.clicked.connect(self._apply_changes)
-        btn_ok = QPushButton("Speichern & Schließen")
+        btn_ok = QPushButton("Speichern && Schließen")
         btn_ok.setDefault(True)
         btn_ok.clicked.connect(self._save_and_close)
 

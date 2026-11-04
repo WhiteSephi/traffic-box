@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.10] - 2026-11-04
+### Fixed
+- **Scrollbalken im FRITZ!Box-Reiter vollständig beseitigt:**
+  - Die drei numerischen Spinbox-Zeilen (`UPnP Port`, `Aktualisierung` und `Startverzögerung`) wurden platzsparend in einer gemeinsamen horizontalen Reihe zusammengefasst.
+  - Die Netto-Höhe des Reiters sinkt dadurch von 410 px auf 309 px, sodass selbst bei kleiner Fensterhöhe (480–500 px) kein vertikaler Scrollbalken mehr getriggert wird.
+  - Das von Qt interpretierte Ampersand-Mnemonic (`&`) wurde in Reiter-Titeln (`Graph && Leitung`, `Diagnose && Ping`), Gruppenüberschriften und Buttons per `&&` escaped, sodass alle Zeichen wieder vollständig dargestellt werden.
+
 ## [0.11.9] - 2026-11-04
 ### Changed
 - **Einstellungs-Dialog in 5 fokussierte Bereiche aufgeteilt (vollständig scrollbalkenfrei):**
