@@ -44,6 +44,7 @@ from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
 from src.ui.graph_canvas import SplitTrafficGraphWidget
+from src.ui.icons import create_arrow_pixmap
 from src.ui.online_counter_view import OnlineCounterView
 from src.ui.settings_dlg import SettingsDialog
 from src.ui.tray import create_router_icon
@@ -197,9 +198,17 @@ class TrafficBox(QWidget):
         # Download Column
         down_col = QVBoxLayout()
         down_col.setSpacing(2)
-        self.lbl_down_header = QLabel("⬇ Down:")
-        self.lbl_down_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        down_hdr_row = QHBoxLayout()
+        down_hdr_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        down_hdr_row.setSpacing(4)
+        down_hdr_row.setContentsMargins(0, 0, 0, 0)
+        self.icon_down_header = QLabel()
+        self.icon_down_header.setFixedSize(11, 11)
+        self.lbl_down_header = QLabel("Down:")
         self.lbl_down_header.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        down_hdr_row.addWidget(self.icon_down_header)
+        down_hdr_row.addWidget(self.lbl_down_header)
 
         self.lbl_down_rate = QLabel("0,00 kB/s")
         self.lbl_down_rate.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -220,7 +229,7 @@ class TrafficBox(QWidget):
         self.lbl_guest_down.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
         self.lbl_guest_down.setVisible(False)
 
-        down_col.addWidget(self.lbl_down_header)
+        down_col.addLayout(down_hdr_row)
         down_col.addWidget(self.lbl_down_rate)
         down_col.addWidget(self.bar_down_util)
         down_col.addWidget(self.lbl_down_meta)
@@ -229,9 +238,17 @@ class TrafficBox(QWidget):
         # Upload Column
         up_col = QVBoxLayout()
         up_col.setSpacing(2)
-        self.lbl_up_header = QLabel("⬆ Up:")
-        self.lbl_up_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        up_hdr_row = QHBoxLayout()
+        up_hdr_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        up_hdr_row.setSpacing(4)
+        up_hdr_row.setContentsMargins(0, 0, 0, 0)
+        self.icon_up_header = QLabel()
+        self.icon_up_header.setFixedSize(11, 11)
+        self.lbl_up_header = QLabel("Up:")
         self.lbl_up_header.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        up_hdr_row.addWidget(self.icon_up_header)
+        up_hdr_row.addWidget(self.lbl_up_header)
 
         self.lbl_up_rate = QLabel("0,00 kB/s")
         self.lbl_up_rate.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -252,7 +269,7 @@ class TrafficBox(QWidget):
         self.lbl_guest_up.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
         self.lbl_guest_up.setVisible(False)
 
-        up_col.addWidget(self.lbl_up_header)
+        up_col.addLayout(up_hdr_row)
         up_col.addWidget(self.lbl_up_rate)
         up_col.addWidget(self.bar_up_util)
         up_col.addWidget(self.lbl_up_meta)
@@ -359,11 +376,13 @@ class TrafficBox(QWidget):
         down_col = self.config.download_color
         up_col = self.config.upload_color
 
+        self.icon_down_header.setPixmap(create_arrow_pixmap(down_col, "down", 11))
         self.lbl_down_header.setStyleSheet(f"color: {down_col};")
         self.lbl_down_rate.setStyleSheet(f"color: {down_col};")
         self.lbl_down_meta.setStyleSheet(f"color: {self.config.title_color};")
         self.lbl_guest_down.setStyleSheet(f"color: {self.config.guest_download_color};")
 
+        self.icon_up_header.setPixmap(create_arrow_pixmap(up_col, "up", 11))
         self.lbl_up_header.setStyleSheet(f"color: {up_col};")
         self.lbl_up_rate.setStyleSheet(f"color: {up_col};")
         self.lbl_up_meta.setStyleSheet(f"color: {self.config.title_color};")
@@ -399,9 +418,9 @@ class TrafficBox(QWidget):
                 self.config.widget_width = self.width()
                 self.config.widget_height = self.height()
 
-            # Minimum dimensions that fit both Graph & 5-row Online-Zähler with Ratio Bar
-            min_w = 430 if is_counters else 260
-            min_h = 285 if is_counters else 210
+            # Minimum dimensions that fit both Graph & 5-card Online-Zähler
+            min_w = 460 if is_counters else 260
+            min_h = 310 if is_counters else 210
             target_w = max(min_w, self.config.widget_width)
             target_h = max(min_h, self.config.widget_height)
 
@@ -557,11 +576,11 @@ class TrafficBox(QWidget):
             rx_str = format_bytes(counter.received_bytes)
             tx_str = format_bytes(counter.sent_bytes)
             tot_str = format_bytes(counter.total_bytes)
-            return f"{label}: ⬇ {rx_str} • ⬆ {tx_str} (Σ {tot_str})"
+            return f"{label}: ↓ {rx_str} • ↑ {tx_str} (Σ {tot_str})"
 
         rx_str = format_bytes(sample.session_bytes_received)
         tx_str = format_bytes(sample.session_bytes_sent)
-        return f"Seit Widget-Start: ⬇ {rx_str}  •  ⬆ {tx_str}"
+        return f"Seit Widget-Start: ↓ {rx_str}  •  ↑ {tx_str}"
 
     def _update_tooltip(
         self, sample: TrafficSample, down_pct: float, up_pct: float
@@ -572,8 +591,8 @@ class TrafficBox(QWidget):
 
         tray_tip = (
             f"TrafficBox ({self.config.fritzbox_host})\n"
-            f"⬇ Down: {down_str} ({down_pct:.1f}%)\n"
-            f"⬆ Up: {up_str} ({up_pct:.1f}%)"
+            f"↓ Down: {down_str} ({down_pct:.1f}%)\n"
+            f"↑ Up: {up_str} ({up_pct:.1f}%)"
         ).replace(".", ",")
         self.tray_icon.setToolTip(tray_tip)
 
@@ -589,10 +608,10 @@ class TrafficBox(QWidget):
             f"<b>Fritz!Box ({self.config.fritzbox_host})</b>",
             f"Status: <b>{sample.connection_status}</b> | Verbunden seit: {format_uptime(sample.uptime_seconds)}",
             f"Externe IP: <code>{sample.external_ip}</code>",
-            f"Leitungskapazität: ⬇ {max_down_mbps:.1f} Mbit/s | ⬆ {max_up_mbps:.1f} Mbit/s".replace(
+            f"Leitungskapazität: ↓ {max_down_mbps:.1f} Mbit/s | ↑ {max_up_mbps:.1f} Mbit/s".replace(
                 ".", ","
             ),
-            f"Seit Widget-Start: ⬇ {format_bytes(sample.session_bytes_received)} | ⬆ {format_bytes(sample.session_bytes_sent)}",
+            f"Seit Widget-Start: ↓ {format_bytes(sample.session_bytes_received)} | ↑ {format_bytes(sample.session_bytes_sent)}",
         ]
 
         oc = sample.online_counters
@@ -608,7 +627,7 @@ class TrafficBox(QWidget):
                 "<hr><b>Fritz!Box Online-Zähler:</b>"
                 "<table cellspacing='4' cellpadding='1'>"
                 "<tr><th align='left'>Zeitraum</th><th align='right'>Gesamt</th>"
-                "<th align='right'>⬆ Gesendet</th><th align='right'>⬇ Empfangen</th></tr>"
+                "<th align='right'>↑ Gesendet</th><th align='right'>↓ Empfangen</th></tr>"
             )
             for p_name, p_cnt in rows:
                 table_html += (
@@ -623,7 +642,7 @@ class TrafficBox(QWidget):
             uptime_str = format_uptime(sample.uptime_seconds)
             since_lbl = f"Seit Verbindung ({uptime_str})" if sample.uptime_seconds > 0 else "Seit Router-Start"
             lines.append(
-                f"{since_lbl}: ⬇ {format_bytes(sample.total_bytes_received)} | ⬆ {format_bytes(sample.total_bytes_sent)}"
+                f"{since_lbl}: ↓ {format_bytes(sample.total_bytes_received)} | ↑ {format_bytes(sample.total_bytes_sent)}"
             )
 
         if sample.error_message:
