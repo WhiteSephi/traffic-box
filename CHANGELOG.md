@@ -4,6 +4,17 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.9] - 2026-11-04
+### Changed
+- **Einstellungs-Dialog in 5 fokussierte Bereiche aufgeteilt (vollständig scrollbalkenfrei):**
+  - Die Einstellungen wurden aus dem überfüllten Allgemein-Reiter in fünf logisch strukturierte Reiter aufgeteilt:
+    1. **FRITZ!Box**: Verbindungsparameter (Host, UPnP-Port, Refresh, Delay), optionaler Fritz!OS-Login und Box-Kopplungsschutz samt Test-Button und Inline-Feedback.
+    2. **Darstellung**: Fensterverhalten (Autostart, Always on Top, Position sperren, Kompakt-Modus), Deckkraft-Schieberegler, Ansichts-Optionen (Bit/s, Up/Down-Tausch, Peak, Gäste-WLAN) und Footer-Zähler-Modus.
+    3. **Graph & Leitung**: Skalierungsmodus (Wurzel, Dynamisch, Fix), Bandbreitenlimits und Lokaler PC-Traffic-Monitor.
+    4. **Diagnose & Ping**: Ping- & Jitter-Graph und WAN-/DNS-Statuspillen.
+    5. **Farben**: Übersichtliche zweispaltige Anordnung (Traffic & Ping vs. Widget-Design) aller 10 Farbkonfigurationen.
+  - Jeder Reiter ist so kompakt bemessen, dass sämtliche Optionen sofort und ohne störende vertikale Scrollbalken sichtbar sind. Die Scrollbars bleiben als unsichtbare Absicherung (`ScrollBarAsNeeded`) nur für Extremfälle erhalten.
+
 ## [0.11.8] - 2026-11-04
 ### Fixed
 - **Scrollbare Einstellungs-Tabs & permanente Speichern-Leiste:**
