@@ -161,6 +161,7 @@ class TrafficBox(QWidget):
         self._in_layout_transition: bool = False
         self._was_compact: bool = self.config.compact_mode
         self._was_counters: bool = self.config.active_view == "counters"
+        self._is_graph_hovered: bool = False
 
         self._configure_window_flags()
         self._build_ui()
@@ -311,6 +312,8 @@ class TrafficBox(QWidget):
         # --- 3. Center Stacked Area (Split Graph vs. Online-Zähler Table) ---
         self.center_stack = QStackedWidget(self)
         self.graph_widget = SplitTrafficGraphWidget(self.config, self)
+        self.graph_widget.point_hovered.connect(self._on_graph_point_hovered)
+        self.graph_widget.point_unhovered.connect(self._on_graph_point_unhovered)
         self.counter_view = OnlineCounterView(
             self.config, on_open_settings=self.open_settings_dialog, parent=self
         )
@@ -587,28 +590,88 @@ class TrafficBox(QWidget):
 
         return max_down, max_up
 
+    def _update_live_rate_displays(self, sample: TrafficSample) -> tuple[float, float]:
+        """Update top rate numbers, utilization bars, and meta text for live traffic."""
+        max_down_bps, max_up_bps = self._effective_max_bandwidths(sample)
+        down_pct = min(100.0, (sample.download_bps / max_down_bps) * 100.0) if (max_down_bps > 0 and sample.is_connected) else 0.0
+        up_pct = min(100.0, (sample.upload_bps / max_up_bps) * 100.0) if (max_up_bps > 0 and sample.is_connected) else 0.0
+
+        if not self._is_graph_hovered:
+            self.lbl_down_header.setText("Down:")
+            self.lbl_up_header.setText("Up:")
+
+            bits = self.config.show_as_bits
+            down_str = format_rate(sample.download_bps, bits)
+            up_str = format_rate(sample.upload_bps, bits)
+
+            if not sample.box_reachable:
+                self.lbl_down_rate.setText("Offline")
+                self.lbl_up_rate.setText("Offline")
+            elif not sample.physical_link_up:
+                self.lbl_down_rate.setText("Kein Sync")
+                self.lbl_up_rate.setText("Kein Sync")
+            elif not sample.wan_connected:
+                self.lbl_down_rate.setText("Kein Internet")
+                self.lbl_up_rate.setText("Kein Internet")
+            else:
+                self.lbl_down_rate.setText(down_str)
+                self.lbl_up_rate.setText(up_str)
+
+            self.bar_down_util.setValue(int(down_pct * 10))
+            self.bar_up_util.setValue(int(up_pct * 10))
+
+            peak_down_str = format_rate(self._peak_down_bps, bits)
+            peak_up_str = format_rate(self._peak_up_bps, bits)
+            self.lbl_down_meta.setText(
+                f"{down_pct:.1f}% • Peak (60s): {peak_down_str}".replace(".", ",")
+            )
+            self.lbl_up_meta.setText(
+                f"{up_pct:.1f}% • Peak (60s): {peak_up_str}".replace(".", ",")
+            )
+
+        return down_pct, up_pct
+
+    @Slot(int, int, float, float, float, float)
+    def _on_graph_point_hovered(
+        self,
+        _idx: int,
+        age_sec: int,
+        down_bps: float,
+        up_bps: float,
+        _ping_ms: float,
+        _jitter_ms: float,
+    ) -> None:
+        """Temporarily scrub top rate display to inspected historical moment."""
+        self._is_graph_hovered = True
+        tag = "Jetzt • Live" if age_sec == 0 else f"vor {age_sec}s"
+        self.lbl_down_header.setText(f"Down [{tag}]:")
+        self.lbl_up_header.setText(f"Up [{tag}]:")
+
+        bits = self.config.show_as_bits
+        self.lbl_down_rate.setText(format_rate(down_bps, bits))
+        self.lbl_up_rate.setText(format_rate(up_bps, bits))
+
+        if self._last_sample:
+            max_down_bps, max_up_bps = self._effective_max_bandwidths(self._last_sample)
+            down_pct = min(100.0, (down_bps / max_down_bps) * 100.0) if max_down_bps > 0 else 0.0
+            up_pct = min(100.0, (up_bps / max_up_bps) * 100.0) if max_up_bps > 0 else 0.0
+            self.bar_down_util.setValue(int(down_pct * 10))
+            self.bar_up_util.setValue(int(up_pct * 10))
+            self.lbl_down_meta.setText(f"{down_pct:.1f}% • Historisch".replace(".", ","))
+            self.lbl_up_meta.setText(f"{up_pct:.1f}% • Historisch".replace(".", ","))
+
+    @Slot()
+    def _on_graph_point_unhovered(self) -> None:
+        """Restore live header labels and rates when mouse leaves graph."""
+        self._is_graph_hovered = False
+        if self._last_sample:
+            self._update_live_rate_displays(self._last_sample)
+
     @Slot(object)
     def _on_sample_received(self, sample: TrafficSample) -> None:
         """Update labels, utilization bars, graph, and tooltips with a fresh TrafficSample."""
         self._last_sample = sample
         self.lbl_icon.setPixmap(create_router_icon(sample.is_connected).pixmap(QSize(18, 18)))
-
-        bits = self.config.show_as_bits
-        down_str = format_rate(sample.download_bps, bits)
-        up_str = format_rate(sample.upload_bps, bits)
-
-        if not sample.box_reachable:
-            self.lbl_down_rate.setText("Offline")
-            self.lbl_up_rate.setText("Offline")
-        elif not sample.physical_link_up:
-            self.lbl_down_rate.setText("Kein Sync")
-            self.lbl_up_rate.setText("Kein Sync")
-        elif not sample.wan_connected:
-            self.lbl_down_rate.setText("Kein Internet")
-            self.lbl_up_rate.setText("Kein Internet")
-        else:
-            self.lbl_down_rate.setText(down_str)
-            self.lbl_up_rate.setText(up_str)
 
         self.graph_widget.push_sample(
             sample.download_bps if sample.is_connected else 0.0,
@@ -625,22 +688,9 @@ class TrafficBox(QWidget):
         self._peak_down_bps = self.graph_widget.current_peak_down_bps
         self._peak_up_bps = self.graph_widget.current_peak_up_bps
 
-        max_down_bps, max_up_bps = self._effective_max_bandwidths(sample)
-        down_pct = min(100.0, (sample.download_bps / max_down_bps) * 100.0) if (max_down_bps > 0 and sample.is_connected) else 0.0
-        up_pct = min(100.0, (sample.upload_bps / max_up_bps) * 100.0) if (max_up_bps > 0 and sample.is_connected) else 0.0
+        down_pct, up_pct = self._update_live_rate_displays(sample)
 
-        self.bar_down_util.setValue(int(down_pct * 10))
-        self.bar_up_util.setValue(int(up_pct * 10))
-
-        peak_down_str = format_rate(self._peak_down_bps, bits)
-        peak_up_str = format_rate(self._peak_up_bps, bits)
-        self.lbl_down_meta.setText(
-            f"{down_pct:.1f}% • Peak (60s): {peak_down_str}".replace(".", ",")
-        )
-        self.lbl_up_meta.setText(
-            f"{up_pct:.1f}% • Peak (60s): {peak_up_str}".replace(".", ",")
-        )
-
+        bits = self.config.show_as_bits
         # Guest Wi-Fi readout (if enabled & active)
         if self.config.enable_guest_monitor and sample.guest_active:
             self.lbl_guest_down.setVisible(True)

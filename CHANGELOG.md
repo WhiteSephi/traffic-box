@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.0] - 2026-11-04
+### Added
+- **Interaktive Messpunkt-Inspektion bei Mouse-Hover (Hybrid aus Fadenkreuz-HUD & Header-Scrubbing):**
+  - **Oszilloskop-Fadenkreuz & Kurven-Pips:** Beim Überfahren des Graphen mit der Maus wird an der jeweiligen Zeitposition eine vertikale gestrichelte Cursorlinie eingeblendet und auf den Kurven (Down, Up sowie Ping/Jitter) leuchtet ein Marker-Dot (mit Akzentfarbe und weißem Zentrum) exakt am Kurvenpunkt auf.
+  - **Schwebendes HUD-Badge (Card-Overlay):** Direkt neben dem Cursor erscheint eine transluzente, abgerundete Info-Karte im Widget-Design mit Zeitstempel (`[vor Xs]` bzw. `[Jetzt • Live]`), den Raten für Download und Upload sowie bei aktivem Ping-Monitor auch Latenz (`◆ Ping`) und Jitter (`▲ Jit`).
+  - **Temporäres Header-Scrubbing:** Zeitgleich passen sich die oberen großen Ratenanzeigen (`Down [vor Xs]: ...` / `Up [vor Xs]: ...`) sowie die Auslastungsbalken dem historischen Zeitpunkt an.
+  - **Nahtlose Rückkehr:** Sobald der Mauszeiger das Diagramm verlässt, schalten die Anzeigen verzögerungsfrei wieder auf die Live-Echtzeitwerte um.
+  - **Ungestörtes Fenster-Verschieben:** Linksklick und Ziehen werden transparent an das Hauptfenster weitergeleitet, sodass das Widget weiterhin an jeder beliebigen Stelle gepackt und verschoben werden kann.
+
 ## [0.7.4] - 2026-11-04
 ### Changed
 - **Volumen-Berechnung nach Fritz!OS SI-Standard (Dezimal GB/TB):** Die Zähler-Formatierung (`format_bytes`) wurde von Basis 1024 (GiB) auf Basis 1000 (Dezimal-GB / TB) umgestellt. Dadurch stimmen sämtliche Zählerstände (Heute, Gestern, Woche, Monat, Vormonat) nun auf die Nachkommastelle exakt mit der Fritz!Box Web-Oberfläche (`Internet > Online-Monitor > Online-Zähler`) überein.

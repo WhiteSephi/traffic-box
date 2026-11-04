@@ -5,11 +5,12 @@ from __future__ import annotations
 from collections import deque
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
     QLinearGradient,
+    QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
@@ -23,10 +24,18 @@ from src.ui.formatters import format_rate
 class SplitTrafficGraphWidget(QWidget):
     """Renders top and bottom real-time oscilloscope area graphs for Down/Up + Guest share."""
 
+    point_hovered = Signal(int, int, float, float, float, float)
+    point_unhovered = Signal()
+
     def __init__(self, config: AppConfig, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.config = config
         self.setMinimumHeight(85)
+        self.setMouseTracking(True)
+
+        self._hover_idx: int | None = None
+        self._hover_x: float | None = None
+        self._hover_mouse_y: float | None = None
 
         max_len = max(15, self.config.history_seconds)
         self._down_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
@@ -388,6 +397,50 @@ class SplitTrafficGraphWidget(QWidget):
 
         painter.restore()
 
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Ignore left clicks so parent window can be moved by dragging."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            event.ignore()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse hover to track and inspect measurement points."""
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            event.ignore()
+            return
+
+        count = len(self._down_history)
+        w = float(self.width())
+        if count < 2 or w <= 0:
+            return
+
+        mx = max(0.0, min(w, event.position().x()))
+        step_x = w / float(count - 1)
+        idx = max(0, min(count - 1, int(round(mx / step_x))))
+
+        self._hover_idx = idx
+        self._hover_x = idx * step_x
+        self._hover_mouse_y = event.position().y()
+
+        age_sec = int(round((count - 1 - idx) * self.config.refresh_interval_sec))
+        val_down = self._down_history[idx] if idx < len(self._down_history) else 0.0
+        val_up = self._up_history[idx] if idx < len(self._up_history) else 0.0
+        val_ping = self._ping_history[idx] if idx < len(self._ping_history) else 0.0
+        val_jitter = self._jitter_history[idx] if idx < len(self._jitter_history) else 0.0
+
+        self.point_hovered.emit(idx, age_sec, val_down, val_up, val_ping, val_jitter)
+        self.update()
+
+    def leaveEvent(self, _event: object) -> None:
+        """Reset hover crosshair and notify parent when mouse leaves canvas."""
+        if self._hover_idx is not None:
+            self._hover_idx = None
+            self._hover_x = None
+            self._hover_mouse_y = None
+            self.point_unhovered.emit()
+            self.update()
+
     def paintEvent(self, _event: object) -> None:
         """Render the split graphs (2-way traffic only or 3-way with Ping & Jitter)."""
         painter = QPainter(self)
@@ -408,8 +461,11 @@ class SplitTrafficGraphWidget(QWidget):
             half_h = (h - gap) / 2.0
             top_rect = QRectF(0.0, 0.0, w, half_h)
             bottom_rect = QRectF(0.0, half_h + gap, w, half_h)
+            ping_rect = None
 
             if self.config.switch_up_down:
+                down_rect = top_rect
+                up_rect = bottom_rect
                 self._draw_single_graph(
                     painter, top_rect, self._down_history, self._guest_down_history,
                     self._max_down_bps, down_color, guest_down_color, grid_color,
@@ -419,6 +475,8 @@ class SplitTrafficGraphWidget(QWidget):
                     self._max_up_bps, up_color, guest_up_color, grid_color,
                 )
             else:
+                up_rect = top_rect
+                down_rect = bottom_rect
                 self._draw_single_graph(
                     painter, top_rect, self._up_history, self._guest_up_history,
                     self._max_up_bps, up_color, guest_up_color, grid_color,
@@ -439,6 +497,8 @@ class SplitTrafficGraphWidget(QWidget):
             ping_rect = QRectF(0.0, 2.0 * traffic_h + 2.0 * gap, w, ping_h)
 
             if self.config.switch_up_down:
+                down_rect = top_rect
+                up_rect = mid_rect
                 self._draw_single_graph(
                     painter, top_rect, self._down_history, self._guest_down_history,
                     self._max_down_bps, down_color, guest_down_color, grid_color,
@@ -448,6 +508,8 @@ class SplitTrafficGraphWidget(QWidget):
                     self._max_up_bps, up_color, guest_up_color, grid_color,
                 )
             else:
+                up_rect = top_rect
+                down_rect = mid_rect
                 self._draw_single_graph(
                     painter, top_rect, self._up_history, self._guest_up_history,
                     self._max_up_bps, up_color, guest_up_color, grid_color,
@@ -460,3 +522,160 @@ class SplitTrafficGraphWidget(QWidget):
             self._draw_ping_jitter_graph(
                 painter, ping_rect, self._ping_history, self._jitter_history, grid_color,
             )
+
+        if self._hover_idx is not None and self._hover_x is not None:
+            self._draw_hover_overlay(
+                painter,
+                w,
+                h,
+                down_rect,
+                up_rect,
+                ping_rect,
+                down_color,
+                up_color,
+            )
+
+    def _draw_hover_overlay(
+        self,
+        painter: QPainter,
+        w: float,
+        h: float,
+        down_rect: QRectF,
+        up_rect: QRectF,
+        ping_rect: QRectF | None,
+        down_color: QColor,
+        up_color: QColor,
+    ) -> None:
+        """Render crosshair, curve dots, and floating HUD badge at hovered position."""
+        idx = self._hover_idx
+        if idx is None or idx < 0 or idx >= len(self._down_history):
+            return
+
+        painter.save()
+        x = self._hover_x if self._hover_x is not None else 0.0
+
+        # 1. Vertical Dash Line across full height
+        dash_pen = QPen(QColor(230, 235, 245, 140), 1.0, Qt.PenStyle.DashLine)
+        dash_pen.setDashPattern([3, 3])
+        painter.setPen(dash_pen)
+        painter.drawLine(QPointF(x, 0.0), QPointF(x, h))
+
+        def draw_marker_dot(pt: QPointF, col: QColor) -> None:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(col)
+            painter.drawEllipse(pt, 4.5, 4.5)
+            painter.setBrush(QColor("#FFFFFF"))
+            painter.drawEllipse(pt, 2.0, 2.0)
+
+        # 2. Download Marker Dot
+        val_down = self._down_history[idx]
+        down_ceiling = self._effective_ceiling(self._down_history, self._max_down_bps)
+        norm_down = self._compute_normalized_y(val_down, down_ceiling)
+        down_y = down_rect.bottom() - (norm_down * (down_rect.height() - 3.0)) - 1.0
+        draw_marker_dot(QPointF(x, down_y), down_color)
+
+        # 3. Upload Marker Dot
+        val_up = self._up_history[idx]
+        up_ceiling = self._effective_ceiling(self._up_history, self._max_up_bps)
+        norm_up = self._compute_normalized_y(val_up, up_ceiling)
+        up_y = up_rect.bottom() - (norm_up * (up_rect.height() - 3.0)) - 1.0
+        draw_marker_dot(QPointF(x, up_y), up_color)
+
+        # 4. Ping & Jitter Marker Dot (if active)
+        val_ping = self._ping_history[idx] if idx < len(self._ping_history) else 0.0
+        val_jitter = self._jitter_history[idx] if idx < len(self._jitter_history) else 0.0
+        if ping_rect is not None and (val_ping > 0 or val_jitter > 0):
+            active_pings = [p for p in self._ping_history if p > 0]
+            max_ping = max(active_pings) if active_pings else 20.0
+            active_jitters = [j for j in self._jitter_history if j > 0]
+            max_jitter = max(active_jitters) if active_jitters else 5.0
+            ping_ceiling = max(30.0, max(max_ping, max_jitter) * 1.25)
+
+            if val_ping > 0:
+                norm_ping = min(1.0, max(0.0, val_ping / ping_ceiling))
+                ping_y = ping_rect.bottom() - (norm_ping * (ping_rect.height() - 14.0)) - 1.0
+                draw_marker_dot(QPointF(x, ping_y), QColor(self.config.ping_color))
+
+            if val_jitter > 0:
+                norm_jitter = min(1.0, max(0.0, val_jitter / ping_ceiling))
+                jitter_y = ping_rect.bottom() - (norm_jitter * (ping_rect.height() - 14.0)) - 1.0
+                draw_marker_dot(QPointF(x, jitter_y), QColor(self.config.jitter_color))
+
+        # 5. Floating HUD Badge
+        count = len(self._down_history)
+        age_sec = int(round((count - 1 - idx) * self.config.refresh_interval_sec))
+        age_text = "Jetzt • Live" if age_sec == 0 else f"vor {age_sec}s"
+
+        show_ping = ping_rect is not None and (val_ping > 0 or val_jitter > 0)
+        badge_w = 140.0
+        badge_h = 70.0 if show_ping else 54.0
+
+        if x + 10.0 + badge_w <= w - 4.0:
+            badge_x = x + 10.0
+        else:
+            badge_x = max(4.0, x - 10.0 - badge_w)
+
+        if self._hover_mouse_y is not None:
+            badge_y = max(4.0, min(h - badge_h - 4.0, self._hover_mouse_y - (badge_h / 2.0)))
+        else:
+            badge_y = max(4.0, (h - badge_h) / 2.0)
+
+        badge_rect = QRectF(badge_x, badge_y, badge_w, badge_h)
+
+        # Translucent dark HUD card
+        painter.setBrush(QColor(16, 22, 28, 235))
+        painter.setPen(QPen(QColor(255, 255, 255, 45), 1.0))
+        painter.drawRoundedRect(badge_rect, 5.0, 5.0)
+
+        font_hdr = QFont("Segoe UI", 8, QFont.Weight.Bold)
+        font_body = QFont("Segoe UI", 8, QFont.Weight.DemiBold)
+        font_sub = QFont("Segoe UI", 7, QFont.Weight.Bold)
+
+        # Header: [vor Xs] or [Jetzt • Live]
+        painter.setFont(font_hdr)
+        painter.setPen(QColor("#94A3B8"))
+        painter.drawText(
+            QRectF(badge_x + 8.0, badge_y + 4.0, badge_w - 16.0, 14.0),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            f"[{age_text}]",
+        )
+
+        # Down row
+        painter.setFont(font_body)
+        painter.setPen(down_color)
+        down_str = format_rate(val_down, self.config.show_as_bits)
+        painter.drawText(
+            QRectF(badge_x + 8.0, badge_y + 19.0, badge_w - 16.0, 15.0),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            f"↓ Down:  {down_str}",
+        )
+
+        # Up row
+        painter.setPen(up_color)
+        up_str = format_rate(val_up, self.config.show_as_bits)
+        painter.drawText(
+            QRectF(badge_x + 8.0, badge_y + 34.0, badge_w - 16.0, 15.0),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            f"↑ Up:      {up_str}",
+        )
+
+        # Ping & Jitter row (if active)
+        if show_ping:
+            painter.setFont(font_sub)
+            ping_x = badge_x + 8.0
+            p_str = f"◆ {val_ping:.1f} ms"
+            j_str = f"▲ {val_jitter:.1f} ms"
+            painter.setPen(QColor(self.config.ping_color))
+            painter.drawText(
+                QRectF(ping_x, badge_y + 51.0, 62.0, 14.0),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                p_str,
+            )
+            painter.setPen(QColor(self.config.jitter_color))
+            painter.drawText(
+                QRectF(ping_x + 64.0, badge_y + 51.0, 60.0, 14.0),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                j_str,
+            )
+
+        painter.restore()
