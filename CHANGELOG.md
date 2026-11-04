@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.1] - 2026-11-04
+### Removed
+- **Header-Scrubbing (Variante 3):** Die oberen Raten- und Balkenanzeigen verbleiben nun auch beim Überfahren des Graphen mit der Maus stabil und ruhig auf den aktuellen Live-Echtzeitwerten. Die Detailinspektion historischer Punkte erfolgt fokussiert im Diagramm (Fadenkreuz, Kurven-Marker und schwebendes HUD-Badge).
+
+### Added
+- **Einstellbare Raten-Metaanzeigen für einen aufgeräumten Header:**
+  - **Peak-Rate ausblendbar:** Unter *Einstellungen > Allgemein & Skalierung* kann die `Peak (60s): ...`-Anzeige deaktiviert werden, sodass lediglich der schlanke Prozentwert (`0,9%`) angezeigt wird.
+  - **Gäste-WLAN-Zeile separat schaltbar:** Die Zeile `Gast: 0 bit/s` kann ausgeblendet werden, ohne die Gäste-WLAN-Überwachung oder die Online-Zähler-Erfassung im Hintergrund zu beeinträchtigen.
+
 ## [0.8.0] - 2026-11-04
 ### Added
 - **Interaktive Messpunkt-Inspektion bei Mouse-Hover (Hybrid aus Fadenkreuz-HUD & Header-Scrubbing):**

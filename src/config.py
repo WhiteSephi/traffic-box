@@ -85,6 +85,8 @@ class AppConfig:
     active_view: str = "graph"
     switch_up_down: bool = True  # True = Download on top, Upload on bottom
     show_as_bits: bool = False  # False = kB/s & MB/s, True = kbit/s & Mbit/s
+    show_peak_rate: bool = True  # True = "X,X% • Peak (60s): ...", False = "X,X%"
+    show_guest_rate_labels: bool = True  # True = "Gast: ...", False = hidden in header
     show_session_totals: bool = True
     # footer_counter_mode: "today", "yesterday", "week", "month", "last_month", "session"
     footer_counter_mode: str = "today"

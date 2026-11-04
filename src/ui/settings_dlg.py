@@ -157,6 +157,9 @@ class SettingsDialog(QDialog):
         self.cmb_footer_mode.addItem("Vormonat (Fritz!Box Online-Zähler)", "last_month")
         self.cmb_footer_mode.addItem("Seit Widget-Start (ohne Login)", "session")
 
+        self.chk_show_peak = QCheckBox("Peak-Rate anzeigen (z. B. Peak 60s)")
+        self.chk_show_guest_meta = QCheckBox("Gäste-WLAN-Rate unter Raten anzeigen")
+
         beh_grid.addWidget(self.chk_autostart, 0, 0)
         beh_grid.addWidget(self.chk_always_on_top, 0, 1)
         beh_grid.addWidget(self.chk_locked_pos, 1, 0)
@@ -165,6 +168,8 @@ class SettingsDialog(QDialog):
         beh_grid.addWidget(self.chk_compact, 2, 1)
         beh_grid.addWidget(self.chk_session_totals, 3, 0)
         beh_grid.addWidget(self.cmb_footer_mode, 3, 1)
+        beh_grid.addWidget(self.chk_show_peak, 4, 0)
+        beh_grid.addWidget(self.chk_show_guest_meta, 4, 1)
 
         opacity_row = QHBoxLayout()
         opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
@@ -176,7 +181,7 @@ class SettingsDialog(QDialog):
         )
         opacity_row.addWidget(self.slider_opacity, 1)
         opacity_row.addWidget(self.lbl_opacity_val)
-        beh_grid.addLayout(opacity_row, 4, 0, 1, 2)
+        beh_grid.addLayout(opacity_row, 5, 0, 1, 2)
         gen_layout.addWidget(beh_group)
 
         # Scaling Group
@@ -371,6 +376,8 @@ class SettingsDialog(QDialog):
         self.chk_show_bits.setChecked(self.config.show_as_bits)
         self.chk_compact.setChecked(self.config.compact_mode)
         self.chk_session_totals.setChecked(self.config.show_session_totals)
+        self.chk_show_peak.setChecked(self.config.show_peak_rate)
+        self.chk_show_guest_meta.setChecked(self.config.show_guest_rate_labels)
         f_idx = self.cmb_footer_mode.findData(self.config.footer_counter_mode)
         self.cmb_footer_mode.setCurrentIndex(max(0, f_idx))
         self.slider_opacity.setValue(self.config.opacity)
@@ -420,6 +427,8 @@ class SettingsDialog(QDialog):
         self.config.show_as_bits = self.chk_show_bits.isChecked()
         self.config.compact_mode = self.chk_compact.isChecked()
         self.config.show_session_totals = self.chk_session_totals.isChecked()
+        self.config.show_peak_rate = self.chk_show_peak.isChecked()
+        self.config.show_guest_rate_labels = self.chk_show_guest_meta.isChecked()
         self.config.footer_counter_mode = str(self.cmb_footer_mode.currentData() or "today")
         self.config.opacity = self.slider_opacity.value()
 
