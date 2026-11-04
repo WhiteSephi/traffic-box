@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.0] - 2026-11-04
+### Added
+- **Maßgeschneiderte Vektor-Icons für View-Tabs:** Die Emojis in den Umschalt-Buttons durch elegante Vektor-Icons (Pulse-Kurve für `Graph`, 3 Säulen für `Zähler`) ersetzt, die dynamisch ihre Farbe an den aktiven/inaktiven Zustand anpassen.
+- **Direkter Einstellungs-Button (`⚙`):** Ein dezenter Zahnrad-Button rechts im Header öffnet mit einem Klick direkt den Einstellungs-Dialog (ohne Rechtsklick-Umweg).
+
+### Changed
+- **Einheitlich kompakte Mindestbreite:** Die Mindestbreite für die Zähler-Ansicht wurde von 460 px auf 260 px gesenkt, sodass sich das Widget in beiden Ansichten (`Graph` & `Zähler`) gleich kompakt auf Widget-Größe zusammenschieben lässt.
+- **Header-Responsive:** Das Skalierungs-Badge (`√-Skala`) wird bei sehr schmalen Fensterbreiten (< 320 px) automatisch ausgeblendet, um dem Titel Platz zu machen.
+
 ## [0.5.2] - 2026-11-04
 ### Changed
 - **Kompakter Hover-Tooltip:** Die redundante Online-Zähler-Tabelle aus dem Hover-Tooltip des Widgets entfernt, da diese nun direkt über den `📊 Zähler`-Button im Widget dargestellt wird. Der Tooltip beschränkt sich nun übersichtlich auf Verbindungsstatus, Externe IP, Verbunden seit, Leitungskapazität und Sitzungs-Volumen.

@@ -44,7 +44,7 @@ from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
 from src.ui.graph_canvas import SplitTrafficGraphWidget
-from src.ui.icons import create_arrow_pixmap
+from src.ui.icons import create_arrow_pixmap, create_ui_icon
 from src.ui.online_counter_view import OnlineCounterView
 from src.ui.settings_dlg import SettingsDialog
 from src.ui.tray import create_router_icon
@@ -172,15 +172,21 @@ class TrafficBox(QWidget):
         badge_font = QFont("Segoe UI", 7)
         self.lbl_scale_badge.setFont(badge_font)
 
-        self.btn_view_graph = QPushButton("📈 Graph")
+        self.btn_view_graph = QPushButton(" Graph")
         self.btn_view_graph.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_view_graph.setFixedHeight(20)
         self.btn_view_graph.clicked.connect(lambda: self._switch_active_view("graph"))
 
-        self.btn_view_counters = QPushButton("📊 Zähler")
+        self.btn_view_counters = QPushButton(" Zähler")
         self.btn_view_counters.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_view_counters.setFixedHeight(20)
         self.btn_view_counters.clicked.connect(lambda: self._switch_active_view("counters"))
+
+        self.btn_settings = QPushButton()
+        self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_settings.setFixedSize(20, 20)
+        self.btn_settings.setToolTip("Einstellungen...")
+        self.btn_settings.clicked.connect(self.open_settings_dialog)
 
         header_row.addWidget(self.lbl_icon)
         header_row.addWidget(self.lbl_title)
@@ -188,6 +194,7 @@ class TrafficBox(QWidget):
         header_row.addWidget(self.lbl_scale_badge)
         header_row.addWidget(self.btn_view_graph)
         header_row.addWidget(self.btn_view_counters)
+        header_row.addWidget(self.btn_settings)
         self.main_layout.addLayout(header_row)
 
         # --- 2. Live Rate Readouts + Utilization % Bars (Down & Up) ---
@@ -403,7 +410,9 @@ class TrafficBox(QWidget):
 
         is_counters = self.config.active_view == "counters"
         self.center_stack.setCurrentIndex(1 if is_counters else 0)
-        self.lbl_scale_badge.setVisible(not is_counters and not self.config.compact_mode)
+        self.lbl_scale_badge.setVisible(
+            not is_counters and not self.config.compact_mode and self.width() >= 320
+        )
         self.counter_view.apply_theme()
         self._style_view_pills(is_counters)
 
@@ -418,9 +427,9 @@ class TrafficBox(QWidget):
                 self.config.widget_width = self.width()
                 self.config.widget_height = self.height()
 
-            # Minimum dimensions that fit both Graph & 5-card Online-Zähler
-            min_w = 460 if is_counters else 260
-            min_h = 310 if is_counters else 210
+            # Minimum dimensions: identical 260px width for both Graph & Online-Zähler
+            min_w = 260
+            min_h = 295 if is_counters else 210
             target_w = max(min_w, self.config.widget_width)
             target_h = max(min_h, self.config.widget_height)
 
@@ -448,11 +457,19 @@ class TrafficBox(QWidget):
         self.update()
 
     def _style_view_pills(self, is_counters: bool) -> None:
-        """Style the header toggle buttons for Graph vs. Zähler view."""
+        """Style the header toggle buttons for Graph vs. Zähler view with custom vector icons."""
         active_col = self.config.download_color
         qcol = QColor(active_col)
         lum = 0.299 * qcol.red() + 0.587 * qcol.green() + 0.114 * qcol.blue()
         active_text = "#111111" if lum > 140 else "#FFFFFF"
+
+        # Dynamically set vector icons matching active/inactive colors
+        graph_icon_col = active_text if not is_counters else self.config.title_color
+        counters_icon_col = active_text if is_counters else self.config.title_color
+
+        self.btn_view_graph.setIcon(create_ui_icon("graph", graph_icon_col, 13))
+        self.btn_view_counters.setIcon(create_ui_icon("counters", counters_icon_col, 13))
+        self.btn_settings.setIcon(create_ui_icon("settings", self.config.title_color, 13))
 
         active_css = (
             f"QPushButton {{ background-color: {active_col}; color: {active_text}; "
@@ -463,8 +480,14 @@ class TrafficBox(QWidget):
             "font-size: 9px; border: 1px solid rgba(255,255,255,35); border-radius: 4px; padding: 1px 6px; }}"
             "QPushButton:hover { background-color: rgba(255,255,255,38); }"
         )
+        settings_css = (
+            f"QPushButton {{ background-color: rgba(255,255,255,20); border: 1px solid rgba(255,255,255,35); "
+            "border-radius: 4px; padding: 2px; }}"
+            "QPushButton:hover { background-color: rgba(255,255,255,38); }"
+        )
         self.btn_view_graph.setStyleSheet(inactive_css if is_counters else active_css)
         self.btn_view_counters.setStyleSheet(active_css if is_counters else inactive_css)
+        self.btn_settings.setStyleSheet(settings_css)
 
     def _switch_active_view(self, view_name: str) -> None:
         """Switch between 'graph' and 'counters' view inside the widget."""
@@ -676,6 +699,10 @@ class TrafficBox(QWidget):
 
     def resizeEvent(self, event: object) -> None:
         super().resizeEvent(event)
+        is_counters = self.config.active_view == "counters"
+        self.lbl_scale_badge.setVisible(
+            not is_counters and not self.config.compact_mode and self.width() >= 320
+        )
         if (
             not self.config.compact_mode
             and not self._in_layout_transition
