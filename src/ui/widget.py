@@ -103,6 +103,8 @@ class PollingWorker(QObject):
                     fresh_counters = self.guest_client.fetch_online_counters()
                     if fresh_counters.is_available:
                         self._cached_counters = fresh_counters
+                    else:
+                        self._cached_counters = OnlineCounterStats()
                 self._counter_tick += 1
                 sample.online_counters = self._cached_counters
             else:
@@ -129,12 +131,24 @@ class PollingWorker(QObject):
         """Reset cumulative session counters."""
         self.upnp.reset_session_counters()
 
+    @Slot()
+    def reload_credentials(self) -> None:
+        """Reset cached session and counters when user updates settings."""
+        self._cached_counters = OnlineCounterStats()
+        self._counter_tick = 0
+        self.guest_client.update_credentials(
+            self.config.fritzbox_host,
+            self.config.fritz_username,
+            self.config.fritz_password,
+        )
+
 
 class TrafficBox(QWidget):
     """Frameless, translucent cross-platform desktop widget for live Fritz!Box traffic."""
 
     request_poll = Signal()
     request_reset_session = Signal()
+    request_reload_credentials = Signal()
 
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
@@ -346,6 +360,7 @@ class TrafficBox(QWidget):
 
         self.request_poll.connect(self._worker.poll_once)
         self.request_reset_session.connect(self._worker.reset_session)
+        self.request_reload_credentials.connect(self._worker.reload_credentials)
         self._worker.sample_ready.connect(self._on_sample_received)
 
         self._worker_thread.start()
@@ -997,6 +1012,7 @@ class TrafficBox(QWidget):
 
     def _on_settings_applied(self) -> None:
         self._apply_config_visuals()
+        self.request_reload_credentials.emit()
         self.request_poll.emit()
 
     def quit_application(self) -> None:

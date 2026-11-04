@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from typing import Callable
+import urllib.request
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QColorDialog,
     QComboBox,
@@ -26,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.api.fritz_monitor import FritzGuestMonitorClient
 from src.autostart import is_autostart_enabled, set_autostart
 from src.config import AppConfig
 
@@ -117,6 +120,13 @@ class SettingsDialog(QDialog):
         self.txt_pass.setPlaceholderText("Fritz!Box Passwort (für Online-Zähler & Gäste-WLAN)")
         self.chk_guest.toggled.connect(self._on_guest_toggled)
 
+        self.btn_test_conn = QPushButton(" Verbindung && Login testen")
+        self.btn_test_conn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_test_conn.clicked.connect(self._on_test_connection)
+        self.lbl_test_result = QLabel("")
+        self.lbl_test_result.setWordWrap(True)
+        self.lbl_test_result.setVisible(False)
+
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
         conn_form.addRow("UPnP Port:", self.spin_port)
         conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
@@ -124,6 +134,8 @@ class SettingsDialog(QDialog):
         conn_form.addRow("", self.chk_guest)
         conn_form.addRow("Fritz!Box Benutzer:", self.txt_user)
         conn_form.addRow("Fritz!Box Passwort:", self.txt_pass)
+        conn_form.addRow("", self.btn_test_conn)
+        conn_form.addRow("", self.lbl_test_result)
         gen_layout.addWidget(conn_group)
 
         # Behavior & Display
@@ -290,6 +302,61 @@ class SettingsDialog(QDialog):
     def _on_guest_toggled(self, checked: bool) -> None:
         self.txt_user.setEnabled(checked)
         self.txt_pass.setEnabled(checked)
+
+    def _on_test_connection(self) -> None:
+        """Test UPnP reachability and Fritz!OS login and show immediate inline feedback."""
+        host = self.txt_host.text().strip() or "fritz.box"
+        port = self.spin_port.value()
+        user = self.txt_user.text().strip()
+        pwd = self.txt_pass.text()
+
+        self.btn_test_conn.setEnabled(False)
+        self.btn_test_conn.setText(" Teste Verbindung...")
+        self.lbl_test_result.setVisible(True)
+        self.lbl_test_result.setText("Verbindung wird geprüft...")
+        self.lbl_test_result.setStyleSheet("color: #CCCCCC; font-size: 8pt;")
+        QApplication.processEvents()
+
+        try:
+            # 1. Test basic UPnP reachability
+            upnp_ok = False
+            try:
+                with urllib.request.urlopen(f"http://{host}:{port}/igddesc.xml", timeout=2.5):
+                    upnp_ok = True
+            except Exception:
+                upnp_ok = False
+
+            if not upnp_ok:
+                self.lbl_test_result.setText(f"✕ Fritz!Box unter '{host}:{port}' nicht erreichbar.")
+                self.lbl_test_result.setStyleSheet("color: #FF5252; font-weight: bold; font-size: 8.5pt;")
+                return
+
+            # 2. Test Fritz!OS Login if enabled
+            if self.chk_guest.isChecked():
+                if not pwd:
+                    self.lbl_test_result.setText("⚠ Bitte ein Passwort eingeben, um den Login zu testen.")
+                    self.lbl_test_result.setStyleSheet("color: #FFAB00; font-weight: bold; font-size: 8.5pt;")
+                    return
+
+                client = FritzGuestMonitorClient(host=host, username=user, password=pwd, timeout=4.0)
+                ok, msg, block_time = client.test_login()
+                if ok:
+                    self.lbl_test_result.setText("✓ UPnP & Fritz!OS Login erfolgreich! (Online-Zähler & Gäste-WLAN aktiv)")
+                    self.lbl_test_result.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 8.5pt;")
+                elif block_time > 0:
+                    self.lbl_test_result.setText(
+                        f"⚠ Fritz!Box Sperrzeit aktiv: Bitte noch {block_time}s warten (Verzögerung nach Fehlversuch)."
+                    )
+                    self.lbl_test_result.setStyleSheet("color: #FFAB00; font-weight: bold; font-size: 8.5pt;")
+                else:
+                    self.lbl_test_result.setText(f"✕ {msg}")
+                    self.lbl_test_result.setStyleSheet("color: #FF5252; font-weight: bold; font-size: 8.5pt;")
+            else:
+                self.lbl_test_result.setText("✓ UPnP erreichbar (Live-Traffic aktiv).")
+                self.lbl_test_result.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 8.5pt;")
+        finally:
+            self.btn_test_conn.setEnabled(True)
+            self.btn_test_conn.setText(" Verbindung && Login testen")
 
     def _load_from_config(self) -> None:
         self.txt_host.setText(self.config.fritzbox_host)

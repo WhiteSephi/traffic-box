@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,13 +21,16 @@ class FritzGuestMonitorClient:
         host: str = "fritz.box",
         username: str = "",
         password: str = "",
-        timeout: float = 2.5,
+        timeout: float = 3.5,
     ) -> None:
         self.host = host.strip() or "fritz.box"
         self.username = username.strip()
         self.password = password
         self.timeout = timeout
         self._sid: str = "0000000000000000"
+        self.last_error: str = ""
+        self.last_block_time: int = 0
+        self._next_attempt_time: float = 0.0
 
     def update_credentials(self, host: str, username: str, password: str) -> None:
         """Update host or credentials and invalidate cached SID if changed."""
@@ -41,6 +45,9 @@ class FritzGuestMonitorClient:
             self.username = clean_user
             self.password = password
             self._sid = "0000000000000000"
+            self.last_error = ""
+            self.last_block_time = 0
+            self._next_attempt_time = 0.0
 
     @property
     def is_configured(self) -> bool:
@@ -72,9 +79,17 @@ class FritzGuestMonitorClient:
     def _ensure_session(self) -> bool:
         """Authenticate against /login_sid.lua?version=2 if SID is missing or invalid."""
         if not self.is_configured:
+            self.last_error = "Kein Passwort konfiguriert"
             return False
         if self._sid and self._sid != "0000000000000000":
             return True
+
+        now = time.monotonic()
+        if now < self._next_attempt_time:
+            # Active cooldown protection: do not spam the Fritz!Box to protect user account
+            remaining = int(self._next_attempt_time - now)
+            self.last_error = f"Fritz!Box Sperrzeit aktiv: Bitte noch {remaining}s warten."
+            return False
 
         url = f"http://{self.host}/login_sid.lua?version=2"
         try:
@@ -84,10 +99,20 @@ class FritzGuestMonitorClient:
             sid = (root.findtext("SID") or "").strip()
             if sid and sid != "0000000000000000":
                 self._sid = sid
+                self.last_error = ""
+                self.last_block_time = 0
                 return True
+
+            block_time = int(root.findtext("BlockTime") or "0")
+            if block_time > 0:
+                self.last_block_time = block_time
+                self.last_error = f"Fritz!Box Sperrzeit aktiv ({block_time}s)"
+                self._next_attempt_time = now + block_time
+                return False
 
             challenge = (root.findtext("Challenge") or "").strip()
             if not challenge:
+                self.last_error = "Keine Challenge von Fritz!Box erhalten"
                 return False
 
             # If no username was provided, inspect Default/Users tag from SessionInfo
@@ -107,17 +132,45 @@ class FritzGuestMonitorClient:
             form_data = urllib.parse.urlencode(
                 {"username": user, "response": response_str}
             ).encode("utf-8")
+            post_timeout = max(self.timeout, float(block_time + 4))
             req = urllib.request.Request(url, data=form_data, method="POST")
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp2:
+            with urllib.request.urlopen(req, timeout=post_timeout) as resp2:
                 xml_bytes2 = resp2.read()
             root2 = ET.fromstring(xml_bytes2)
             sid2 = (root2.findtext("SID") or "").strip()
+            block_time2 = int(root2.findtext("BlockTime") or "0")
+            self.last_block_time = block_time2
+
             if sid2 and sid2 != "0000000000000000":
                 self._sid = sid2
+                self.last_error = ""
+                self._next_attempt_time = 0.0
                 return True
-        except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError):
+            else:
+                self._sid = "0000000000000000"
+                self.last_error = "Fritz!Box Passwort oder Benutzername falsch"
+                # Cooldown: wait at least 30s or block_time2 + 5s to prevent account lockout
+                cooldown_sec = max(30.0, float(block_time2 + 5.0))
+                self._next_attempt_time = time.monotonic() + cooldown_sec
+                return False
+        except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError) as exc:
             self._sid = "0000000000000000"
-        return False
+            self.last_error = f"Verbindungsfehler: {exc}"
+            self._next_attempt_time = time.monotonic() + 15.0
+            return False
+
+    def test_login(self) -> tuple[bool, str, int]:
+        """Test authentication against Fritz!OS and return (success, message, block_time)."""
+        self._next_attempt_time = 0.0
+        self._sid = "0000000000000000"
+        ok = self._ensure_session()
+        if ok:
+            return True, "Fritz!OS Login erfolgreich (SID erhalten)", 0
+        if self.last_block_time > 0:
+            return False, f"Fritz!Box Sperrzeit aktiv: Bitte noch {self.last_block_time} Sekunden warten.", self.last_block_time
+        if self.last_error:
+            return False, self.last_error, 0
+        return False, "Login fehlgeschlagen (Passwort oder Host prüfen)", 0
 
     @staticmethod
     def _first_numeric_value(val: object) -> float:

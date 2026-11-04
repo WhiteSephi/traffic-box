@@ -326,6 +326,24 @@ class OnlineCounterView(QWidget):
                 )
         else:
             self.btn_login_hint.setVisible(True)
+            if self.config.enable_guest_monitor:
+                self.btn_login_hint.setText("⚠ Fritz!OS Login fehlgeschlagen (Passwort in ⚙ Einstellungen prüfen)")
+                self.btn_login_hint.setStyleSheet(
+                    "QPushButton { background-color: rgba(255, 82, 82, 0.16); color: #FF5252; "
+                    "border: 1px solid rgba(255, 82, 82, 0.45); border-radius: 4px; padding: 4px 8px; "
+                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; }"
+                    "QPushButton:hover { background-color: rgba(255, 82, 82, 0.28); }"
+                )
+            else:
+                self.btn_login_hint.setText("🔒 Fritz!OS Login in Einstellungen aktivieren für Heute / Woche / Monat")
+                hdr_bg = QColor(self.config.background_color).lighter(125).name()
+                alt_bg = QColor(self.config.background_color).lighter(112).name()
+                self.btn_login_hint.setStyleSheet(
+                    f"QPushButton {{ background-color: {hdr_bg}; color: {self.config.download_color}; "
+                    f"border: 1px dashed {self.config.border_color}; border-radius: 4px; padding: 4px 8px; "
+                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; }}"
+                    f"QPushButton:hover {{ background-color: {alt_bg}; }}"
+                )
             sess_rx = sample.session_bytes_received
             sess_tx = sample.session_bytes_sent
             sess_tot = sess_rx + sess_tx

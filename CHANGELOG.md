@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.7.2] - 2026-11-04
+### Added
+- **Button „Verbindung & Login testen“ in den Einstellungen:** Sofortige Live-Überprüfung von UPnP-Erreichbarkeit und Fritz!OS-Login mit präziser Rückmeldung (`✓ Login erfolgreich`, `✕ Passwort falsch`, `⚠ Fritz!Box Sperrzeit aktiv` oder `✕ Nicht erreichbar`).
+- **Fritz!Box Account-Schutz & Backoff-Cooldown:** Erkennt die Fritz!Box `<BlockTime>`-Verzögerung. Nach einem Fehlversuch pausiert das Widget automatische Login-Wiederholungen für mindestens 30 Sekunden, wodurch eine Kontosperre oder ein endloses Anwachsen der Fritz!Box-Sperrzeit ausgeschlossen wird.
+- **Klare Fehler-Rückmeldung in der Zähler-Ansicht:** Schlägt der Login fehl, zeigt die Zähler-Ansicht sofort den roten Hinweis `⚠ Fritz!OS Login fehlgeschlagen (Passwort in ⚙ Einstellungen prüfen)` statt still veraltete Werte einzufrieren.
+
 ## [0.7.1] - 2026-11-04
 ### Fixed
 - **Echte ICMP-Ping-Latenz auf deutschem Windows:** Ein Umlaut-Encoding-Problem (`ü` in der Windows-`ping.exe`-Ausgabe mit OEM-Codepage `cp850`) führte zuvor zu einem unbemerkten Fallback auf einen TCP-Handshake (Port 443), wodurch die gemessene Ping-Zeit bei ~30 ms statt echter ~12–14 ms lag. Durch binäres Auslesen und `cp850`-Decodierung misst der Ping nun exakt die reelle ICMP-Latenz (z. B. ~12 ms zu `1.1.1.1`).
