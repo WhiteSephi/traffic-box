@@ -454,7 +454,47 @@ class TrafficBox(QWidget):
         if hasattr(self, "_poll_timer"):
             self._poll_timer.setInterval(max(500, self.config.refresh_interval_sec * 1000))
 
+        self._update_dynamic_scaling()
         self.update()
+
+    def _update_dynamic_scaling(self) -> None:
+        """Dynamically scale fonts, bar heights, and icons based on widget dimensions."""
+        w = max(260, self.width())
+        h = max(180, self.height())
+
+        # Scale factor relative to baseline 420x270, clamped between 0.82 and 1.50
+        scale = max(0.82, min(1.50, (w / 420.0) * 0.55 + (h / 270.0) * 0.45))
+
+        # 1. Live Rate Readouts: 9pt (compact) up to 15pt (large)
+        rate_pt = max(9, min(15, int(round(10.5 * scale))))
+        rate_font = QFont("Segoe UI", rate_pt, QFont.Weight.Bold)
+        self.lbl_down_rate.setFont(rate_font)
+        self.lbl_up_rate.setFont(rate_font)
+
+        # 2. Header Rate Utilization Bars: 4px to 8px
+        bar_h = max(4, min(8, int(round(5.0 * scale))))
+        self.bar_down_util.setFixedHeight(bar_h)
+        self.bar_up_util.setFixedHeight(bar_h)
+
+        # 3. Meta Labels: 7pt to 9pt
+        meta_pt = max(7, min(9, int(round(7.5 * scale))))
+        meta_font = QFont("Segoe UI", meta_pt)
+        self.lbl_down_meta.setFont(meta_font)
+        self.lbl_up_meta.setFont(meta_font)
+
+        # 4. Header Arrow Icons & Labels
+        hdr_icon_sz = max(10, min(14, int(round(11.0 * scale))))
+        self.icon_down_header.setFixedSize(hdr_icon_sz, hdr_icon_sz)
+        self.icon_up_header.setFixedSize(hdr_icon_sz, hdr_icon_sz)
+        self.icon_down_header.setPixmap(create_arrow_pixmap(self.config.download_color, "down", hdr_icon_sz))
+        self.icon_up_header.setPixmap(create_arrow_pixmap(self.config.upload_color, "up", hdr_icon_sz))
+
+        hdr_pt = max(8, min(11, int(round(9.0 * scale))))
+        self.lbl_down_header.setFont(QFont("Segoe UI", hdr_pt, QFont.Weight.DemiBold))
+        self.lbl_up_header.setFont(QFont("Segoe UI", hdr_pt, QFont.Weight.DemiBold))
+
+        # 5. Online Counter View scaling
+        self.counter_view.set_scale(scale)
 
     def _style_view_pills(self, is_counters: bool) -> None:
         """Style the header toggle buttons for Graph vs. Zähler view with custom vector icons."""
@@ -703,6 +743,7 @@ class TrafficBox(QWidget):
         self.lbl_scale_badge.setVisible(
             not is_counters and not self.config.compact_mode and self.width() >= 320
         )
+        self._update_dynamic_scaling()
         if (
             not self.config.compact_mode
             and not self._in_layout_transition

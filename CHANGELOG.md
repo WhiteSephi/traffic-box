@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.1] - 2026-11-04
+### Added
+- **Dynamische Schrift- & Elementskalierung:** Schriftgrößen, Verteilungs-Balkenhöhen, Pfeil-Icons und Auslastungsbalken passen sich nun dezent der aktuellen Fenstergröße an:
+  - *Kompakt (`260–300 px`):* Zierliche 8–9 pt Schriften, 3–4 px feine Balken und kompakte Abstände.
+  - *Groß (`> 600 px`):* Deutlich gewachsene Geschwindigkeitsraten (bis 15 pt), 11–12 pt Zähler-Beschriftungen und 6–7 px kräftigere Verteilungsbalken, sodass große Monitore harmonisch ausgefüllt werden.
+
 ## [0.6.0] - 2026-11-04
 ### Added
 - **Maßgeschneiderte Vektor-Icons für View-Tabs:** Die Emojis in den Umschalt-Buttons durch elegante Vektor-Icons (Pulse-Kurve für `Graph`, 3 Säulen für `Zähler`) ersetzt, die dynamisch ihre Farbe an den aktiven/inaktiven Zustand anpassen.

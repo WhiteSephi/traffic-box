@@ -50,12 +50,13 @@ class RatioBar(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         w = float(self.width())
         h = float(self.height())
+        radius = min(3.5, h / 2.0)
         rect = QRectF(0.0, 0.0, w, h)
 
         # Track background
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(255, 255, 255, 20))
-        painter.drawRoundedRect(rect, 2.0, 2.0)
+        painter.drawRoundedRect(rect, radius, radius)
 
         total = self.down_bytes + self.up_bytes
         if total <= 0:
@@ -69,10 +70,10 @@ class RatioBar(QWidget):
         painter.setClipRect(rect)
         if down_w > 0.5:
             painter.setBrush(self.down_color)
-            painter.drawRoundedRect(QRectF(0.0, 0.0, down_w, h), 2.0, 2.0)
+            painter.drawRoundedRect(QRectF(0.0, 0.0, down_w, h), radius, radius)
         if up_w > 0.5:
             painter.setBrush(self.up_color)
-            painter.drawRoundedRect(QRectF(down_w, 0.0, up_w, h), 2.0, 2.0)
+            painter.drawRoundedRect(QRectF(down_w, 0.0, up_w, h), radius, radius)
         painter.restore()
 
 
@@ -81,6 +82,7 @@ class PeriodCardWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._scale: float = 1.0
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -136,6 +138,29 @@ class PeriodCardWidget(QWidget):
         bottom_row.addWidget(self.lbl_up)
         layout.addLayout(bottom_row)
 
+    def set_scale(self, scale: float, config: AppConfig) -> None:
+        """Dynamically scale fonts, bar height, and icon sizes."""
+        self._scale = scale
+
+        title_pt = max(8, min(12, int(round(9.0 * scale))))
+        self.lbl_period.setFont(QFont("Segoe UI", title_pt, QFont.Weight.DemiBold))
+        self.lbl_total.setFont(QFont("Segoe UI", title_pt, QFont.Weight.Bold))
+
+        bar_h = max(3, min(7, int(round(4.0 * scale))))
+        self.bar.setFixedHeight(bar_h)
+
+        sub_pt = max(7, min(10, int(round(8.0 * scale))))
+        self.lbl_down.setFont(QFont("Segoe UI", sub_pt))
+        self.lbl_up.setFont(QFont("Segoe UI", sub_pt))
+
+        icon_sz = max(9, min(14, int(round(10.0 * scale))))
+        self.icon_down.setFixedSize(icon_sz, icon_sz)
+        self.icon_up.setFixedSize(icon_sz, icon_sz)
+
+        if self.icon_down.isVisible():
+            self.icon_down.setPixmap(create_arrow_pixmap(config.download_color, "down", icon_sz))
+            self.icon_up.setPixmap(create_arrow_pixmap(config.upload_color, "up", icon_sz))
+
     def set_data(
         self,
         period_name: str,
@@ -166,11 +191,12 @@ class PeriodCardWidget(QWidget):
             down_str != "-" and "Login" not in total_str
         )
         if has_data:
+            icon_sz = max(9, min(14, int(round(10.0 * self._scale))))
             self.icon_down.setPixmap(
-                create_arrow_pixmap(config.download_color, "down", 10)
+                create_arrow_pixmap(config.download_color, "down", icon_sz)
             )
             self.icon_down.setVisible(True)
-            self.icon_up.setPixmap(create_arrow_pixmap(config.upload_color, "up", 10))
+            self.icon_up.setPixmap(create_arrow_pixmap(config.upload_color, "up", icon_sz))
             self.icon_up.setVisible(True)
         else:
             self.icon_down.setVisible(False)
@@ -196,6 +222,7 @@ class OnlineCounterView(QWidget):
         super().__init__(parent)
         self.config = config
         self.on_open_settings = on_open_settings
+        self._scale: float = 1.0
         self.setMinimumHeight(145)
 
         self._build_ui()
@@ -229,6 +256,12 @@ class OnlineCounterView(QWidget):
         self.btn_login_hint.clicked.connect(self.on_open_settings)
         self.btn_login_hint.setVisible(False)
         self.root_layout.addWidget(self.btn_login_hint)
+
+    def set_scale(self, scale: float) -> None:
+        """Apply dynamic scale to all period cards."""
+        self._scale = scale
+        for card in self.cards:
+            card.set_scale(scale, self.config)
 
     def apply_theme(self) -> None:
         """Apply current AppConfig colors and background styles."""

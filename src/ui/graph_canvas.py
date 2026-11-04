@@ -201,7 +201,8 @@ class SplitTrafficGraphWidget(QWidget):
             "fixed": "Max",
         }.get(self.config.scale_mode, "Max")
         ceil_text = f"{scale_tag}: {format_rate(ceiling, self.config.show_as_bits)}"
-        font = QFont("Segoe UI", 7)
+        font_pt = max(7, min(10, int(round(7.0 * max(1.0, self.height() / 150.0)))))
+        font = QFont("Segoe UI", font_pt)
         painter.setFont(font)
         label_color = QColor(self.config.title_color)
         label_color.setAlpha(135)
