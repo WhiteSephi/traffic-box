@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -84,8 +85,8 @@ class SettingsDialog(QDialog):
         self.on_apply = on_apply
 
         self.setWindowTitle("TrafficBox Einstellungen")
-        self.setMinimumWidth(540)
-        self.resize(560, 780)
+        self.setMinimumWidth(680)
+        self.resize(700, 840)
         self._build_ui()
         self._load_from_config()
 
@@ -134,21 +135,35 @@ class SettingsDialog(QDialog):
         self.lbl_bound_box.setWordWrap(True)
         self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
-        box_action_layout = QVBoxLayout()
-        box_action_layout.setSpacing(6)
-        box_action_layout.setContentsMargins(0, 2, 0, 2)
-        box_action_layout.addWidget(self.lbl_bound_box)
-        box_action_layout.addWidget(self.btn_test_conn)
-        box_action_layout.addWidget(self.lbl_test_result)
+        # Full-width Box-Kopplung card across the entire dialog width
+        box_card = QFrame()
+        box_card.setStyleSheet(
+            "QFrame { background-color: rgba(255, 255, 255, 0.03); "
+            "border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 4px; }"
+        )
+        box_card_layout = QVBoxLayout(box_card)
+        box_card_layout.setContentsMargins(10, 8, 10, 8)
+        box_card_layout.setSpacing(6)
+
+        lbl_box_title = QLabel("Box-Kopplung (Schutz vor Fehl-Logins):")
+        lbl_box_title.setStyleSheet("font-weight: bold; color: #E0E4E8; font-size: 8.5pt; border: none; background: transparent;")
+        box_card_layout.addWidget(lbl_box_title)
+        box_card_layout.addWidget(self.lbl_bound_box)
+
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(self.btn_test_conn)
+        btn_row.addStretch(1)
+        box_card_layout.addLayout(btn_row)
+        box_card_layout.addWidget(self.lbl_test_result)
 
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
         conn_form.addRow("UPnP Port:", self.spin_port)
         conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
         conn_form.addRow("Startverzögerung:", self.spin_delay)
-        conn_form.addRow("", self.chk_guest)
+        conn_form.addRow(self.chk_guest)
         conn_form.addRow("Fritz!Box Benutzer:", self.txt_user)
         conn_form.addRow("Fritz!Box Passwort:", self.txt_pass)
-        conn_form.addRow("Box-Kopplung (Schutz):", box_action_layout)
+        conn_form.addRow(box_card)
         gen_layout.addWidget(conn_group)
 
         # Behavior & Display
@@ -206,11 +221,12 @@ class SettingsDialog(QDialog):
         self.chk_local_pc.toggled.connect(self._on_local_pc_toggled)
 
         pc_layout.addWidget(self.chk_local_pc)
-        pc_sub_row = QHBoxLayout()
-        pc_sub_row.setContentsMargins(20, 0, 0, 0)
-        pc_sub_row.addWidget(self.chk_pc_in_graph)
-        pc_sub_row.addWidget(self.chk_pc_in_header)
-        pc_layout.addLayout(pc_sub_row)
+        pc_sub_layout = QVBoxLayout()
+        pc_sub_layout.setContentsMargins(20, 2, 0, 0)
+        pc_sub_layout.setSpacing(5)
+        pc_sub_layout.addWidget(self.chk_pc_in_graph)
+        pc_sub_layout.addWidget(self.chk_pc_in_header)
+        pc_layout.addLayout(pc_sub_layout)
         gen_layout.addWidget(pc_group)
 
         # Scaling Group
@@ -245,7 +261,7 @@ class SettingsDialog(QDialog):
         self.chk_auto_link.toggled.connect(self._on_auto_link_toggled)
 
         scale_form.addRow("Skalierungs-Modus:", self.cmb_scale_mode)
-        scale_form.addRow("", self.chk_auto_link)
+        scale_form.addRow(self.chk_auto_link)
         scale_form.addRow("Max. Download (Manuell):", self.spin_max_down)
         scale_form.addRow("Max. Upload (Manuell):", self.spin_max_up)
         gen_layout.addWidget(scale_group)

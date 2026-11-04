@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.7] - 2026-11-04
+### Changed
+- **Vollzeilige Box-Kopplungskarte & breiteres Einstellungsfenster:**
+  - Die Box-Kopplungsanzeige samt Test-Button erstreckt sich nun als dezent gerahmte Karte über die **komplette Fensterbreite** (`addRow(box_card)`), sodass Modellnamen und Hardware-IDs ohne Umbruch voll ausgeschrieben werden.
+  - Das Einstellungsfenster wurde auf eine Mindestbreite von 680 px (Standardgröße 700x840 px) vergrößert.
+  - Verschachtelte Checkboxen für PC-Traffic und Bandbreitenoptionen wurden von nebeneinander auf ein hierarchisches vertikales Layout umgestellt, wodurch keine Beschriftungen mehr am rechten Fensterrand abgeschnitten werden.
+
 ## [0.11.6] - 2026-11-04
 ### Removed
 - **Redundanten Login-Warnbalken in der Zähleransicht entfernt:** Der rote/gesperrte Hinweis-Button am unteren Rand der Zähleransicht (`⚠ Fritz!OS Login fehlgeschlagen` / `🔒 Fritz!OS Login in Einstellungen aktivieren`) wurde komplett entfernt. Die dezenten Einträge `Login nötig` direkt in den betroffenen Perioden-Karten genügen völlig, wodurch die Zähleransicht auch im passwortfreien UPnP-Betrieb ruhig und übersichtlich bleibt.
