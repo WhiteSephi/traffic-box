@@ -350,7 +350,7 @@ class OnlineCounterView(QWidget):
                 self.btn_login_hint.setStyleSheet(
                     f"QPushButton {{ background-color: {hdr_bg}; color: {self.config.download_color}; "
                     f"border: 1px dashed {self.config.border_color}; border-radius: 4px; padding: 4px 8px; "
-                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; }}"
+                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; } "
                     f"QPushButton:hover {{ background-color: {alt_bg}; }}"
                 )
             sess_rx = sample.session_bytes_received

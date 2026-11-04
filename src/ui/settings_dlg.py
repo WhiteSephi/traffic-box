@@ -61,7 +61,7 @@ class ColorButton(QPushButton):
         self.setText(self._color.upper())
         self.setStyleSheet(
             f"QPushButton {{ background-color: {self._color}; color: {text_col}; "
-            "border: 1px solid #666; border-radius: 4px; font-weight: bold; }}"
+            "border: 1px solid #666; border-radius: 4px; font-weight: bold; }"
         )
 
     def _pick_color(self) -> None:

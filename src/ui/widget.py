@@ -482,16 +482,16 @@ class TrafficBox(QWidget):
 
         active_css = (
             f"QPushButton {{ background-color: {active_col}; color: {active_text}; "
-            "font-weight: bold; font-size: 9px; border: none; border-radius: 4px; padding: 1px 6px; }}"
+            "font-weight: bold; font-size: 9px; border: none; border-radius: 4px; padding: 1px 6px; }"
         )
         inactive_css = (
             f"QPushButton {{ background-color: rgba(255,255,255,20); color: {self.config.title_color}; "
-            "font-size: 9px; border: 1px solid rgba(255,255,255,35); border-radius: 4px; padding: 1px 6px; }}"
+            "font-size: 9px; border: 1px solid rgba(255,255,255,35); border-radius: 4px; padding: 1px 6px; } "
             "QPushButton:hover { background-color: rgba(255,255,255,38); }"
         )
         settings_css = (
             f"QPushButton {{ background-color: rgba(255,255,255,20); border: 1px solid rgba(255,255,255,35); "
-            "border-radius: 4px; padding: 2px; }}"
+            "border-radius: 4px; padding: 2px; } "
             "QPushButton:hover { background-color: rgba(255,255,255,38); }"
         )
         self.btn_view_graph.setStyleSheet(inactive_css if is_counters else active_css)
