@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.8] - 2026-11-04
+### Fixed
+- **Scrollbare Einstellungs-Tabs & permanente Speichern-Leiste:**
+  - Die Tabs des Einstellungsfensters wurden in eine `QScrollArea` eingebettet, während die Aktionsleiste (`Speichern & Schließen`, `Übernehmen`, `Reset`) fest am unteren Fensterrand verankert bleibt. Dadurch wird verhindert, dass der Speichern-Button auf Bildschirmen mit Panel oder kleineren Auflösungen nach unten aus dem Bild geschoben wird.
+  - Das Einklappen/Zerquetschen des Test-Buttons wurde behoben, indem das überflüssige innere Sub-Frame entfernt und der Button direkt mit nativer Mindesthöhe im Formular platziert wurde.
+  - Die Dialoggröße wurde auf kompakte 680 × 620 Pixel optimiert (mit Scrollbereich für die Formulare).
+
 ## [0.11.7] - 2026-11-04
 ### Changed
 - **Vollzeilige Box-Kopplungskarte & breiteres Einstellungsfenster:**

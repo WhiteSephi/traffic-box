@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSlider,
     QSpinBox,
     QTabWidget,
@@ -85,8 +86,8 @@ class SettingsDialog(QDialog):
         self.on_apply = on_apply
 
         self.setWindowTitle("TrafficBox Einstellungen")
-        self.setMinimumWidth(680)
-        self.resize(700, 840)
+        self.setMinimumSize(620, 480)
+        self.resize(680, 620)
         self._build_ui()
         self._load_from_config()
 
@@ -135,26 +136,23 @@ class SettingsDialog(QDialog):
         self.lbl_bound_box.setWordWrap(True)
         self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
-        # Full-width Box-Kopplung card across the entire dialog width
-        box_card = QFrame()
-        box_card.setStyleSheet(
-            "QFrame { background-color: rgba(255, 255, 255, 0.03); "
-            "border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 4px; }"
-        )
-        box_card_layout = QVBoxLayout(box_card)
-        box_card_layout.setContentsMargins(10, 8, 10, 8)
-        box_card_layout.setSpacing(6)
+        # Full-width Box-Kopplung section
+        box_status_layout = QVBoxLayout()
+        box_status_layout.setSpacing(6)
+        box_status_layout.setContentsMargins(0, 4, 0, 4)
 
+        box_label_row = QHBoxLayout()
         lbl_box_title = QLabel("Box-Kopplung (Schutz vor Fehl-Logins):")
-        lbl_box_title.setStyleSheet("font-weight: bold; color: #E0E4E8; font-size: 8.5pt; border: none; background: transparent;")
-        box_card_layout.addWidget(lbl_box_title)
-        box_card_layout.addWidget(self.lbl_bound_box)
+        lbl_box_title.setStyleSheet("font-weight: bold; color: #E0E4E8; font-size: 8.5pt;")
+        box_label_row.addWidget(lbl_box_title)
+        box_label_row.addWidget(self.lbl_bound_box, 1)
+        box_status_layout.addLayout(box_label_row)
 
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.btn_test_conn)
         btn_row.addStretch(1)
-        box_card_layout.addLayout(btn_row)
-        box_card_layout.addWidget(self.lbl_test_result)
+        box_status_layout.addLayout(btn_row)
+        box_status_layout.addWidget(self.lbl_test_result)
 
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
         conn_form.addRow("UPnP Port:", self.spin_port)
@@ -163,7 +161,7 @@ class SettingsDialog(QDialog):
         conn_form.addRow(self.chk_guest)
         conn_form.addRow("Fritz!Box Benutzer:", self.txt_user)
         conn_form.addRow("Fritz!Box Passwort:", self.txt_pass)
-        conn_form.addRow(box_card)
+        conn_form.addRow(box_status_layout)
         gen_layout.addWidget(conn_group)
 
         # Behavior & Display
@@ -266,7 +264,7 @@ class SettingsDialog(QDialog):
         scale_form.addRow("Max. Upload (Manuell):", self.spin_max_up)
         gen_layout.addWidget(scale_group)
 
-        tabs.addTab(tab_general, "Allgemein && Skalierung")
+        tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein && Skalierung")
 
         # --- TAB 2: Diagnose & Ping ---
         tab_diag = QWidget()
@@ -295,7 +293,7 @@ class SettingsDialog(QDialog):
         diag_layout.addWidget(status_group)
         diag_layout.addStretch(1)
 
-        tabs.addTab(tab_diag, "Diagnose && Ping")
+        tabs.addTab(self._wrap_in_scroll(tab_diag), "Diagnose && Ping")
 
         # --- TAB 3: Farben ---
         tab_colors = QWidget()
@@ -327,7 +325,7 @@ class SettingsDialog(QDialog):
         col_layout.addWidget(colors_group)
         col_layout.addStretch(1)
 
-        tabs.addTab(tab_colors, "Farben")
+        tabs.addTab(self._wrap_in_scroll(tab_colors), "Farben")
 
         # --- Bottom Action Buttons ---
         btn_row = QHBoxLayout()
@@ -344,6 +342,15 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(btn_apply)
         btn_row.addWidget(btn_ok)
         root_layout.addLayout(btn_row)
+
+    @staticmethod
+    def _wrap_in_scroll(content_widget: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(content_widget)
+        return scroll
 
     def _on_auto_link_toggled(self, checked: bool) -> None:
         self.spin_max_down.setEnabled(not checked)
