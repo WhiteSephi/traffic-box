@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.4] - 2026-11-04
+### Fixed
+- **Echte Upstream-DNS-Erkennung unter Linux (AdGuard / systemd-resolved):** `detect_active_os_dns` liest unter Linux nun primär die echten Uplink-DNS-Server (über `/run/systemd/resolve/resolv.conf` bzw. `resolvectl dns`) aus und überspringt den lokalen `127.0.0.53`-Stub-Cache. Dadurch wird die tatsächliche Latenz zum konfigurierten AdGuard Home Server gemessen (statt der lokalen Loopback-Antwortzeit von 0,3 ms).
+
 ## [0.11.3] - 2026-11-04
 ### Fixed
 - **Natives Fenster-Verschieben unter Wayland / KDE Plasma:** Die Mausinteraktion nutzt für das rahmenlose Fenster nun `windowHandle().startSystemMove()` des Fenstersystems. Dadurch lässt sich das Widget unter Wayland (KWin) und modernen Linux-Desktop-Umgebungen wieder flüssig und zuverlässig verschieben.

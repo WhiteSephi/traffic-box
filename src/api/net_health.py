@@ -60,7 +60,40 @@ def detect_active_os_dns() -> str:
             pass
 
     else:
-        # Linux / Unix: check /etc/resolv.conf
+        # Linux / Unix: check systemd-resolved uplink resolv.conf first, then resolvectl, then /etc/resolv.conf
+        # 1. /run/systemd/resolve/resolv.conf (contains real upstream uplink DNS servers, bypassing 127.0.0.53 stub)
+        for p in ("/run/systemd/resolve/resolv.conf", "/etc/resolv.conf"):
+            if os.path.isfile(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith("nameserver"):
+                                parts = line.split()
+                                if len(parts) >= 2 and re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", parts[1]):
+                                    ip = parts[1]
+                                    if not ip.startswith("127.") and not ip.startswith("0."):
+                                        return ip
+                except Exception:
+                    pass
+
+        # 2. Try resolvectl dns (for NetworkManager / systemd-resolved active link)
+        try:
+            res = subprocess.run(
+                ["resolvectl", "dns"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+            if res.returncode == 0:
+                for match in re.finditer(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", res.stdout):
+                    ip = match.group(0)
+                    if not ip.startswith("127.") and not ip.startswith("0."):
+                        return ip
+        except Exception:
+            pass
+
+        # 3. Fallback: if only loopback was found in /etc/resolv.conf, return it
         resolv_path = "/etc/resolv.conf"
         if os.path.isfile(resolv_path):
             try:
