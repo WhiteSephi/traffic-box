@@ -83,8 +83,8 @@ def set_autostart(enabled: bool) -> bool:
                 content = (
                     "[Desktop Entry]\n"
                     "Type=Application\n"
-                    "Name=Fritz!Box Traffic Widget\n"
-                    "Comment=Live Fritz!Box Upload/Download Monitor Widget\n"
+                    "Name=TrafficBox\n"
+                    "Comment=Live Traffic Monitor Widget\n"
                     f"Path={project_root}\n"
                     f"Exec={python_exe} -m src.main\n"
                     "Icon=network-workgroup\n"

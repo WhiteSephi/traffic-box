@@ -1,4 +1,4 @@
-"""Vector icon utilities for the Fritz!Box Traffic Widget."""
+"""Vector icon utilities for the TrafficBox Widget."""
 
 from __future__ import annotations
 

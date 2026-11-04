@@ -4,6 +4,11 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.1] - 2026-11-04
+### Fixed
+- **Robuste plattformübergreifende Entschlüsselung:** `decrypt_secret` fängt nun Decodierfehler und ungültige Payloads (z. B. wenn eine unter Windows mit DPAPI verschlüsselte Konfigurationsdatei direkt auf ein Linux-System kopiert wird) sicher ab, ohne den Anwendungsstart zu blockieren.
+- **Vollständige Namensbereinigung:** Alle verbliebenen Docstrings und der Linux-Desktop-Autostart-Eintrag wurden einheitlich auf `TrafficBox` aktualisiert.
+
 ## [0.11.0] - 2026-11-04
 ### Added
 - **Sichere Passwort-Verschlüsselung (Encryption at Rest) ohne Zusatzabhängigkeiten:**

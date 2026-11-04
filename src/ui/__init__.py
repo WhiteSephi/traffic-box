@@ -1,1 +1,1 @@
-"""UI package for the Fritz!Box Traffic Widget."""
+"""UI package for the TrafficBox Widget."""

@@ -145,5 +145,11 @@ def decrypt_secret(cipher_text: str) -> str:
         try:
             return _win_decrypt(payload)
         except Exception:
-            return _generic_decrypt(payload)
-    return _generic_decrypt(payload)
+            try:
+                return _generic_decrypt(payload)
+            except Exception:
+                return ""
+    try:
+        return _generic_decrypt(payload)
+    except Exception:
+        return ""

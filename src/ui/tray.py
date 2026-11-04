@@ -1,4 +1,4 @@
-"""System Tray icon and shared context menu for the Fritz!Box Traffic Widget."""
+"""System Tray icon and shared context menu for the TrafficBox Widget."""
 
 from __future__ import annotations
 

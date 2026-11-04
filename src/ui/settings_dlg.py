@@ -1,4 +1,4 @@
-"""Settings dialog for configuring the Fritz!Box Traffic Widget."""
+"""Settings dialog for configuring the TrafficBox Widget."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Main frameless floating Fritz!Box Traffic Widget."""
+"""Main frameless floating TrafficBox Widget."""
 
 from __future__ import annotations
 
