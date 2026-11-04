@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -438,6 +438,12 @@ class SplitTrafficGraphWidget(QWidget):
 
         painter.restore()
 
+    def event(self, event: QEvent) -> bool:
+        """Suppress parent window tooltip popups over the interactive graph canvas."""
+        if event.type() == QEvent.Type.ToolTip:
+            return True
+        return super().event(event)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Ignore left clicks so parent window can be moved by dragging."""
         if event.button() == Qt.MouseButton.LeftButton:
@@ -652,7 +658,7 @@ class SplitTrafficGraphWidget(QWidget):
         show_pc = self.config.enable_local_traffic_monitor and (val_pc_down > 0 or val_pc_up > 0)
         show_ping = ping_rect is not None and (val_ping > 0 or val_jitter > 0)
 
-        badge_w = 150.0 if show_pc else 140.0
+        badge_w = 175.0 if show_pc else 145.0
         badge_h = 54.0
         if show_pc:
             badge_h += 16.0
@@ -715,11 +721,11 @@ class SplitTrafficGraphWidget(QWidget):
             painter.setFont(font_sub)
             pc_d = format_rate(val_pc_down, self.config.show_as_bits)
             pc_u = format_rate(val_pc_up, self.config.show_as_bits)
-            painter.setPen(QColor("#94A3B8"))
+            painter.setPen(QColor("#CBD5E1"))
             painter.drawText(
                 QRectF(badge_x + 8.0, curr_y, badge_w - 16.0, 14.0),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                f"💻 PC: ↓ {pc_d}  ↑ {pc_u}",
+                f"PC:  ↓ {pc_d}  •  ↑ {pc_u}",
             )
             curr_y += 15.0
 

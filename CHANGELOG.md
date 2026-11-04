@@ -4,6 +4,11 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.9.1] - 2026-11-04
+### Fixed
+- **Keine störende Tooltip-Überlagerung mehr über dem Diagramm:** Der allgemeine Fritz!Box-Verbindungsdetails-Tooltip (`Status: Connected • Externe IP...`) wurde vom Hauptfenster entkoppelt und gezielt an das Router-Icon, den Titel und die WAN-Status-Pille gebunden. Zudem unterdrückt die Diagrammfläche (`SplitTrafficGraphWidget`) Tooltip-Events, sodass das schwebende HUD-Badge bei der Messpunkt-Inspektion niemals verdeckt wird.
+- **Bereinigtes HUD-Badge ohne PC-Emoji:** Das PC-Symbol (`💻`) wurde aus der HUD-Karte entfernt (`PC: ↓ ... • ↑ ...`) und die Badge-Breite erweitert, sodass auch hohe dreistellige Raten (wie `467,78 Mbit/s`) ohne Textabschneiden sauber und vollständig dargestellt werden.
+
 ## [0.9.0] - 2026-11-04
 ### Added
 - **Lokaler PC-Traffic-Monitor (Eigener Internet-Anteil im Graphen):**

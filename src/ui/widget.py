@@ -853,6 +853,9 @@ class TrafficBox(QWidget):
         self.tray_icon.setToolTip(tray_tip)
 
         if not self.config.show_connection_tooltip:
+            self.lbl_icon.setToolTip("")
+            self.lbl_title.setToolTip("")
+            self.lbl_wan_pill.setToolTip("")
             self.setToolTip("")
             return
 
@@ -877,7 +880,12 @@ class TrafficBox(QWidget):
 
         if sample.error_message:
             lines.append(f"<span style='color:#FF5252;'>Fehler: {sample.error_message}</span>")
-        self.setToolTip("<br>".join(lines))
+
+        tip_html = "<br>".join(lines)
+        self.lbl_icon.setToolTip(tip_html)
+        self.lbl_title.setToolTip(tip_html)
+        self.lbl_wan_pill.setToolTip(tip_html)
+        self.setToolTip("")
 
     def paintEvent(self, _event: object) -> None:
         """Draw the rounded translucent background and border of the widget."""
