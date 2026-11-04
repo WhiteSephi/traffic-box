@@ -606,43 +606,17 @@ class TrafficBox(QWidget):
 
         lines = [
             f"<b>Fritz!Box ({self.config.fritzbox_host})</b>",
-            f"Status: <b>{sample.connection_status}</b> | Verbunden seit: {format_uptime(sample.uptime_seconds)}",
+            f"Status: <b>{sample.connection_status}</b> • Verbunden seit: {format_uptime(sample.uptime_seconds)}",
             f"Externe IP: <code>{sample.external_ip}</code>",
-            f"Leitungskapazität: ↓ {max_down_mbps:.1f} Mbit/s | ↑ {max_up_mbps:.1f} Mbit/s".replace(
+            f"Leitungskapazität: ↓ {max_down_mbps:.1f} Mbit/s • ↑ {max_up_mbps:.1f} Mbit/s".replace(
                 ".", ","
             ),
-            f"Seit Widget-Start: ↓ {format_bytes(sample.session_bytes_received)} | ↑ {format_bytes(sample.session_bytes_sent)}",
+            f"Seit Widget-Start: ↓ {format_bytes(sample.session_bytes_received)} • ↑ {format_bytes(sample.session_bytes_sent)}",
         ]
 
-        oc = sample.online_counters
-        if oc.is_available:
-            rows = [
-                ("Heute", oc.today),
-                ("Gestern", oc.yesterday),
-                ("Aktuelle Woche", oc.this_week),
-                ("Aktueller Monat", oc.this_month),
-                ("Vormonat", oc.last_month),
-            ]
-            table_html = (
-                "<hr><b>Fritz!Box Online-Zähler:</b>"
-                "<table cellspacing='4' cellpadding='1'>"
-                "<tr><th align='left'>Zeitraum</th><th align='right'>Gesamt</th>"
-                "<th align='right'>↑ Gesendet</th><th align='right'>↓ Empfangen</th></tr>"
-            )
-            for p_name, p_cnt in rows:
-                table_html += (
-                    f"<tr><td>{p_name}</td>"
-                    f"<td align='right'><b>{format_bytes(p_cnt.total_bytes)}</b></td>"
-                    f"<td align='right'>{format_bytes(p_cnt.sent_bytes)}</td>"
-                    f"<td align='right'>{format_bytes(p_cnt.received_bytes)}</td></tr>"
-                )
-            table_html += "</table>"
-            lines.append(table_html)
-        else:
-            uptime_str = format_uptime(sample.uptime_seconds)
-            since_lbl = f"Seit Verbindung ({uptime_str})" if sample.uptime_seconds > 0 else "Seit Router-Start"
+        if sample.total_bytes_received > 0 or sample.total_bytes_sent > 0:
             lines.append(
-                f"{since_lbl}: ↓ {format_bytes(sample.total_bytes_received)} | ↑ {format_bytes(sample.total_bytes_sent)}"
+                f"Seit Verbindung: ↓ {format_bytes(sample.total_bytes_received)} • ↑ {format_bytes(sample.total_bytes_sent)}"
             )
 
         if sample.error_message:

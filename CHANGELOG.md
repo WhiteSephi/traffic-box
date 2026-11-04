@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.5.2] - 2026-11-04
+### Changed
+- **Kompakter Hover-Tooltip:** Die redundante Online-Zähler-Tabelle aus dem Hover-Tooltip des Widgets entfernt, da diese nun direkt über den `📊 Zähler`-Button im Widget dargestellt wird. Der Tooltip beschränkt sich nun übersichtlich auf Verbindungsstatus, Externe IP, Verbunden seit, Leitungskapazität und Sitzungs-Volumen.
+
 ## [0.5.1] - 2026-11-04
 ### Added
 - **Elegante Card-Zeilen im Online-Zähler (Variante 2):** Zeitraum (`Heute`..`Vormonat`) links, Gesamtsumme (`Gesamt: X GB`) rechtsbündig oben, darunter ein feiner durchgehender 4px-Verteilungsbalken (`download_color` links, `upload_color` rechts) und darunter Download- & Upload-Werte mit passenden Vektor-Pfeilen.
