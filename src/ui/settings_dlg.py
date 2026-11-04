@@ -84,7 +84,8 @@ class SettingsDialog(QDialog):
         self.on_apply = on_apply
 
         self.setWindowTitle("TrafficBox Einstellungen")
-        self.setMinimumWidth(480)
+        self.setMinimumWidth(540)
+        self.resize(560, 780)
         self._build_ui()
         self._load_from_config()
 
@@ -100,6 +101,7 @@ class SettingsDialog(QDialog):
 
         conn_group = QGroupBox("Fritz!Box Verbindung (UPnP && Optionaler Fritz!OS Login)")
         conn_form = QFormLayout(conn_group)
+        conn_form.setVerticalSpacing(8)
         self.txt_host = QLineEdit()
         self.txt_host.setPlaceholderText("z. B. fritz.box oder 192.168.178.1")
         self.spin_port = QSpinBox()
@@ -132,6 +134,13 @@ class SettingsDialog(QDialog):
         self.lbl_bound_box.setWordWrap(True)
         self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
+        box_action_layout = QVBoxLayout()
+        box_action_layout.setSpacing(6)
+        box_action_layout.setContentsMargins(0, 2, 0, 2)
+        box_action_layout.addWidget(self.lbl_bound_box)
+        box_action_layout.addWidget(self.btn_test_conn)
+        box_action_layout.addWidget(self.lbl_test_result)
+
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
         conn_form.addRow("UPnP Port:", self.spin_port)
         conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
@@ -139,9 +148,7 @@ class SettingsDialog(QDialog):
         conn_form.addRow("", self.chk_guest)
         conn_form.addRow("Fritz!Box Benutzer:", self.txt_user)
         conn_form.addRow("Fritz!Box Passwort:", self.txt_pass)
-        conn_form.addRow("Box-Kopplung (Schutz):", self.lbl_bound_box)
-        conn_form.addRow("", self.btn_test_conn)
-        conn_form.addRow("", self.lbl_test_result)
+        conn_form.addRow("Box-Kopplung (Schutz):", box_action_layout)
         gen_layout.addWidget(conn_group)
 
         # Behavior & Display

@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.5] - 2026-11-04
+### Fixed
+- **Layout-Überlappung im Einstellungs-Dialog behoben:** Das Status-Label `lbl_bound_box` und der Test-Button `btn_test_conn` wurden in einen gemeinsamen vertikalen Container (`QVBoxLayout`) gebettet und die Mindestbreite des Dialogs vergrößert. Dadurch wird verhindert, dass zweizeiliger Box-Identifikationstext mit dem darunterliegenden Test-Button kollidiert.
+
 ## [0.11.4] - 2026-11-04
 ### Fixed
 - **Echte Upstream-DNS-Erkennung unter Linux (AdGuard / systemd-resolved):** `detect_active_os_dns` liest unter Linux nun primär die echten Uplink-DNS-Server (über `/run/systemd/resolve/resolv.conf` bzw. `resolvectl dns`) aus und überspringt den lokalen `127.0.0.53`-Stub-Cache. Dadurch wird die tatsächliche Latenz zum konfigurierten AdGuard Home Server gemessen (statt der lokalen Loopback-Antwortzeit von 0,3 ms).
