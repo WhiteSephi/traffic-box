@@ -4,6 +4,17 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.11] - 2026-11-04
+### Changed
+- **Thematische Neustrukturierung der Einstellungs-Tabs (Variante C):**
+  - Die Reiter wurden in die 5 allgemeingültigen Bereiche aufgeteilt:
+    1. **FRITZ!Box**: Reine Router-Verbindung (IP, UPnP-Port, Refresh) und Fritz!OS-Login & Box-Kopplung.
+    2. **Allgemein**: Systemstart- und Desktop-Optionen (Autostart mit System, Startverzögerung beim Booten, Always on Top, Position sperren, Deckkraft).
+    3. **Anzeige**: Alle visuellen Raten- und Graph-Optionen (Skalierungsmodus Wurzel/Dyn/Fix, Bandbreiten-Limits, Kompaktmodus, Down/Up-Tausch, Bit/s-Modus, Peak-Rate, Gäste-WLAN-Rate und Footer-Zähler).
+    4. **Netzwerk**: Lokale und globale Netzwerk-Gesundheit (PC-Traffic-Monitor, Ping- & Jitter-Graph mit Endpoint, WAN- und DNS-Statuspillen).
+    5. **Farben**: Übersichtliche Farbkonfiguration für Traffic/Ping und Widget-Design.
+  - Sämtliche Optionen sind auf jedem Bildschirm direkt und ohne vertikale Scrollbalken sichtbar.
+
 ## [0.11.10] - 2026-11-04
 ### Fixed
 - **Scrollbalken im FRITZ!Box-Reiter vollständig beseitigt:**

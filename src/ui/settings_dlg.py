@@ -118,21 +118,15 @@ class SettingsDialog(QDialog):
         self.spin_refresh = QSpinBox()
         self.spin_refresh.setRange(1, 60)
         self.spin_refresh.setSuffix(" Sek.")
-        self.spin_delay = QSpinBox()
-        self.spin_delay.setRange(0, 120)
-        self.spin_delay.setSuffix(" Sek.")
 
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
 
         row_nums = QHBoxLayout()
         row_nums.addWidget(QLabel("UPnP Port:"))
         row_nums.addWidget(self.spin_port)
-        row_nums.addSpacing(12)
+        row_nums.addSpacing(16)
         row_nums.addWidget(QLabel("Aktualisierung:"))
         row_nums.addWidget(self.spin_refresh)
-        row_nums.addSpacing(12)
-        row_nums.addWidget(QLabel("Startverzögerung:"))
-        row_nums.addWidget(self.spin_delay)
         row_nums.addStretch(1)
         conn_form.addRow(row_nums)
         fritz_layout.addWidget(conn_group)
@@ -184,26 +178,37 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._wrap_in_scroll(tab_fritz), "FRITZ!Box")
 
         # =========================================================================
-        # TAB 2: Darstellung (Fenster, Ansicht & Footer)
+        # TAB 2: Allgemein (Systemstart, Fenster & Verhalten)
         # =========================================================================
-        tab_disp = QWidget()
-        disp_layout = QVBoxLayout(tab_disp)
-        disp_layout.setContentsMargins(8, 8, 8, 8)
-        disp_layout.setSpacing(8)
+        tab_general = QWidget()
+        gen_layout = QVBoxLayout(tab_general)
+        gen_layout.setContentsMargins(8, 8, 8, 8)
+        gen_layout.setSpacing(8)
 
-        beh_group = QGroupBox("Fenster && Verhalten")
-        beh_grid = QGridLayout(beh_group)
-        beh_grid.setContentsMargins(10, 10, 10, 10)
-        beh_grid.setVerticalSpacing(6)
-        self.chk_autostart = QCheckBox("Autostart mit System")
+        # Systemstart & Autostart
+        sys_group = QGroupBox("Systemstart && Autostart")
+        sys_form = QFormLayout(sys_group)
+        sys_form.setContentsMargins(10, 10, 10, 10)
+        sys_form.setVerticalSpacing(6)
+
+        self.chk_autostart = QCheckBox("Autostart mit dem Betriebssystem aktivieren")
+        self.spin_delay = QSpinBox()
+        self.spin_delay.setRange(0, 120)
+        self.spin_delay.setSuffix(" Sek.")
+        self.spin_delay.setToolTip("Wartezeit nach dem Systemstart vor dem ersten Verbindungsversuch")
+
+        sys_form.addRow(self.chk_autostart)
+        sys_form.addRow("Startverzögerung beim Booten:", self.spin_delay)
+        gen_layout.addWidget(sys_group)
+
+        # Fenster & Position
+        win_group = QGroupBox("Fenster-Verhalten && Position")
+        win_form = QFormLayout(win_group)
+        win_form.setContentsMargins(10, 10, 10, 10)
+        win_form.setVerticalSpacing(6)
+
         self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
-        self.chk_locked_pos = QCheckBox("Position sperren (LockedPos)")
-        self.chk_compact = QCheckBox("Kompakt-Modus (Graph ausblenden)")
-
-        beh_grid.addWidget(self.chk_autostart, 0, 0)
-        beh_grid.addWidget(self.chk_always_on_top, 0, 1)
-        beh_grid.addWidget(self.chk_locked_pos, 1, 0)
-        beh_grid.addWidget(self.chk_compact, 1, 1)
+        self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren (LockedPos)")
 
         opacity_row = QHBoxLayout()
         opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
@@ -215,49 +220,24 @@ class SettingsDialog(QDialog):
         )
         opacity_row.addWidget(self.slider_opacity, 1)
         opacity_row.addWidget(self.lbl_opacity_val)
-        beh_grid.addLayout(opacity_row, 2, 0, 1, 2)
-        disp_layout.addWidget(beh_group)
 
-        view_group = QGroupBox("Anzeige-Optionen")
-        view_grid = QGridLayout(view_group)
-        view_grid.setContentsMargins(10, 10, 10, 10)
-        view_grid.setVerticalSpacing(6)
-        self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
-        self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
-        self.chk_show_peak = QCheckBox("Peak-Rate anzeigen (z. B. Peak 60s)")
-        self.chk_show_guest_meta = QCheckBox("Gäste-WLAN-Rate unter Raten anzeigen")
-        self.chk_session_totals = QCheckBox("Online- / Session-Zähler im Footer:")
+        win_form.addRow(self.chk_always_on_top)
+        win_form.addRow(self.chk_locked_pos)
+        win_form.addRow(opacity_row)
+        gen_layout.addWidget(win_group)
+        gen_layout.addStretch(1)
 
-        self.cmb_footer_mode = QComboBox()
-        self.cmb_footer_mode.addItem("Heute (Fritz!Box Online-Zähler)", "today")
-        self.cmb_footer_mode.addItem("Gestern (Fritz!Box Online-Zähler)", "yesterday")
-        self.cmb_footer_mode.addItem("Aktuelle Woche (Fritz!Box Online-Zähler)", "week")
-        self.cmb_footer_mode.addItem("Aktueller Monat (Fritz!Box Online-Zähler)", "month")
-        self.cmb_footer_mode.addItem("Vormonat (Fritz!Box Online-Zähler)", "last_month")
-        self.cmb_footer_mode.addItem("Seit Widget-Start (ohne Login)", "session")
-
-        view_grid.addWidget(self.chk_switch_up_down, 0, 0)
-        view_grid.addWidget(self.chk_show_bits, 0, 1)
-        view_grid.addWidget(self.chk_show_peak, 1, 0)
-        view_grid.addWidget(self.chk_show_guest_meta, 1, 1)
-
-        footer_row = QHBoxLayout()
-        footer_row.addWidget(self.chk_session_totals)
-        footer_row.addWidget(self.cmb_footer_mode, 1)
-        view_grid.addLayout(footer_row, 2, 0, 1, 2)
-        disp_layout.addWidget(view_group)
-        disp_layout.addStretch(1)
-
-        tabs.addTab(self._wrap_in_scroll(tab_disp), "Darstellung")
+        tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein")
 
         # =========================================================================
-        # TAB 3: Graph & Leitung (Skalierung & Eigener PC)
+        # TAB 3: Anzeige (Skalierung, Graphen & Raten-Darstellung)
         # =========================================================================
-        tab_scale = QWidget()
-        scale_layout = QVBoxLayout(tab_scale)
-        scale_layout.setContentsMargins(8, 8, 8, 8)
-        scale_layout.setSpacing(8)
+        tab_display = QWidget()
+        disp_layout = QVBoxLayout(tab_display)
+        disp_layout.setContentsMargins(8, 8, 8, 8)
+        disp_layout.setSpacing(8)
 
+        # Skalierung & Leitungskapazität
         scale_group = QGroupBox("Graph-Skalierung && Leitungskapazität")
         scale_form = QFormLayout(scale_group)
         scale_form.setContentsMargins(10, 10, 10, 10)
@@ -294,7 +274,51 @@ class SettingsDialog(QDialog):
         scale_form.addRow(self.chk_auto_link)
         scale_form.addRow("Max. Download (Manuell):", self.spin_max_down)
         scale_form.addRow("Max. Upload (Manuell):", self.spin_max_up)
-        scale_layout.addWidget(scale_group)
+        disp_layout.addWidget(scale_group)
+
+        # Raten & Graphen-Darstellung
+        rates_group = QGroupBox("Raten- && Graphen-Darstellung")
+        rates_grid = QGridLayout(rates_group)
+        rates_grid.setContentsMargins(10, 10, 10, 10)
+        rates_grid.setVerticalSpacing(6)
+
+        self.chk_compact = QCheckBox("Kompakt-Modus (Graph ausblenden)")
+        self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
+        self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
+        self.chk_show_peak = QCheckBox("Peak-Rate anzeigen (z. B. Peak 60s)")
+        self.chk_show_guest_meta = QCheckBox("Gäste-WLAN-Rate unter Raten anzeigen")
+        self.chk_session_totals = QCheckBox("Online- / Session-Zähler im Footer:")
+
+        self.cmb_footer_mode = QComboBox()
+        self.cmb_footer_mode.addItem("Heute (Fritz!Box Online-Zähler)", "today")
+        self.cmb_footer_mode.addItem("Gestern (Fritz!Box Online-Zähler)", "yesterday")
+        self.cmb_footer_mode.addItem("Aktuelle Woche (Fritz!Box Online-Zähler)", "week")
+        self.cmb_footer_mode.addItem("Aktueller Monat (Fritz!Box Online-Zähler)", "month")
+        self.cmb_footer_mode.addItem("Vormonat (Fritz!Box Online-Zähler)", "last_month")
+        self.cmb_footer_mode.addItem("Seit Widget-Start (ohne Login)", "session")
+
+        rates_grid.addWidget(self.chk_compact, 0, 0)
+        rates_grid.addWidget(self.chk_switch_up_down, 0, 1)
+        rates_grid.addWidget(self.chk_show_bits, 1, 0)
+        rates_grid.addWidget(self.chk_show_peak, 1, 1)
+        rates_grid.addWidget(self.chk_show_guest_meta, 2, 0)
+
+        footer_row = QHBoxLayout()
+        footer_row.addWidget(self.chk_session_totals)
+        footer_row.addWidget(self.cmb_footer_mode, 1)
+        rates_grid.addLayout(footer_row, 3, 0, 1, 2)
+        disp_layout.addWidget(rates_group)
+        disp_layout.addStretch(1)
+
+        tabs.addTab(self._wrap_in_scroll(tab_display), "Anzeige")
+
+        # =========================================================================
+        # TAB 4: Netzwerk (Eigener PC & Diagnose)
+        # =========================================================================
+        tab_net = QWidget()
+        net_layout = QVBoxLayout(tab_net)
+        net_layout.setContentsMargins(8, 8, 8, 8)
+        net_layout.setSpacing(8)
 
         # Local Device Group
         pc_group = QGroupBox("Lokales Gerät (Eigener PC-Traffic Anteil)")
@@ -312,47 +336,30 @@ class SettingsDialog(QDialog):
         pc_sub_layout.addWidget(self.chk_pc_in_graph)
         pc_sub_layout.addWidget(self.chk_pc_in_header)
         pc_layout.addLayout(pc_sub_layout)
-        scale_layout.addWidget(pc_group)
-        scale_layout.addStretch(1)
+        net_layout.addWidget(pc_group)
 
-        tabs.addTab(self._wrap_in_scroll(tab_scale), "Graph && Leitung")
-
-        # =========================================================================
-        # TAB 4: Diagnose & Ping
-        # =========================================================================
-        tab_diag = QWidget()
-        diag_layout = QVBoxLayout(tab_diag)
-        diag_layout.setContentsMargins(8, 8, 8, 8)
-        diag_layout.setSpacing(8)
-
-        ping_group = QGroupBox("Internet Ping- && Jitter-Graph")
-        ping_form = QFormLayout(ping_group)
-        ping_form.setContentsMargins(10, 10, 10, 10)
-        ping_form.setVerticalSpacing(6)
+        # Internet-Diagnose
+        diag_group = QGroupBox("Internet-Diagnose && Ping")
+        diag_form = QFormLayout(diag_group)
+        diag_form.setContentsMargins(10, 10, 10, 10)
+        diag_form.setVerticalSpacing(6)
 
         self.chk_ping_graph = QCheckBox("Ping- && Jitter-Graph unterhalb von Down/Up anzeigen")
         self.cmb_ping_endpoint = QComboBox()
         self.cmb_ping_endpoint.setEditable(True)
         self.cmb_ping_endpoint.addItems(["1.1.1.1", "8.8.8.8", "9.9.9.9", "heise.de", "google.com"])
 
-        ping_form.addRow("", self.chk_ping_graph)
-        ping_form.addRow("Ping-Ziel (Endpoint):", self.cmb_ping_endpoint)
-        diag_layout.addWidget(ping_group)
-
-        status_group = QGroupBox("Status- && Diagnose-Anzeige (Fußzeile)")
-        status_form = QFormLayout(status_group)
-        status_form.setContentsMargins(10, 10, 10, 10)
-        status_form.setVerticalSpacing(6)
-
         self.chk_wan_pill = QCheckBox("WAN-Verbindungsstatus anzeigen (✓ WAN OK / ⚠ Kein Sync / ✕ Offline)")
         self.chk_dns_pill = QCheckBox("Aktiven System-DNS-Server überwachen (Antwortzeit in ms)")
 
-        status_form.addRow("", self.chk_wan_pill)
-        status_form.addRow("", self.chk_dns_pill)
-        diag_layout.addWidget(status_group)
-        diag_layout.addStretch(1)
+        diag_form.addRow("", self.chk_ping_graph)
+        diag_form.addRow("Ping-Ziel (Endpoint):", self.cmb_ping_endpoint)
+        diag_form.addRow("", self.chk_wan_pill)
+        diag_form.addRow("", self.chk_dns_pill)
+        net_layout.addWidget(diag_group)
+        net_layout.addStretch(1)
 
-        tabs.addTab(self._wrap_in_scroll(tab_diag), "Diagnose && Ping")
+        tabs.addTab(self._wrap_in_scroll(tab_net), "Netzwerk")
 
         # =========================================================================
         # TAB 5: Farben
