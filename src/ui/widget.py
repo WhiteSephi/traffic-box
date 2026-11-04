@@ -266,7 +266,7 @@ class TrafficBox(QWidget):
 
     def _setup_tray_icon(self) -> None:
         self.tray_icon = QSystemTrayIcon(create_router_icon(True), self)
-        self.tray_icon.setToolTip("TrafficBox Widget")
+        self.tray_icon.setToolTip("TrafficBox")
         self.tray_icon.setContextMenu(self._build_context_menu())
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
@@ -753,8 +753,9 @@ class TrafficBox(QWidget):
         max_down_mbps = (max_down_bps * 8.0) / 1_000_000.0
         max_up_mbps = (max_up_bps * 8.0) / 1_000_000.0
 
+        box_title = sample.box_name or f"Fritz!Box ({self.config.fritzbox_host})"
         lines = [
-            f"<b>Fritz!Box ({self.config.fritzbox_host})</b>",
+            f"<b>{box_title}</b>",
             f"Status: <b>{sample.connection_status}</b> • Verbunden seit: {format_uptime(sample.uptime_seconds)}",
             f"Externe IP: <code>{sample.external_ip}</code>",
             f"Leitungskapazität: ↓ {max_down_mbps:.1f} Mbit/s • ↑ {max_up_mbps:.1f} Mbit/s".replace(
@@ -762,6 +763,9 @@ class TrafficBox(QWidget):
             ),
             f"Seit Widget-Start: ↓ {format_bytes(sample.session_bytes_received)} • ↑ {format_bytes(sample.session_bytes_sent)}",
         ]
+
+        if sample.is_foreign_box:
+            lines.append("<span style='color:#00E5FF;'>ℹ Fremde FRITZ!Box – Login zum Schutz vor Sperrung pausiert</span>")
 
         if sample.total_bytes_received > 0 or sample.total_bytes_sent > 0:
             lines.append(

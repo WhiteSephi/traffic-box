@@ -23,6 +23,7 @@ class TestConfig(unittest.TestCase):
         self.assertFalse(cfg.enable_local_traffic_monitor)
         self.assertEqual(cfg.active_view, "graph")
         self.assertEqual(cfg.scale_mode, "sqrt")
+        self.assertEqual(cfg.title, "TrafficBox")
         self.assertTrue(cfg.show_peak_rate)
         self.assertTrue(cfg.show_guest_rate_labels)
 

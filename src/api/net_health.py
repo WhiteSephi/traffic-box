@@ -145,16 +145,22 @@ def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
 
     # Second attempt: TCP connect fallback on port 443 (HTTPS) or 53 (DNS)
     for port in (443, 53):
+        sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeout_ms / 1000.0)
             t0 = time.perf_counter()
             sock.connect((target_host, port))
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
-            sock.close()
             return round(elapsed_ms, 2)
         except Exception:
             continue
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
 
     return None
 

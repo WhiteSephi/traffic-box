@@ -1,6 +1,6 @@
-# traffic-box
+# TrafficBox
 
-> Schlankes, plattformübergreifendes Live-Desktop-Widget (CachyOS / KDE Plasma & Windows) zur Echtzeit-Überwachung von Upload- und Download-Raten einer AVM FRITZ!Box per UPnP sowie optionaler Gäste-WLAN-Traffic-Analyse.
+> Schlankes, plattformübergreifendes Live-Desktop-Widget (CachyOS / KDE Plasma & Windows) zur Echtzeit-Überwachung von Upload- und Download-Raten an Routern (wie AVM FRITZ!Box) per UPnP sowie optionaler Gäste-WLAN- und lokaler PC-Traffic-Analyse.
 
 ---
 
@@ -39,8 +39,8 @@
 
 3. **Konfiguration & Speicherort:**
    - **Standard-Speicherort:** Einstellungen werden automatisch im benutzerspezifischen Systemordner als `config.json` abgelegt:
-     - Windows: `%APPDATA%\traffic-box\config.json`
-     - Linux/CachyOS: `~/.config/traffic-box/config.json`
+     - Windows: `%APPDATA%\trafficbox\config.json`
+     - Linux/CachyOS: `~/.config/trafficbox/config.json`
    - **Portabler Modus (z. B. USB-Stick):** Liegt im Projekt- bzw. Programmverzeichnis der Ordner `local/` und befindet sich darin eine `config.json`, liest und schreibt das Widget alle Einstellungen direkt dort hinein, ohne das Betriebssystem zu berühren.
    - **Umgebungsvariablen (optional):**
      ```bash
@@ -104,7 +104,8 @@ python -m unittest discover -s tests -v
 │   ├── test_formatters.py      # Raten-, Datenvolumen- & Uptime-Formatierung
 │   ├── test_local_traffic.py   # Linux /proc/net/dev-Parsing & lokale Ratenberechnung
 │   ├── test_net_health.py      # Ping-Regex (Windows/Linux) & Jitter-Berechnung
-│   └── test_upnp_client.py     # UPnP-Session-Tracking & 32-Bit-Überlaufschutz
+│   ├── test_upnp_client.py     # UPnP-Session-Tracking, UDN-Erkennung & 32-Bit-Überlaufschutz
+│   └── test_worker_foreign_box.py # Schutz vor Fehl-Logins auf fremden FRITZ!Boxen (Roaming)
 ├── requirements.txt            # Python-Abhängigkeiten (PySide6)
 ├── .env.example                # Vorlage für Umgebungsvariablen
 └── CHANGELOG.md                # Chronologische Änderungshistorie

@@ -4,6 +4,16 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.10.0] - 2026-11-04
+### Added
+- **Intelligente Box-Erkennung & Schutz fremder FRITZ!Boxen bei Standortwechsel (Roaming):**
+  - **Passwortfreie UDN-Identifikation:** Liest beim Verbindungsaufbau automatisch die eindeutige Hardware-ID (`<UDN>`, inklusive MAC-Adresse) und das Modell (`<friendlyName>`, z. B. `FRITZ!Box 7590`) aus der UPnP-Gerätebeschreibung `/igddesc.xml` aus.
+  - **Box-Bindung für Zugangsdaten:** Hinterlegte Fritz!OS-Passwörter (für Online-Zähler und Gäste-WLAN) werden fest an die erkannte Box-ID gekoppelt.
+  - **Automatischer Schutzmodus für fremde Boxen:** Verbindet sich ein Laptop mit einer anderen FRITZ!Box (z. B. im Büro oder bei Freunden), werden Live-Raten via UPnP weiterhin voll angezeigt, jedoch **garantiert keine Login-Versuche mit dem fremden Passwort** gestartet. Dadurch werden Fehlversuche und die exponentielle Fritz!OS-Sperrzeit (`<BlockTime>`) auf fremden Boxen zuverlässig verhindert.
+  - **Transparente Status-Rückmeldung:** Sowohl der Verbindungs-Tooltip als auch die Zähler-Ansicht weisen dezent auf den geschützten Gast-Modus hin (`ℹ Fremde Box (Modell) – Login zum Schutz vor Sperrung pausiert`).
+  - **Kopplungs-Status im Einstellungs-Dialog:** Zeigt unter den Verbindungsdaten die aktuell erkannte FRITZ!Box und den Kopplungsstatus an. Bei Passworteingabe wird die neue Box beim Speichern oder Testen sofort übernommen.
+  - **Unit-Test-Absicherung:** Neue Tests in `tests/test_worker_foreign_box.py` und `tests/test_upnp_client.py` verifizieren das Überspringen von Logins auf fremden Boxen.
+
 ## [0.9.2] - 2026-11-04
 ### Refactored
 - **Entflechtung von UI und Hintergrund-Worker (`src/api/worker.py`):** Die Klasse `PollingWorker` (inklusive UPnP-, Fritz!OS Lua-, Ping- und Local-Traffic-Koordination) wurde aus `src/ui/widget.py` in ein eigenes Modul `src/api/worker.py` ausgelagert. Dadurch schrumpft das Haupt-Widget um über 100 Zeilen und trennt strikt die Datenabfrage von der UI-Darstellung.

@@ -1,1 +1,1 @@
-"""Unit tests for the traffic-box application."""
+"""Unit tests for the TrafficBox application."""

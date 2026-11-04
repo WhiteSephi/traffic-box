@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 def format_rate(bytes_per_sec: float, show_as_bits: bool = False) -> str:
-    """Format bytes/sec into a German-formatted rate string (like TrafficBox)."""
+    """Format bytes/sec into a German-formatted rate string (e.g., kB/s, MB/s, kbit/s, Mbit/s)."""
     val = max(0.0, bytes_per_sec)
     if show_as_bits:
         bits = val * 8.0

@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 APP_NAME = "TrafficBox"
-DESKTOP_FILENAME = "traffic-box.desktop"
+DESKTOP_FILENAME = "trafficbox.desktop"
 
 
 def get_project_root() -> Path:

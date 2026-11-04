@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.api.fritz_monitor import FritzGuestMonitorClient
+from src.api.upnp_client import FritzUpnpClient
 from src.autostart import is_autostart_enabled, set_autostart
 from src.config import AppConfig
 
@@ -70,7 +71,7 @@ class ColorButton(QPushButton):
 
 
 class SettingsDialog(QDialog):
-    """Comprehensive settings window modeled after TrafficBox Settings with modern tabs."""
+    """Comprehensive settings window for TrafficBox with modern tabs."""
 
     def __init__(
         self,
@@ -127,6 +128,10 @@ class SettingsDialog(QDialog):
         self.lbl_test_result.setWordWrap(True)
         self.lbl_test_result.setVisible(False)
 
+        self.lbl_bound_box = QLabel("")
+        self.lbl_bound_box.setWordWrap(True)
+        self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
+
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
         conn_form.addRow("UPnP Port:", self.spin_port)
         conn_form.addRow("Aktualisierung (Refresh):", self.spin_refresh)
@@ -134,6 +139,7 @@ class SettingsDialog(QDialog):
         conn_form.addRow("", self.chk_guest)
         conn_form.addRow("Fritz!Box Benutzer:", self.txt_user)
         conn_form.addRow("Fritz!Box Passwort:", self.txt_pass)
+        conn_form.addRow("Box-Kopplung (Schutz):", self.lbl_bound_box)
         conn_form.addRow("", self.btn_test_conn)
         conn_form.addRow("", self.lbl_test_result)
         gen_layout.addWidget(conn_group)
@@ -343,11 +349,11 @@ class SettingsDialog(QDialog):
         QApplication.processEvents()
 
         try:
-            # 1. Test basic UPnP reachability
-            upnp_ok = False
+            # 1. Test basic UPnP reachability and discover box identity
+            upnp_client = FritzUpnpClient(host=host, port=port, timeout=2.5)
             try:
-                with urllib.request.urlopen(f"http://{host}:{port}/igddesc.xml", timeout=2.5):
-                    upnp_ok = True
+                upnp_client._discover_endpoints()
+                upnp_ok = True
             except Exception:
                 upnp_ok = False
 
@@ -355,6 +361,12 @@ class SettingsDialog(QDialog):
                 self.lbl_test_result.setText(f"✕ Fritz!Box unter '{host}:{port}' nicht erreichbar.")
                 self.lbl_test_result.setStyleSheet("color: #FF5252; font-weight: bold; font-size: 8.5pt;")
                 return
+
+            # Update detected box info
+            if upnp_client.box_udn:
+                short_id = upnp_client.box_udn.split("-")[-1]
+                box_name = upnp_client.box_name or "FRITZ!Box"
+                self.lbl_bound_box.setText(f"Erkannt: {box_name} (ID: {short_id})")
 
             # 2. Test Fritz!OS Login if enabled
             if self.chk_guest.isChecked():
@@ -366,6 +378,13 @@ class SettingsDialog(QDialog):
                 client = FritzGuestMonitorClient(host=host, username=user, password=pwd, timeout=4.0)
                 ok, msg, _block_time = client.test_login()
                 if ok:
+                    if upnp_client.box_udn:
+                        self.config.bound_box_udn = upnp_client.box_udn
+                        self.config.bound_box_name = upnp_client.box_name
+                        short_id = upnp_client.box_udn.split("-")[-1]
+                        box_name = upnp_client.box_name or "FRITZ!Box"
+                        self.lbl_bound_box.setText(f"✓ Gekoppelt an {box_name} (ID: {short_id})")
+                        self.lbl_bound_box.setStyleSheet("color: #00E676; font-size: 8.5pt;")
                     self.lbl_test_result.setText(f"✓ {msg}")
                     self.lbl_test_result.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 8.5pt;")
                 elif msg.startswith("Bitte noch"):
@@ -434,6 +453,15 @@ class SettingsDialog(QDialog):
         self.txt_pass.setText(self.config.fritz_password)
         self._on_guest_toggled(self.config.enable_guest_monitor)
 
+        if self.config.bound_box_udn:
+            short_id = self.config.bound_box_udn.split("-")[-1]
+            box_label = self.config.bound_box_name or "FRITZ!Box"
+            self.lbl_bound_box.setText(f"✓ Gekoppelt an {box_label} (ID: {short_id})")
+            self.lbl_bound_box.setStyleSheet("color: #00E676; font-size: 8.5pt;")
+        else:
+            self.lbl_bound_box.setText("Nicht gekoppelt (wird beim ersten Login automatisch an die Box gebunden)")
+            self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
+
     def _apply_changes(self) -> None:
         self.config.fritzbox_host = self.txt_host.text().strip() or "fritz.box"
         self.config.upnp_port = self.spin_port.value()
@@ -482,7 +510,23 @@ class SettingsDialog(QDialog):
 
         self.config.enable_guest_monitor = self.chk_guest.isChecked()
         self.config.fritz_username = self.txt_user.text().strip()
-        self.config.fritz_password = self.txt_pass.text()
+        new_pwd = self.txt_pass.text()
+        pwd_changed = new_pwd != self.config.fritz_password
+        self.config.fritz_password = new_pwd
+
+        if self.config.enable_guest_monitor and new_pwd:
+            if not self.config.bound_box_udn or pwd_changed:
+                try:
+                    probe = FritzUpnpClient(host=self.config.fritzbox_host, port=self.config.upnp_port, timeout=1.5)
+                    probe._discover_endpoints()
+                    if probe.box_udn:
+                        self.config.bound_box_udn = probe.box_udn
+                        self.config.bound_box_name = probe.box_name
+                except Exception:
+                    pass
+        elif not new_pwd:
+            self.config.bound_box_udn = ""
+            self.config.bound_box_name = ""
 
         self.config.save()
         self.on_apply()

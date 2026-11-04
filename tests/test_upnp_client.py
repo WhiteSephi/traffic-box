@@ -44,6 +44,37 @@ class TestUpnpClient(unittest.TestCase):
         self.assertEqual(client._session_rx, 1500)
         self.assertEqual(client._session_tx, 500)
 
+    def test_discover_endpoints_udn_parsing(self) -> None:
+        """Verify extraction of UDN and friendlyName from /igddesc.xml."""
+        from unittest.mock import MagicMock, patch
+
+        mock_xml = b"""<?xml version="1.0"?>
+        <root xmlns="urn:schemas-upnp-org:device-1-0">
+            <device>
+                <deviceType>urn:schemas-upnp-org:device:InternetGatewayDevice:1</deviceType>
+                <friendlyName>FRITZ!Box 7590</friendlyName>
+                <modelName>FRITZ!Box 7590</modelName>
+                <UDN>uuid:12345678-0000-0000-0000-001122334455</UDN>
+                <serviceList>
+                    <service>
+                        <serviceType>urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1</serviceType>
+                        <controlURL>/igdupnp/control/WANCommonIFC1</controlURL>
+                    </service>
+                </serviceList>
+            </device>
+        </root>"""
+
+        client = FritzUpnpClient()
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = mock_xml
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            client._discover_endpoints()
+            self.assertEqual(client.box_name, "FRITZ!Box 7590")
+            self.assertEqual(client.box_udn, "uuid:12345678-0000-0000-0000-001122334455")
+            self.assertEqual(client._common_control_url, "/igdupnp/control/WANCommonIFC1")
+
 
 if __name__ == "__main__":
     unittest.main()

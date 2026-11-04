@@ -24,6 +24,8 @@ class FritzUpnpClient:
         self._common_control_url: str | None = None
         self._wan_conn_control_url: str | None = None
         self._wan_conn_service: str = WAN_IP_SERVICE
+        self._box_friendly_name: str = ""
+        self._box_udn: str = ""
 
         # Cached link & connection info (polled less frequently than 1s traffic)
         self._max_down_bps: float = 0.0
@@ -48,6 +50,8 @@ class FritzUpnpClient:
             self.port = port
             self._common_control_url = None
             self._wan_conn_control_url = None
+            self._box_friendly_name = ""
+            self._box_udn = ""
             self._tick_counter = 0
 
     def _discover_endpoints(self) -> None:
@@ -62,6 +66,13 @@ class FritzUpnpClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 xml_bytes = resp.read()
             root = ET.fromstring(xml_bytes)
+            for elem in root.iter():
+                tag = elem.tag.split("}", 1)[-1]
+                if tag == "friendlyName" and elem.text and not self._box_friendly_name:
+                    self._box_friendly_name = elem.text.strip()
+                elif tag == "UDN" and elem.text and not self._box_udn:
+                    self._box_udn = elem.text.strip()
+
             for service in root.iter():
                 if not service.tag.endswith("service"):
                     continue
@@ -87,6 +98,16 @@ class FritzUpnpClient:
         except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError):
             # Fallback paths will be tried directly during SOAP call
             pass
+
+    @property
+    def box_name(self) -> str:
+        """Return discovered friendly device name (e.g. 'FRITZ!Box 7590')."""
+        return self._box_friendly_name
+
+    @property
+    def box_udn(self) -> str:
+        """Return unique device UDN / UUID (e.g. 'uuid:12345678-0000-0000-0000-001122334455')."""
+        return self._box_udn
 
     def _soap_call(self, control_path: str, service_urn: str, action: str) -> dict[str, str]:
         """Execute a UPnP SOAP action and parse the resulting XML tags into a dict."""
@@ -231,6 +252,8 @@ class FritzUpnpClient:
                         pass
 
             self._tick_counter += 1
+            sample.box_name = self._box_friendly_name
+            sample.box_udn = self._box_udn
             sample.box_reachable = True
             sample.physical_link_up = self._physical_status.lower() == "up"
             sample.wan_connected = sample.physical_link_up and (self._conn_status.lower() == "connected")
@@ -243,6 +266,8 @@ class FritzUpnpClient:
             return sample
 
         except Exception as exc:
+            sample.box_name = self._box_friendly_name
+            sample.box_udn = self._box_udn
             sample.box_reachable = False
             sample.physical_link_up = False
             sample.wan_connected = False

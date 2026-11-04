@@ -326,7 +326,16 @@ class OnlineCounterView(QWidget):
                 )
         else:
             self.btn_login_hint.setVisible(True)
-            if self.config.enable_guest_monitor:
+            if sample.is_foreign_box:
+                box_display = sample.box_name or "Andere Box"
+                self.btn_login_hint.setText(f"ℹ Fremde Box ({box_display}) – Login zum Schutz vor Sperrung pausiert")
+                self.btn_login_hint.setStyleSheet(
+                    "QPushButton { background-color: rgba(0, 229, 255, 0.16); color: #00E5FF; "
+                    "border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 4px; padding: 4px 8px; "
+                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; }"
+                    "QPushButton:hover { background-color: rgba(0, 229, 255, 0.28); }"
+                )
+            elif self.config.enable_guest_monitor:
                 self.btn_login_hint.setText("⚠ Fritz!OS Login fehlgeschlagen (Passwort in ⚙ Einstellungen prüfen)")
                 self.btn_login_hint.setStyleSheet(
                     "QPushButton { background-color: rgba(255, 82, 82, 0.16); color: #FF5252; "

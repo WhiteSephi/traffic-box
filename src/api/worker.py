@@ -45,10 +45,24 @@ class PollingWorker(QObject):
             self.upnp.update_target(self.config.fritzbox_host, self.config.upnp_port)
             sample = self.upnp.fetch_sample()
 
+            # Guard against foreign Fritz!Box login attempts (roaming / multi-box protection)
+            is_foreign = False
+            if sample.box_udn and self.config.bound_box_udn:
+                if sample.box_udn.lower() != self.config.bound_box_udn.lower():
+                    is_foreign = True
+            elif not self.config.bound_box_udn and sample.box_udn and self.config.fritz_password:
+                # Auto-bind initial box if credentials exist but bound_box_udn was not yet stored
+                self.config.bound_box_udn = sample.box_udn
+                self.config.bound_box_name = sample.box_name
+                self.config.save()
+
+            sample.is_foreign_box = is_foreign
+
             if (
                 sample.is_connected
                 and self.config.enable_guest_monitor
                 and self.config.fritz_password
+                and not is_foreign
             ):
                 self.guest_client.update_credentials(
                     self.config.fritzbox_host,

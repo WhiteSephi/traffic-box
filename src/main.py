@@ -39,7 +39,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Launch the Fritz!Box Traffic Widget application."""
+    """Launch the TrafficBox application."""
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.workdir:
@@ -48,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
             os.chdir(target_dir)
 
     app = QApplication(sys.argv)
-    app.setApplicationName("TrafficBox Widget")
+    app.setApplicationName("TrafficBox")
     app.setQuitOnLastWindowClosed(False)
 
     config = AppConfig.load()

@@ -51,7 +51,7 @@ def get_config_dir() -> Path:
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:
         base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    cfg_dir = base / "traffic-box"
+    cfg_dir = base / "trafficbox"
     try:
         cfg_dir.mkdir(parents=True, exist_ok=True)
         return cfg_dir
@@ -62,7 +62,7 @@ def get_config_dir() -> Path:
 
 @dataclass
 class AppConfig:
-    """Persistent configuration for the Fritz!Box Traffic Widget."""
+    """Persistent configuration for the TrafficBox Widget."""
 
     # Connection
     fritzbox_host: str = "fritz.box"
@@ -74,6 +74,8 @@ class AppConfig:
     enable_guest_monitor: bool = False
     fritz_username: str = ""
     fritz_password: str = ""
+    bound_box_udn: str = ""  # Unique UDN of the Fritz!Box these credentials belong to
+    bound_box_name: str = ""  # Friendly model name of the bound Fritz!Box
 
     # Optional Local Device (PC) Traffic Monitor
     enable_local_traffic_monitor: bool = False
