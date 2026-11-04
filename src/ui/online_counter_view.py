@@ -9,7 +9,6 @@ from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -248,15 +247,6 @@ class OnlineCounterView(QWidget):
 
         self.root_layout.addWidget(self.cards_container, 1)
 
-        # Login hint button
-        self.btn_login_hint = QPushButton(
-            "🔒 Fritz!OS Login in Einstellungen aktivieren für Heute / Woche / Monat"
-        )
-        self.btn_login_hint.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_login_hint.clicked.connect(self.on_open_settings)
-        self.btn_login_hint.setVisible(False)
-        self.root_layout.addWidget(self.btn_login_hint)
-
     def set_scale(self, scale: float) -> None:
         """Apply dynamic scale to all period cards."""
         self._scale = scale
@@ -267,8 +257,6 @@ class OnlineCounterView(QWidget):
         """Apply current AppConfig colors and background styles."""
         bg = QColor(self.config.background_color).darker(118).name()
         border = self.config.border_color
-        hdr_bg = QColor(self.config.background_color).lighter(125).name()
-        alt_bg = QColor(self.config.background_color).lighter(112).name()
 
         self.cards_container.setStyleSheet(
             f"""
@@ -284,29 +272,10 @@ class OnlineCounterView(QWidget):
             """
         )
 
-        self.btn_login_hint.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: {hdr_bg};
-                color: {self.config.download_color};
-                border: 1px dashed {border};
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-family: 'Segoe UI';
-                font-size: 10px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {alt_bg};
-            }}
-            """
-        )
-
     def update_from_sample(self, sample: TrafficSample) -> None:
         """Populate the 5 cards with Online-Zähler stats or UPnP fallback counters."""
         oc: OnlineCounterStats = sample.online_counters
         if oc.is_available:
-            self.btn_login_hint.setVisible(False)
             rows = [
                 ("Heute", oc.today),
                 ("Gestern", oc.yesterday),
@@ -325,34 +294,6 @@ class OnlineCounterView(QWidget):
                     config=self.config,
                 )
         else:
-            self.btn_login_hint.setVisible(True)
-            if sample.is_foreign_box:
-                box_display = sample.box_name or "Andere Box"
-                self.btn_login_hint.setText(f"ℹ Fremde Box ({box_display}) – Login zum Schutz vor Sperrung pausiert")
-                self.btn_login_hint.setStyleSheet(
-                    "QPushButton { background-color: rgba(0, 229, 255, 0.16); color: #00E5FF; "
-                    "border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 4px; padding: 4px 8px; "
-                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; }"
-                    "QPushButton:hover { background-color: rgba(0, 229, 255, 0.28); }"
-                )
-            elif self.config.enable_guest_monitor:
-                self.btn_login_hint.setText("⚠ Fritz!OS Login fehlgeschlagen (Passwort in ⚙ Einstellungen prüfen)")
-                self.btn_login_hint.setStyleSheet(
-                    "QPushButton { background-color: rgba(255, 82, 82, 0.16); color: #FF5252; "
-                    "border: 1px solid rgba(255, 82, 82, 0.45); border-radius: 4px; padding: 4px 8px; "
-                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; }"
-                    "QPushButton:hover { background-color: rgba(255, 82, 82, 0.28); }"
-                )
-            else:
-                self.btn_login_hint.setText("🔒 Fritz!OS Login in Einstellungen aktivieren für Heute / Woche / Monat")
-                hdr_bg = QColor(self.config.background_color).lighter(125).name()
-                alt_bg = QColor(self.config.background_color).lighter(112).name()
-                self.btn_login_hint.setStyleSheet(
-                    f"QPushButton {{ background-color: {hdr_bg}; color: {self.config.download_color}; "
-                    f"border: 1px dashed {self.config.border_color}; border-radius: 4px; padding: 4px 8px; "
-                    "font-family: 'Segoe UI'; font-size: 9.5px; font-weight: bold; } "
-                    f"QPushButton:hover {{ background-color: {alt_bg}; }}"
-                )
             sess_rx = sample.session_bytes_received
             sess_tx = sample.session_bytes_sent
             sess_tot = sess_rx + sess_tx

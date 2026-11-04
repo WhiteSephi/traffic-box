@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.6] - 2026-11-04
+### Removed
+- **Redundanten Login-Warnbalken in der Zähleransicht entfernt:** Der rote/gesperrte Hinweis-Button am unteren Rand der Zähleransicht (`⚠ Fritz!OS Login fehlgeschlagen` / `🔒 Fritz!OS Login in Einstellungen aktivieren`) wurde komplett entfernt. Die dezenten Einträge `Login nötig` direkt in den betroffenen Perioden-Karten genügen völlig, wodurch die Zähleransicht auch im passwortfreien UPnP-Betrieb ruhig und übersichtlich bleibt.
+
 ## [0.11.5] - 2026-11-04
 ### Fixed
 - **Layout-Überlappung im Einstellungs-Dialog behoben:** Das Status-Label `lbl_bound_box` und der Test-Button `btn_test_conn` wurden in einen gemeinsamen vertikalen Container (`QVBoxLayout`) gebettet und die Mindestbreite des Dialogs vergrößert. Dadurch wird verhindert, dass zweizeiliger Box-Identifikationstext mit dem darunterliegenden Test-Button kollidiert.
