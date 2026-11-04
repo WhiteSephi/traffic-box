@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.13] - 2026-11-04
+### Changed
+- **Reset-Dialog verschlankt:** Die redundanten Erklärungspunkte im Reset-Auswahldialog wurden entfernt, sodass der Dialog nun kompakt und direkt ist; die Buttons (`Nur '[Reiter]' zurücksetzen`, `Alle Einstellungen zurücksetzen`, `Abbrechen`) sprechen für sich selbst.
+
 ## [0.11.12] - 2026-11-04
 ### Added
 - **Modernes Dark-Mode Color-Picker Popover:**

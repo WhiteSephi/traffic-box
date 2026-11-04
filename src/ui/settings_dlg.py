@@ -957,11 +957,7 @@ class SettingsDialog(QDialog):
         msg_box.setWindowTitle("Standardwerte wiederherstellen")
         msg_box.setIcon(QMessageBox.Icon.Question)
         msg_box.setText(
-            f"Möchtest du nur den aktuellen Reiter '{tab_name}' oder alle Einstellungen auf die Standardwerte zurücksetzen?"
-        )
-        msg_box.setInformativeText(
-            "• Nur aktueller Reiter: Setzt die Optionen dieser Seite zurück, ohne andere Bereiche zu verändern.\n"
-            "• Alle Einstellungen: Setzt die gesamte Konfiguration auf Werkszustand (inkl. Zugangsdaten)."
+            f"Möchtest du nur den aktuellen Reiter '{tab_name}' oder alle Einstellungen zurücksetzen?"
         )
         btn_tab = msg_box.addButton(f"Nur '{tab_name}' zurücksetzen", QMessageBox.ButtonRole.ActionRole)
         btn_all = msg_box.addButton("Alle Einstellungen zurücksetzen", QMessageBox.ButtonRole.DestructiveRole)
