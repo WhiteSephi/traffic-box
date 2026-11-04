@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.7.3] - 2026-11-04
+### Changed
+- **Kompakte & intuitive Login-Statusmeldungen im Einstellungs-Dialog:**
+  - Fehlversuch: `✕ Passwort falsch – Box pausiert für Xs`
+  - Erneuter Klick während der Zwangspause: `⚠ Bitte noch Xs warten (Box blockiert noch)`
+  - Erfolg: `✓ Login erfolgreich (Online-Zähler & Gäste-WLAN aktiv)`
+
 ## [0.7.2] - 2026-11-04
 ### Added
 - **Button „Verbindung & Login testen“ in den Einstellungen:** Sofortige Live-Überprüfung von UPnP-Erreichbarkeit und Fritz!OS-Login mit präziser Rückmeldung (`✓ Login erfolgreich`, `✕ Passwort falsch`, `⚠ Fritz!Box Sperrzeit aktiv` oder `✕ Nicht erreichbar`).

@@ -339,14 +339,12 @@ class SettingsDialog(QDialog):
                     return
 
                 client = FritzGuestMonitorClient(host=host, username=user, password=pwd, timeout=4.0)
-                ok, msg, block_time = client.test_login()
+                ok, msg, _block_time = client.test_login()
                 if ok:
-                    self.lbl_test_result.setText("✓ UPnP & Fritz!OS Login erfolgreich! (Online-Zähler & Gäste-WLAN aktiv)")
+                    self.lbl_test_result.setText(f"✓ {msg}")
                     self.lbl_test_result.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 8.5pt;")
-                elif block_time > 0:
-                    self.lbl_test_result.setText(
-                        f"⚠ Fritz!Box Sperrzeit aktiv: Bitte noch {block_time}s warten (Verzögerung nach Fehlversuch)."
-                    )
+                elif msg.startswith("Bitte noch"):
+                    self.lbl_test_result.setText(f"⚠ {msg}")
                     self.lbl_test_result.setStyleSheet("color: #FFAB00; font-weight: bold; font-size: 8.5pt;")
                 else:
                     self.lbl_test_result.setText(f"✕ {msg}")

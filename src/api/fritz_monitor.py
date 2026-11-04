@@ -30,6 +30,7 @@ class FritzGuestMonitorClient:
         self._sid: str = "0000000000000000"
         self.last_error: str = ""
         self.last_block_time: int = 0
+        self._pre_blocked: bool = False
         self._next_attempt_time: float = 0.0
 
     def update_credentials(self, host: str, username: str, password: str) -> None:
@@ -47,6 +48,7 @@ class FritzGuestMonitorClient:
             self._sid = "0000000000000000"
             self.last_error = ""
             self.last_block_time = 0
+            self._pre_blocked = False
             self._next_attempt_time = 0.0
 
     @property
@@ -106,9 +108,11 @@ class FritzGuestMonitorClient:
             block_time = int(root.findtext("BlockTime") or "0")
             if block_time > 0:
                 self.last_block_time = block_time
-                self.last_error = f"Fritz!Box Sperrzeit aktiv ({block_time}s)"
+                self._pre_blocked = True
+                self.last_error = f"Bitte noch {block_time}s warten (Box blockiert noch)"
                 self._next_attempt_time = now + block_time
                 return False
+            self._pre_blocked = False
 
             challenge = (root.findtext("Challenge") or "").strip()
             if not challenge:
@@ -148,7 +152,10 @@ class FritzGuestMonitorClient:
                 return True
             else:
                 self._sid = "0000000000000000"
-                self.last_error = "Fritz!Box Passwort oder Benutzername falsch"
+                if block_time2 > 0:
+                    self.last_error = f"Passwort falsch – Box pausiert für {block_time2}s"
+                else:
+                    self.last_error = "Passwort falsch (oder Benutzername)"
                 # Cooldown: wait at least 30s or block_time2 + 5s to prevent account lockout
                 cooldown_sec = max(30.0, float(block_time2 + 5.0))
                 self._next_attempt_time = time.monotonic() + cooldown_sec
@@ -165,12 +172,14 @@ class FritzGuestMonitorClient:
         self._sid = "0000000000000000"
         ok = self._ensure_session()
         if ok:
-            return True, "Fritz!OS Login erfolgreich (SID erhalten)", 0
+            return True, "Login erfolgreich (Online-Zähler & Gäste-WLAN aktiv)", 0
+        if self._pre_blocked and self.last_block_time > 0:
+            return False, f"Bitte noch {self.last_block_time}s warten (Box blockiert noch)", self.last_block_time
         if self.last_block_time > 0:
-            return False, f"Fritz!Box Sperrzeit aktiv: Bitte noch {self.last_block_time} Sekunden warten.", self.last_block_time
+            return False, f"Passwort falsch – Box pausiert für {self.last_block_time}s", self.last_block_time
         if self.last_error:
             return False, self.last_error, 0
-        return False, "Login fehlgeschlagen (Passwort oder Host prüfen)", 0
+        return False, "Login fehlgeschlagen", 0
 
     @staticmethod
     def _first_numeric_value(val: object) -> float:
