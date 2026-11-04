@@ -25,7 +25,7 @@ class PollingWorker(QObject):
             port=self.config.upnp_port,
         )
         self.guest_client = FritzGuestMonitorClient(
-            host=self.config.fritzbox_host,
+            host=self.upnp.host,
             username=self.config.fritz_username,
             password=self.config.fritz_password,
         )
@@ -43,6 +43,9 @@ class PollingWorker(QObject):
         self._busy = True
         try:
             self.upnp.update_target(self.config.fritzbox_host, self.config.upnp_port)
+            self.guest_client.update_credentials(
+                self.upnp.host, self.config.fritz_username, self.config.fritz_password
+            )
             sample = self.upnp.fetch_sample()
 
             # Guard against foreign Fritz!Box login attempts (roaming / multi-box protection)

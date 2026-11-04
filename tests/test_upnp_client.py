@@ -75,6 +75,25 @@ class TestUpnpClient(unittest.TestCase):
             self.assertEqual(client.box_udn, "uuid:12345678-0000-0000-0000-001122334455")
             self.assertEqual(client._common_control_url, "/igdupnp/control/WANCommonIFC1")
 
+    def test_resolve_fritzbox_host_fallback(self) -> None:
+        """Verify resolve_fritzbox_host falls back to gateway when public IP is returned."""
+        from unittest.mock import patch
+        from src.api.upnp_client import resolve_fritzbox_host
+
+        # Custom IP should always be respected as-is
+        self.assertEqual(resolve_fritzbox_host("192.168.1.1"), "192.168.1.1")
+
+        # When fritz.box resolves to a public IP (e.g. 198.51.100.1), fall back to detected gateway
+        with patch("socket.gethostbyname", return_value="198.51.100.1"):
+            with patch("src.api.upnp_client.detect_default_gateway", return_value="192.168.1.1"):
+                resolved = resolve_fritzbox_host("fritz.box")
+                self.assertEqual(resolved, "192.168.1.1")
+
+        # When fritz.box resolves to a private RFC 1918 IP, keep it
+        with patch("socket.gethostbyname", return_value="192.168.178.1"):
+            resolved = resolve_fritzbox_host("fritz.box")
+            self.assertEqual(resolved, "192.168.178.1")
+
 
 if __name__ == "__main__":
     unittest.main()

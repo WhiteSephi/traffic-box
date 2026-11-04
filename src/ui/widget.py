@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import (
     QObject,
     QPoint,
+    QRect,
     QRectF,
     QSize,
     Qt,
@@ -20,6 +23,7 @@ from PySide6.QtGui import (
     QContextMenuEvent,
     QFont,
     QMouseEvent,
+    QMoveEvent,
     QPainter,
     QPen,
 )
@@ -59,6 +63,7 @@ class TrafficBox(QWidget):
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
         self.config = config
+        self._drag_start_pos: QPoint = QPoint()
         self._drag_offset: QPoint | None = None
         self._peak_down_bps: float = 0.0
         self._peak_up_bps: float = 0.0
@@ -76,8 +81,10 @@ class TrafficBox(QWidget):
         self._setup_worker_thread()
 
     def _configure_window_flags(self) -> None:
-        """Apply frameless, tool, and optional always-on-top window flags."""
-        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+        """Apply frameless, tool (Windows only), and optional always-on-top window flags."""
+        flags = Qt.WindowType.FramelessWindowHint
+        if sys.platform == "win32":
+            flags |= Qt.WindowType.Tool
         if self.config.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
@@ -299,8 +306,16 @@ class TrafficBox(QWidget):
         h = 95 if self.config.compact_mode else max(175, self.config.widget_height)
         self.resize(w, h)
 
+        target_pos = QPoint(self.config.pos_x, self.config.pos_y)
+        is_on_screen = False
         if self.config.pos_x >= 0 and self.config.pos_y >= 0:
-            self.move(self.config.pos_x, self.config.pos_y)
+            for s in QApplication.screens():
+                if s.availableGeometry().intersects(QRect(target_pos, QSize(w, h))):
+                    is_on_screen = True
+                    break
+
+        if is_on_screen:
+            self.move(target_pos)
         else:
             screen = QApplication.primaryScreen()
             if screen:
@@ -802,6 +817,7 @@ class TrafficBox(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and not self.config.locked_pos:
+            self._drag_start_pos = event.globalPosition().toPoint()
             self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
             return
@@ -813,14 +829,27 @@ class TrafficBox(QWidget):
             and event.buttons() & Qt.MouseButton.LeftButton
             and not self.config.locked_pos
         ):
-            new_pos = event.globalPosition().toPoint() - self._drag_offset
-            self.move(new_pos)
-            event.accept()
-            return
+            delta = (event.globalPosition().toPoint() - self._drag_start_pos).manhattanLength()
+            if delta >= 3:
+                handle = self.windowHandle()
+                if handle is not None and hasattr(handle, "startSystemMove"):
+                    if handle.startSystemMove():
+                        self._drag_offset = None
+                        event.accept()
+                        return
+                new_pos = event.globalPosition().toPoint() - self._drag_offset
+                self.move(new_pos)
+                event.accept()
+                return
         super().mouseMoveEvent(event)
 
+    def moveEvent(self, event: QMoveEvent) -> None:
+        super().moveEvent(event)
+        self.config.pos_x = self.x()
+        self.config.pos_y = self.y()
+
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton and self._drag_offset is not None:
+        if event.button() == Qt.MouseButton.LeftButton:
             self._drag_offset = None
             self.config.pos_x = self.x()
             self.config.pos_y = self.y()
@@ -853,7 +882,7 @@ class TrafficBox(QWidget):
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         menu = self._build_context_menu()
-        menu.exec(event.globalPos())
+        menu.exec(self.mapToGlobal(event.pos()))
 
     def _build_context_menu(self) -> QMenu:
         menu = QMenu(self)

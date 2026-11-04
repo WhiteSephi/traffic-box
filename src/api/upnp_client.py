@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import socket
+import sys
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -13,11 +15,74 @@ WAN_IP_SERVICE = "urn:schemas-upnp-org:service:WANIPConnection:1"
 WAN_PPP_SERVICE = "urn:schemas-upnp-org:service:WANPPPConnection:1"
 
 
+def detect_default_gateway() -> str:
+    """Detect the default gateway/router IPv4 address on Linux and Windows."""
+    if sys.platform != "win32":
+        try:
+            with open("/proc/net/route", "r", encoding="utf-8") as f:
+                for line in f:
+                    fields = line.strip().split()
+                    if len(fields) >= 3 and fields[1] == "00000000":
+                        gw_hex = fields[2]
+                        octets = [str(int(gw_hex[i : i + 2], 16)) for i in (6, 4, 2, 0)]
+                        gw_ip = ".".join(octets)
+                        if gw_ip != "0.0.0.0":
+                            return gw_ip
+        except Exception:
+            pass
+
+    # Generic routing UDP socket fallback (works without sending network packets)
+    s = None
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("1.1.1.1", 80))
+        local_ip = s.getsockname()[0]
+        parts = local_ip.split(".")
+        if len(parts) == 4 and parts[0] in ("192", "10", "172"):
+            return f"{parts[0]}.{parts[1]}.{parts[2]}.1"
+    except Exception:
+        pass
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+    return ""
+
+
+def resolve_fritzbox_host(host: str) -> str:
+    """Resolve Fritz!Box host, falling back to default gateway if fritz.box points to a public IP or fails."""
+    clean = host.strip() or "fritz.box"
+    if clean.lower() != "fritz.box":
+        return clean
+
+    # Check if fritz.box resolves to a private RFC 1918 IP
+    try:
+        resolved = socket.gethostbyname("fritz.box")
+        parts = resolved.split(".")
+        if len(parts) == 4 and all(p.isdigit() for p in parts):
+            p0, p1 = int(parts[0]), int(parts[1])
+            if p0 == 10 or (p0 == 172 and 16 <= p1 <= 31) or (p0 == 192 and p1 == 168):
+                return resolved
+    except Exception:
+        pass
+
+    # If fritz.box resolved to a public IP (e.g. DNS parking/catchall) or failed, use detected gateway
+    gw = detect_default_gateway()
+    if gw:
+        return gw
+
+    return "fritz.box"
+
+
 class FritzUpnpClient:
     """Queries live WAN throughput and line capacity via Fritz!Box UPnP SOAP."""
 
     def __init__(self, host: str = "fritz.box", port: int = 49000, timeout: float = 1.8) -> None:
-        self.host = host.strip() or "fritz.box"
+        self.configured_host = host.strip() or "fritz.box"
+        self.host = resolve_fritzbox_host(self.configured_host)
         self.port = port
         self.timeout = timeout
 
@@ -45,8 +110,10 @@ class FritzUpnpClient:
     def update_target(self, host: str, port: int = 49000) -> None:
         """Update target Fritz!Box host/IP and reset discovered URLs if changed."""
         clean_host = host.strip() or "fritz.box"
-        if clean_host != self.host or port != self.port:
-            self.host = clean_host
+        resolved = resolve_fritzbox_host(clean_host)
+        if clean_host != self.configured_host or resolved != self.host or port != self.port:
+            self.configured_host = clean_host
+            self.host = resolved
             self.port = port
             self._common_control_url = None
             self._wan_conn_control_url = None

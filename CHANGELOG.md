@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.3] - 2026-11-04
+### Fixed
+- **Natives Fenster-Verschieben unter Wayland / KDE Plasma:** Die Mausinteraktion nutzt für das rahmenlose Fenster nun `windowHandle().startSystemMove()` des Fenstersystems. Dadurch lässt sich das Widget unter Wayland (KWin) und modernen Linux-Desktop-Umgebungen wieder flüssig und zuverlässig verschieben.
+- **Präzise Kontextmenü-Positionierung:** Auf Linux/Wayland wurde das störende `Qt.WindowType.Tool`-Flag entfernt (welches Wayland-Popups entwurzelte) und das Menü auf `self.mapToGlobal(event.pos())` umgestellt, sodass es exakt am Klickpunkt erscheint.
+- **Automatische Router-IP-Erkennung (Gateway-Fallback):** Löst `fritz.box` im lokalen Netzwerk (z. B. durch Public-DNS oder DoH) in eine externe Internet-IP auf oder ist nicht erreichbar, ermittelt das Widget nun automatisch das Standard-Gateway (z. B. `192.168.178.1` via `/proc/net/route`) und verbindet sich direkt mit der FRITZ!Box.
+- **Schutz vor Offscreen-Fensterkoordinaten:** Beim Start wird geprüft, ob die gespeicherte Fensterposition (`pos_x`, `pos_y`) auf einem der aktuell angeschlossenen Monitore liegt. Liegen die Koordinaten außerhalb (z. B. nach Wechsel von Multi-Monitor auf Einzeldisplay), wird das Widget automatisch im sichtbaren Desktop-Bereich platziert.
+
 ## [0.11.2] - 2026-11-04
 ### Fixed
 - **Bereinigung von Stylesheet-Syntaxfehlern:** Doppelte schließende geschweifte Klammern in CSS-Definitionen von Buttons (`widget.py`, `online_counter_view.py` und `settings_dlg.py`) korrigiert, wodurch Qt-Parser-Warnungen beim Anwendungsstart unter Linux vollständig eliminiert wurden.
