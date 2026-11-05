@@ -94,6 +94,86 @@ class TestUpnpClient(unittest.TestCase):
             resolved = resolve_fritzbox_host("fritz.box")
             self.assertEqual(resolved, "192.168.178.1")
 
+    def test_fetch_sample_success(self) -> None:
+        """Verify fetch_sample parses throughput, link bandwidth, uptime, and WAN status."""
+        from unittest.mock import MagicMock, patch
+
+        client = FritzUpnpClient()
+        client._wan_conn_control_url = "/igdupnp/control/WANIPConn1"
+
+        def mock_call_common(action: str) -> dict[str, str]:
+            if action == "GetAddonInfos":
+                return {
+                    "NewByteReceiveRate": "125000",
+                    "NewByteSendRate": "25000",
+                    "NewX_AVM_DE_TotalBytesReceived64": "5000000",
+                    "NewX_AVM_DE_TotalBytesSent64": "1000000",
+                }
+            if action == "GetCommonLinkProperties":
+                return {
+                    "NewLayer1DownstreamMaxBitRate": "100000000",
+                    "NewLayer1UpstreamMaxBitRate": "40000000",
+                    "NewPhysicalLinkStatus": "Up",
+                }
+            return {}
+
+        def mock_soap(url: str, srv: str, action: str) -> dict[str, str]:
+            if action == "GetStatusInfo":
+                return {"NewConnectionStatus": "Connected", "NewUptime": "3600"}
+            if action == "GetExternalIPAddress":
+                return {"NewExternalIPAddress": "198.51.100.1"}
+            return {}
+
+        with patch.object(client, "_call_common_ifc", side_effect=mock_call_common), \
+             patch.object(client, "_soap_call", side_effect=mock_soap):
+            sample = client.fetch_sample()
+            self.assertTrue(sample.is_connected)
+            self.assertTrue(sample.wan_connected)
+            self.assertEqual(sample.download_bps, 125000.0)
+            self.assertEqual(sample.upload_bps, 25000.0)
+            self.assertEqual(sample.max_download_bps, 12500000.0)  # 100 Mbps / 8
+            self.assertEqual(sample.max_upload_bps, 5000000.0)  # 40 Mbps / 8
+            self.assertEqual(sample.uptime_seconds, 3600)
+            self.assertEqual(sample.external_ip, "198.51.100.1")
+
+    def test_fetch_sample_connection_error(self) -> None:
+        """Verify fetch_sample returns a safe disconnected sample on network failure."""
+        import urllib.error
+        from unittest.mock import patch
+
+        client = FritzUpnpClient()
+        with patch.object(client, "_call_common_ifc", side_effect=urllib.error.URLError("Connection refused")):
+            sample = client.fetch_sample()
+            self.assertFalse(sample.is_connected)
+            self.assertFalse(sample.wan_connected)
+            self.assertFalse(sample.box_reachable)
+            self.assertEqual(sample.connection_status, "Nicht erreichbar")
+            self.assertIn("Connection refused", sample.error_message)
+
+    def test_soap_call_xml_parsing(self) -> None:
+        """Verify _soap_call parses SOAP response envelope into dictionary."""
+        from unittest.mock import MagicMock, patch
+
+        mock_soap_xml = b"""<?xml version="1.0"?>
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+            <s:Body>
+                <u:GetStatusInfoResponse xmlns:u="urn:schemas-upnp-org:service:WANIPConnection:1">
+                    <NewConnectionStatus>Connected</NewConnectionStatus>
+                    <NewUptime>7200</NewUptime>
+                </u:GetStatusInfoResponse>
+            </s:Body>
+        </s:Envelope>"""
+
+        client = FritzUpnpClient()
+        resp = MagicMock()
+        resp.read.return_value = mock_soap_xml
+        resp.__enter__.return_value = resp
+
+        with patch("urllib.request.urlopen", return_value=resp):
+            data = client._soap_call("/ctrl", "urn:srv", "GetStatusInfo")
+            self.assertEqual(data.get("NewConnectionStatus"), "Connected")
+            self.assertEqual(data.get("NewUptime"), "7200")
+
 
 if __name__ == "__main__":
     unittest.main()
