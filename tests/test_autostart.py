@@ -50,6 +50,14 @@ class TestAutostart(unittest.TestCase):
             cmd = get_linux_autostart_cmd(fake_root)
             self.assertTrue(cmd.endswith("start_linux.sh"))
 
+    def test_linux_autostart_sh_script_with_spaces(self):
+        fake_root = Path("/fake/path with spaces")
+        with patch.object(sys, "frozen", False, create=True), patch.object(
+            Path, "is_file", lambda p: str(p).endswith("start_linux.sh")
+        ):
+            cmd = get_linux_autostart_cmd(fake_root)
+            self.assertEqual(cmd, f'"{fake_root / "start_linux.sh"}"')
+
     def test_linux_autostart_fallback(self):
         fake_root = Path("/fake/project")
         with patch.object(sys, "frozen", False, create=True), patch.object(

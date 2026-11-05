@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.19] - 2026-11-05
+### Fixed
+- **Linux-Autostart bei Pfaden mit Leerzeichen (systemd-xdg-autostart-generator):**
+  - Behoben: Befand sich das Projekt in einem Ordnerpfad mit Leerzeichen (z. B. `.../TrafficBox App/...`), trennte der unter Linux/CachyOS genutzte `systemd-xdg-autostart-generator` die `Exec`-Zeile beim ersten Leerzeichen ab (`Exec binary ... does not exist`) und verweigerte das Anlegen der systemd-Dienste.
+  - Neu: In `trafficbox.desktop` wird der ausführbare Pfad in `Exec` nun automatisch in Anführungszeichen gefasst, sodass der Autostart auch bei Leerzeichen im Verzeichnisnamen zuverlässig startet und in KDE Plasma aktiv registriert wird.
+
 ## [0.11.18] - 2026-11-05
 ### Changed
 - **Linux-Autostart & Binary-Harmonisierung:**

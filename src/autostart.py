@@ -47,11 +47,15 @@ def get_linux_autostart_cmd(project_root: Path | None = None) -> str:
         project_root = get_project_root()
     is_frozen = getattr(sys, "frozen", False)
     if is_frozen:
-        return str(sys.executable)
+        exe = str(sys.executable)
+        return f'"{exe}"' if " " in exe else exe
     sh_script = project_root / "start_linux.sh"
     if sh_script.is_file():
-        return str(sh_script)
-    return f"{sys.executable} -m src.main"
+        script_str = str(sh_script)
+        return f'"{script_str}"' if " " in script_str else script_str
+    python_exe = str(sys.executable)
+    exe_str = f'"{python_exe}"' if " " in python_exe else python_exe
+    return f"{exe_str} -m src.main"
 
 
 def is_autostart_enabled() -> bool:
