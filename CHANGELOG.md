@@ -4,6 +4,14 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.12.1] - 2026-11-05
+### Fixed
+- **Automatische Positionsspeicherung & Wayland/KWin-Zentrierung nach Systemstart:**
+  - **Debounced Positionsspeicherung:** Unter Wayland (KDE Plasma) wird das Verschieben des Fensters über `startSystemMove()` vom Window Manager gesteuert, wodurch bei Maustastenfreigabe kein `mouseReleaseEvent` im Qt-Widget eintrifft. Beim Verschieben wird nun über einen 500-ms-Timer die neue Desktop-Position nach jeder Bewegung automatisch und dauerhaft in `local/config.json` gesichert.
+  - **KWin-Regel-Synchronisation für KDE Plasma (Wayland):** Da Wayland Clients das programmatische Setzen von Startkoordinaten (`move()`) verbietet und KWin neue Fenster standardmäßig in der Bildschirmmitte zentriert, synchronisiert TrafficBox unter Linux nun automatisch eine KWin-Fensterregel (`TrafficBox-Position` mit `wmclass=trafficbox` in `~/.config/kwinrulesrc`) und setzt `app.setDesktopFileName("trafficbox")`. KWin platziert das Widget beim Systemstart dadurch verlässlich an den gespeicherten Koordinaten.
+  - **Verzögerte Geometrie-Wiederherstellung:** In `_restore_geometry()` wird die Zielposition nach dem ersten Anzeigen kurz verzögert erneut angewandt, um aggressives Zentrieren durch Compositor-Events zu überschreiben.
+  - **Test-Isolation:** Automatisierte Unit-Tests überschreiben ab sofort nicht mehr die reale Konfiguration des Benutzers auf der Festplatte.
+
 ## [0.12.0] - 2026-11-05
 ### Added
 - **Nur-Graph-Modus (obere Zahlen ausblenden):**

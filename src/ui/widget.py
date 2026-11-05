@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 
 from src.api.models import OnlineCounterStats, PeriodCounter, TrafficSample
 from src.api.worker import PollingWorker
+from src.autostart import sync_kwin_position_rule
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
 from src.ui.graph_canvas import SplitTrafficGraphWidget
@@ -73,6 +74,10 @@ class TrafficBox(QWidget):
         self._in_layout_transition: bool = False
         self._was_compact: bool = self.config.compact_mode
         self._was_counters: bool = self.config.active_view == "counters"
+
+        self._save_pos_timer = QTimer(self)
+        self._save_pos_timer.setSingleShot(True)
+        self._save_pos_timer.timeout.connect(self._on_position_settled)
 
         self._configure_window_flags()
         self._build_ui()
@@ -319,6 +324,13 @@ class TrafficBox(QWidget):
         min_h = self.minimumSizeHint().height()
         return max(min_h + 6, 122 + extra)
 
+    def _on_position_settled(self) -> None:
+        """Persist window position to disk and update KWin rules on Linux/Wayland."""
+        if self.isVisible() and self.config.pos_x >= 0 and self.config.pos_y >= 0:
+            self.config.save()
+            if sys.platform == "linux":
+                sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
+
     def _restore_geometry(self) -> None:
         w = max(260, self.config.widget_width)
         h = self._get_compact_height() if self.config.compact_mode else max(210, self.config.widget_height)
@@ -334,11 +346,15 @@ class TrafficBox(QWidget):
 
         if is_on_screen:
             self.move(target_pos)
+            # Re-apply position slightly deferred after mapping to override aggressive compositor centering
+            QTimer.singleShot(150, lambda: self.move(target_pos))
         else:
             screen = QApplication.primaryScreen()
             if screen:
                 avail = screen.availableGeometry()
-                self.move(avail.right() - w - 24, avail.bottom() - h - 24)
+                default_pos = QPoint(avail.right() - w - 24, avail.bottom() - h - 24)
+                self.move(default_pos)
+                QTimer.singleShot(150, lambda: self.move(default_pos))
 
     def _apply_config_visuals(self) -> None:
         """Apply colors, fonts, compact mode, and window flags from AppConfig."""
@@ -911,8 +927,11 @@ class TrafficBox(QWidget):
 
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)
-        self.config.pos_x = self.x()
-        self.config.pos_y = self.y()
+        if not self._in_layout_transition and self.isVisible():
+            self.config.pos_x = self.x()
+            self.config.pos_y = self.y()
+            if hasattr(self, "_save_pos_timer"):
+                self._save_pos_timer.start(500)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -923,6 +942,8 @@ class TrafficBox(QWidget):
                 self.config.widget_width = self.width()
                 self.config.widget_height = self.height()
             self.config.save()
+            if sys.platform == "linux":
+                sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -1119,6 +1140,8 @@ class TrafficBox(QWidget):
             self.config.widget_width = self.width()
             self.config.widget_height = self.height()
         self.config.save()
+        if sys.platform == "linux":
+            sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
 
         self._poll_timer.stop()
         self._worker_thread.quit()

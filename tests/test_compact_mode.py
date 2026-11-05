@@ -25,6 +25,8 @@ class TestCompactMode(unittest.TestCase):
         self.config.compact_mode = False
         self.config.show_wan_status_pill = True
         self.config.enable_dns_monitor = True
+        # Prevent test instances from overwriting the real user config on disk
+        self.config.save = lambda *args, **kwargs: None  # type: ignore[method-assign]
         self.widget = TrafficBox(self.config)
 
     def tearDown(self) -> None:
@@ -132,6 +134,14 @@ class TestCompactMode(unittest.TestCase):
         self.assertFalse(self.widget.config.compact_mode)
         self.assertFalse(self.widget.rates_container.isVisible())
         self.assertTrue(self.widget.center_stack.isVisible())
+
+    def test_position_save_timer(self) -> None:
+        """Verify moveEvent starts the debounce timer for persisting window coordinates."""
+        self.widget.show()
+        _app.processEvents()
+        self.widget.move(500, 300)
+        _app.processEvents()
+        self.assertTrue(self.widget._save_pos_timer.isActive())
 
 
 if __name__ == "__main__":

@@ -135,3 +135,72 @@ def set_autostart(enabled: bool) -> bool:
             if sys.stderr is not None:
                 print(f"[WARN] Linux-Autostart konnte nicht gesetzt werden: {exc}", file=sys.stderr)
             return False
+
+
+def sync_kwin_position_rule(x: int, y: int) -> bool:
+    """Register or update a KWin window rule on KDE Plasma to enforce window position under Wayland."""
+    if sys.platform != "linux":
+        return False
+
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    kwinrules = config_home / "kwinrulesrc"
+
+    rule_name = "TrafficBox-Position"
+    rule_section = (
+        f"[{rule_name}]\n"
+        "Description=TrafficBox Placement\n"
+        f"position={x},{y}\n"
+        "positionrule=2\n"
+        "wmclass=trafficbox\n"
+        "wmclassmatch=1\n"
+    )
+
+    try:
+        content = kwinrules.read_text(encoding="utf-8") if kwinrules.is_file() else "[General]\nrules=\n"
+    except OSError:
+        content = "[General]\nrules=\n"
+
+    import re
+
+    pattern = rf"\[{re.escape(rule_name)}\].*?(?=\n\[|\Z)"
+    if re.search(pattern, content, flags=re.DOTALL):
+        new_content = re.sub(pattern, rule_section.strip(), content, flags=re.DOTALL)
+    else:
+        new_content = content.rstrip() + "\n\n" + rule_section
+
+    m = re.search(r"(\[General\][^\[]*?rules=)([^\n]*)", new_content)
+    if m:
+        prefix, existing_rules = m.group(1), m.group(2)
+        rule_list = [r.strip() for r in existing_rules.split(",") if r.strip()]
+        if rule_name not in rule_list:
+            rule_list.append(rule_name)
+            new_rules_line = f"{prefix}{','.join(rule_list)}"
+            new_content = new_content[:m.start()] + new_rules_line + new_content[m.end():]
+    else:
+        if "[General]" in new_content:
+            new_content = re.sub(r"\[General\]", f"[General]\nrules={rule_name}", new_content, count=1)
+        else:
+            new_content = f"[General]\nrules={rule_name}\n\n" + new_content
+
+    try:
+        kwinrules.write_text(new_content, encoding="utf-8")
+    except OSError:
+        return False
+
+    import shutil
+    import subprocess
+
+    qdbus_bin = shutil.which("qdbus6") or shutil.which("qdbus")
+    if qdbus_bin:
+        try:
+            subprocess.run(
+                [qdbus_bin, "org.kde.KWin", "/KWin", "reconfigure"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=1.0,
+            )
+        except Exception:
+            pass
+
+    return True

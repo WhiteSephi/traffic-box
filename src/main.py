@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("TrafficBox")
+    app.setDesktopFileName("trafficbox")
     app.setQuitOnLastWindowClosed(False)
 
     config = AppConfig.load()
