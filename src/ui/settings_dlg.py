@@ -547,11 +547,19 @@ class SettingsDialog(QDialog):
         rates_grid.setVerticalSpacing(6)
 
         self.chk_compact = QCheckBox("Kompakt-Modus (Graph ausblenden)")
+        self.chk_graph_only = QCheckBox("Nur-Graph-Modus (obere Zahlen ausblenden)")
         self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
         self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
         self.chk_show_peak = QCheckBox("Peak-Rate anzeigen (z. B. Peak 60s)")
         self.chk_show_guest_meta = QCheckBox("Gäste-WLAN-Rate unter Raten anzeigen")
         self.chk_session_totals = QCheckBox("Online- / Session-Zähler im Footer:")
+
+        self.chk_compact.toggled.connect(
+            lambda chk: self.chk_graph_only.setChecked(False) if chk else None
+        )
+        self.chk_graph_only.toggled.connect(
+            lambda chk: self.chk_compact.setChecked(False) if chk else None
+        )
 
         self.cmb_footer_mode = QComboBox()
         self.cmb_footer_mode.addItem("Heute (Fritz!Box Online-Zähler)", "today")
@@ -562,10 +570,11 @@ class SettingsDialog(QDialog):
         self.cmb_footer_mode.addItem("Seit Widget-Start (ohne Login)", "session")
 
         rates_grid.addWidget(self.chk_compact, 0, 0)
-        rates_grid.addWidget(self.chk_switch_up_down, 0, 1)
-        rates_grid.addWidget(self.chk_show_bits, 1, 0)
-        rates_grid.addWidget(self.chk_show_peak, 1, 1)
-        rates_grid.addWidget(self.chk_show_guest_meta, 2, 0)
+        rates_grid.addWidget(self.chk_graph_only, 0, 1)
+        rates_grid.addWidget(self.chk_switch_up_down, 1, 0)
+        rates_grid.addWidget(self.chk_show_bits, 1, 1)
+        rates_grid.addWidget(self.chk_show_peak, 2, 0)
+        rates_grid.addWidget(self.chk_show_guest_meta, 2, 1)
 
         footer_row = QHBoxLayout()
         footer_row.addWidget(self.chk_session_totals)
@@ -828,6 +837,7 @@ class SettingsDialog(QDialog):
         self.chk_switch_up_down.setChecked(self.config.switch_up_down)
         self.chk_show_bits.setChecked(self.config.show_as_bits)
         self.chk_compact.setChecked(self.config.compact_mode)
+        self.chk_graph_only.setChecked(self.config.graph_only_mode)
         self.chk_session_totals.setChecked(self.config.show_session_totals)
         self.chk_show_peak.setChecked(self.config.show_peak_rate)
         self.chk_show_guest_meta.setChecked(self.config.show_guest_rate_labels)
@@ -894,6 +904,7 @@ class SettingsDialog(QDialog):
         self.config.switch_up_down = self.chk_switch_up_down.isChecked()
         self.config.show_as_bits = self.chk_show_bits.isChecked()
         self.config.compact_mode = self.chk_compact.isChecked()
+        self.config.graph_only_mode = self.chk_graph_only.isChecked()
         self.config.show_session_totals = self.chk_session_totals.isChecked()
         self.config.show_peak_rate = self.chk_show_peak.isChecked()
         self.config.show_guest_rate_labels = self.chk_show_guest_meta.isChecked()
@@ -1004,6 +1015,7 @@ class SettingsDialog(QDialog):
             self.spin_max_down.setValue(defaults.manual_download_mbps)
             self.spin_max_up.setValue(defaults.manual_upload_mbps)
             self.chk_compact.setChecked(defaults.compact_mode)
+            self.chk_graph_only.setChecked(defaults.graph_only_mode)
             self.chk_switch_up_down.setChecked(defaults.switch_up_down)
             self.chk_show_bits.setChecked(defaults.show_as_bits)
             self.chk_show_peak.setChecked(defaults.show_peak_rate)

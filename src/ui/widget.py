@@ -134,7 +134,8 @@ class TrafficBox(QWidget):
         self.main_layout.addLayout(header_row)
 
         # --- 2. Live Rate Readouts + Utilization % Bars (Down & Up) ---
-        rates_row = QHBoxLayout()
+        self.rates_container = QWidget(self)
+        rates_row = QHBoxLayout(self.rates_container)
         rates_row.setContentsMargins(2, 0, 2, 2)
         rates_row.setSpacing(10)
 
@@ -232,7 +233,7 @@ class TrafficBox(QWidget):
 
         rates_row.addLayout(down_col, 1)
         rates_row.addLayout(up_col, 1)
-        self.main_layout.addLayout(rates_row)
+        self.main_layout.addWidget(self.rates_container)
 
         # --- 3. Center Stacked Area (Split Graph vs. Online-Zähler Table) ---
         self.center_stack = QStackedWidget(self)
@@ -408,18 +409,33 @@ class TrafficBox(QWidget):
 
             # Minimum dimensions: identical 260px width for both Graph & Online-Zähler
             min_w = 260
-            min_h = 295 if is_counters else 210
+            if is_counters:
+                min_h = 295
+            elif self.config.graph_only_mode:
+                min_h = 160
+            else:
+                min_h = 210
+
             target_w = max(min_w, self.config.widget_width)
             target_h = max(min_h, self.config.widget_height)
 
             if self.config.compact_mode:
+                self.rates_container.setVisible(True)
                 self.center_stack.setVisible(False)
                 compact_h = self._get_compact_height()
                 self.setMinimumWidth(260)
                 self.setMinimumHeight(compact_h)
                 self.setMaximumHeight(compact_h + 25)
                 self.resize(target_w, compact_h)
+            elif self.config.graph_only_mode:
+                self.rates_container.setVisible(False)
+                self.center_stack.setVisible(True)
+                self.setMinimumWidth(min_w)
+                self.setMinimumHeight(min_h)
+                self.setMaximumHeight(16777215)
+                self.resize(target_w, target_h)
             else:
+                self.rates_container.setVisible(True)
                 self.center_stack.setVisible(True)
                 self.setMinimumWidth(min_w)
                 self.setMinimumHeight(min_h)
@@ -984,6 +1000,11 @@ class TrafficBox(QWidget):
         act_compact.triggered.connect(self._toggle_compact)
         menu.addAction(act_compact)
 
+        act_graph_only = QAction("Nur-Graph-Modus (Zahlen ausblenden)", self, checkable=True)
+        act_graph_only.setChecked(self.config.graph_only_mode)
+        act_graph_only.triggered.connect(self._toggle_graph_only)
+        menu.addAction(act_graph_only)
+
         act_top = QAction("Immer im Vordergrund", self, checkable=True)
         act_top.setChecked(self.config.always_on_top)
         act_top.triggered.connect(self._toggle_always_on_top)
@@ -1031,6 +1052,15 @@ class TrafficBox(QWidget):
 
     def _toggle_compact(self, checked: bool) -> None:
         self.config.compact_mode = checked
+        if checked:
+            self.config.graph_only_mode = False
+        self.config.save()
+        self._apply_config_visuals()
+
+    def _toggle_graph_only(self, checked: bool) -> None:
+        self.config.graph_only_mode = checked
+        if checked:
+            self.config.compact_mode = False
         self.config.save()
         self._apply_config_visuals()
 

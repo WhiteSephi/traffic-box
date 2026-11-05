@@ -61,7 +61,7 @@
   ```
 - **Bedienung im Widget:**
   - **Ziehen mit linker Maustaste:** Widget frei auf dem Desktop positionieren (sofern Position nicht gesperrt ist).
-  - **Doppelklick / Rechtsklick:** Öffnet die **Einstellungen** bzw. das Schnellmenü (Skalierungs-Modus, Bit/Byte-Umschaltung, Kompakt-Modus, Immer im Vordergrund, Position sperren).
+  - **Doppelklick / Rechtsklick:** Öffnet die **Einstellungen** bzw. das Schnellmenü (Skalierungs-Modus, Bit/Byte-Umschaltung, Kompakt-Modus, Nur-Graph-Modus, Immer im Vordergrund, Position sperren).
 
 ---
 

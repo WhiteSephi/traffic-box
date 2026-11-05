@@ -90,6 +90,7 @@ class AppConfig:
     always_on_top: bool = False
     locked_pos: bool = False
     compact_mode: bool = False
+    graph_only_mode: bool = False  # True = Obere Zahlen ausblenden, Fokus rein auf den Graphen
     # active_view: "graph" (Live-Graph) or "counters" (Online-Zähler Tabelle)
     active_view: str = "graph"
     switch_up_down: bool = True  # True = Download on top, Upload on bottom

@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.12.0] - 2026-11-05
+### Added
+- **Nur-Graph-Modus (obere Zahlen ausblenden):**
+  - Neuer Modus zur ausschließlichen Beschränkung auf den Live-Graphen: Blendet die oberen Raten-Labels („Down:“, „Up:“), Übertragungsraten, Fortschrittsbalken und Prozentanzeigen komplett aus.
+  - Der Live-Graph nutzt automatisch den gesamten vertikalen Raum im Widget aus.
+  - Einstellbar über das Rechtsklick-Schnellmenü („Nur-Graph-Modus (Zahlen ausblenden)“) sowie im Einstellungs-Dialog unter dem Reiter „Anzeige“ („Nur-Graph-Modus (obere Zahlen ausblenden)“).
+  - Flexible Mindesthöhe: Das Widget kann im Nur-Graph-Modus auf Wunsch flacher auf bis zu 160 px skaliert werden (statt standardmäßig 210 px).
+  - Intelligente gegenseitige Verriegelung mit dem Kompakt-Modus („nur Zahlen“): Die beiden gegensätzlichen Ansichtsmodi schalten sich bei Auswahl automatisch wechselseitig um.
+
 ## [0.11.20] - 2026-11-05
 ### Fixed
 - **Überlappung von Elementen im Kompakt-Modus (nur Zahlen):**

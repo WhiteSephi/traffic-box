@@ -99,6 +99,40 @@ class TestCompactMode(unittest.TestCase):
         self.assertLessEqual(bar_bottom, meta_top)
         self.assertLessEqual(meta_bottom, pill_top)
 
+    def test_graph_only_mode_toggle(self) -> None:
+        """Verify graph-only mode hides rates container while keeping center graph visible."""
+        self.widget.show()
+        _app.processEvents()
+
+        # Initially both are visible
+        self.assertTrue(self.widget.rates_container.isVisible())
+        self.assertTrue(self.widget.center_stack.isVisible())
+
+        # Enable graph-only mode
+        self.widget._toggle_graph_only(True)
+        _app.processEvents()
+
+        self.assertTrue(self.widget.config.graph_only_mode)
+        self.assertFalse(self.widget.config.compact_mode)
+        self.assertFalse(self.widget.rates_container.isVisible())
+        self.assertTrue(self.widget.center_stack.isVisible())
+
+        # Toggling compact mode turns off graph_only mode
+        self.widget._toggle_compact(True)
+        _app.processEvents()
+        self.assertTrue(self.widget.config.compact_mode)
+        self.assertFalse(self.widget.config.graph_only_mode)
+        self.assertTrue(self.widget.rates_container.isVisible())
+        self.assertFalse(self.widget.center_stack.isVisible())
+
+        # Toggling graph_only turns off compact mode
+        self.widget._toggle_graph_only(True)
+        _app.processEvents()
+        self.assertTrue(self.widget.config.graph_only_mode)
+        self.assertFalse(self.widget.config.compact_mode)
+        self.assertFalse(self.widget.rates_container.isVisible())
+        self.assertTrue(self.widget.center_stack.isVisible())
+
 
 if __name__ == "__main__":
     unittest.main()
