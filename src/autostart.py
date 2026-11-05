@@ -41,6 +41,19 @@ def get_windows_autostart_cmd(project_root: Path | None = None) -> str:
     )
 
 
+def get_linux_autostart_cmd(project_root: Path | None = None) -> str:
+    """Generate the Linux Exec command string for autostart."""
+    if project_root is None:
+        project_root = get_project_root()
+    is_frozen = getattr(sys, "frozen", False)
+    if is_frozen:
+        return str(sys.executable)
+    sh_script = project_root / "start_linux.sh"
+    if sh_script.is_file():
+        return str(sh_script)
+    return f"{sys.executable} -m src.main"
+
+
 def is_autostart_enabled() -> bool:
     """Check whether autostart is currently configured on the current OS."""
     if sys.platform == "win32":
@@ -96,13 +109,14 @@ def set_autostart(enabled: bool) -> bool:
         try:
             if enabled:
                 desktop_file.parent.mkdir(parents=True, exist_ok=True)
+                exec_cmd = get_linux_autostart_cmd(project_root)
                 content = (
                     "[Desktop Entry]\n"
                     "Type=Application\n"
                     "Name=TrafficBox\n"
                     "Comment=Live Traffic Monitor Widget\n"
                     f"Path={project_root}\n"
-                    f"Exec={python_exe} -m src.main\n"
+                    f"Exec={exec_cmd}\n"
                     "Icon=network-workgroup\n"
                     "Terminal=false\n"
                     "Categories=Network;Monitor;Qt;\n"

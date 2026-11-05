@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.18] - 2026-11-05
+### Changed
+- **Linux-Autostart & Binary-Harmonisierung:**
+  - **Linux XDG-Autostart optimiert:** Beim Erstellen von `trafficbox.desktop` wird nun geprüft, ob das Widget als kompilierte ELF-Binary läuft (`Exec=/pfad/zu/TrafficBox`) oder als Skript (`Exec=start_linux.sh`), sodass die virtuelle Umgebung auch unter Linux (z. B. CachyOS) vollautomatisch gewählt wird.
+  - **Einheitlicher Binary-Name:** PyInstaller-Build auf `TrafficBox.exe` (bzw. `TrafficBox`) vereinheitlicht.
+
 ## [0.11.17] - 2026-11-05
 ### Fixed
 - **Autostart-Aktualisierung im Einstellungsdialog:**
