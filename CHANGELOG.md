@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.15] - 2026-11-05
+### Fixed
+- **Windows-Autostart im VBS- & Python-Modus:**
+  - Behoben: Beim Setzen der Autostart-Option im Python-/VBS-Modus wurde `pythonw.exe -m src.main` in die Registry geschrieben. Da Windows Autostart-Einträge standardmäßig aus `C:\Windows\System32` startet, brach Python vor der Ausführung lautlos mit `ModuleNotFoundError: No module named 'src'` ab.
+  - Neu: Im Quellcode-Modus wird nun automatisch `wscript.exe "<Projektpfad>\start_windows.vbs"` (bzw. ein robuster Python-Befehl mit Pfadinitialisierung) als Autostart hinterlegt, sodass das Widget sowohl als kompilierte Binary (`.exe`) als auch mit dem VBS-Starter zuverlässig beim Windows-Boot startet.
+
 ## [0.11.14] - 2026-11-05
 ### Fixed
 - **Datenschutz & Privacy (Zero-Leak-Policy):** Spezifische Subnetz- und externe IP-Angaben in Unit-Tests (`test_resolve_fritzbox_host_fallback`) und Changelog-Einträgen auf neutrale RFC-5737-Dokumentations-IPs (`198.51.100.1`) und Standard-Gateways (`192.168.1.1` / `192.168.178.1`) bereinigt.

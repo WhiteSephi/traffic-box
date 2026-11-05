@@ -20,6 +20,27 @@ def _get_linux_autostart_file() -> Path:
     return config_home / "autostart" / DESKTOP_FILENAME
 
 
+def get_windows_autostart_cmd(project_root: Path | None = None) -> str:
+    """Generate the Windows command string for autostart."""
+    if project_root is None:
+        project_root = get_project_root()
+    is_frozen = getattr(sys, "frozen", False)
+    if is_frozen:
+        return f'"{sys.executable}"'
+    vbs_script = project_root / "start_windows.vbs"
+    if vbs_script.is_file():
+        return f'wscript.exe "{vbs_script}"'
+    python_exe = Path(sys.executable)
+    pythonw = python_exe.with_name("pythonw.exe")
+    exe_to_use = pythonw if pythonw.is_file() else python_exe
+    return (
+        f'"{exe_to_use}" -c "import sys, os; '
+        f'sys.path.insert(0, r\'{project_root}\'); '
+        f'os.chdir(r\'{project_root}\'); '
+        f'from src.main import main; sys.exit(main())"'
+    )
+
+
 def is_autostart_enabled() -> bool:
     """Check whether autostart is currently configured on the current OS."""
     if sys.platform == "win32":
@@ -50,12 +71,7 @@ def set_autostart(enabled: bool) -> bool:
         try:
             import winreg
 
-            if is_frozen:
-                cmd = f'"{python_exe}"'
-            else:
-                pythonw = python_exe.with_name("pythonw.exe")
-                exe_to_use = pythonw if pythonw.is_file() else python_exe
-                cmd = f'"{exe_to_use}" -m src.main --workdir "{project_root}"'
+            cmd = get_windows_autostart_cmd(project_root)
 
             with winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
