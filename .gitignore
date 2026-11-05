@@ -58,6 +58,9 @@ out/
 target/
 *.log
 coverage/
+.coverage
+.coverage.*
+htmlcov/
 .cache/
 
 # ==========================================

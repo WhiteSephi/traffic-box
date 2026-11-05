@@ -107,6 +107,59 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(os.environ.get("TEST_CFG_KEY2"), "quoted_val")
             self.assertEqual(os.environ.get("TEST_CFG_KEY3"), "double_quoted")
 
+    def test_sanitize_corrupted_config_values(self) -> None:
+        """Verify corrupted JSON values (letters in numbers, out of bounds) are safely sanitized."""
+        corrupted = {
+            "fritzbox_host": "   ",
+            "ping_endpoint": "",
+            "upnp_port": "not_a_port",
+            "refresh_interval_sec": "three",
+            "start_delay_sec": -50,
+            "opacity": 500,
+            "widget_width": "tiny",
+            "manual_download_mbps": "invalid_speed",
+            "manual_upload_mbps": -15.0,
+            "scale_mode": "nonsense_scale",
+            "active_view": "unknown_view",
+            "footer_counter_mode": "invalid_mode",
+            "compact_mode": "yes",
+            "graph_only_mode": "invalid_bool",
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "config.json"
+            tmp_path.write_text(json.dumps(corrupted), encoding="utf-8")
+
+            original_fn = AppConfig.config_file_path
+            try:
+                AppConfig.config_file_path = classmethod(lambda cls: tmp_path)  # type: ignore[assignment]
+                loaded = AppConfig.load()
+
+                # Strings safely reset to defaults
+                self.assertEqual(loaded.fritzbox_host, "fritz.box")
+                self.assertEqual(loaded.ping_endpoint, "1.1.1.1")
+
+                # Corrupted integers safely fall back or clamp
+                self.assertEqual(loaded.upnp_port, 49000)
+                self.assertEqual(loaded.refresh_interval_sec, 1)
+                self.assertEqual(loaded.start_delay_sec, 0)
+                self.assertEqual(loaded.opacity, 100)  # clamped from 500
+                self.assertEqual(loaded.widget_width, 460)  # fallback from "tiny"
+
+                # Corrupted floats safely fall back or clamp
+                self.assertEqual(loaded.manual_download_mbps, 500.0)
+                self.assertEqual(loaded.manual_upload_mbps, 0.5)  # clamped from -15.0
+
+                # Corrupted enums safely reset to defaults
+                self.assertEqual(loaded.scale_mode, "sqrt")
+                self.assertEqual(loaded.active_view, "graph")
+                self.assertEqual(loaded.footer_counter_mode, "today")
+
+                # Corrupted booleans safely parsed
+                self.assertTrue(loaded.compact_mode)
+                self.assertFalse(loaded.graph_only_mode)
+            finally:
+                AppConfig.config_file_path = original_fn  # type: ignore[assignment]
+
 
 if __name__ == "__main__":
     unittest.main()

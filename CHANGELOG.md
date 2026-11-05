@@ -6,6 +6,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [0.12.1] - 2026-11-05
 ### Fixed
+- **Defensive Konfigurations-Validierung & Range-Clamping:**
+  - Manuell editierte oder korrumpierte Einträge in `config.json` (z. B. Buchstaben in Zahlenfeldern wie `upnp_port`, `refresh_interval_sec`, `opacity` oder negative Werte) werden beim Laden in `AppConfig.load()` automatisch abgefangen, bereinigt und auf sichere Standardwerte zurückgesetzt.
 - **Automatische Positionsspeicherung & Wayland/KWin-Zentrierung nach Systemstart:**
   - **Debounced Positionsspeicherung:** Unter Wayland (KDE Plasma) wird das Verschieben des Fensters über `startSystemMove()` vom Window Manager gesteuert, wodurch bei Maustastenfreigabe kein `mouseReleaseEvent` im Qt-Widget eintrifft. Beim Verschieben wird nun über einen 500-ms-Timer die neue Desktop-Position nach jeder Bewegung automatisch und dauerhaft in `local/config.json` gesichert.
   - **KWin-Regel-Synchronisation für KDE Plasma (Wayland):** Da Wayland Clients das programmatische Setzen von Startkoordinaten (`move()`) verbietet und KWin neue Fenster standardmäßig in der Bildschirmmitte zentriert, synchronisiert TrafficBox unter Linux nun automatisch eine KWin-Fensterregel (`TrafficBox-Position` mit `wmclass=trafficbox` in `~/.config/kwinrulesrc`) und setzt `app.setDesktopFileName("trafficbox")`. KWin platziert das Widget beim Systemstart dadurch verlässlich an den gespeicherten Koordinaten.

@@ -133,6 +133,72 @@ class AppConfig:
     grid_color: str = "#32383D"
     title_color: str = "#E0E4E8"
 
+    def sanitize(self) -> None:
+        """Validate, coerce types and clamp ranges for all configuration attributes."""
+        # Strings with fallbacks
+        if not isinstance(self.fritzbox_host, str) or not self.fritzbox_host.strip():
+            self.fritzbox_host = "fritz.box"
+        else:
+            self.fritzbox_host = self.fritzbox_host.strip()
+
+        if not isinstance(self.ping_endpoint, str) or not self.ping_endpoint.strip():
+            self.ping_endpoint = "1.1.1.1"
+        else:
+            self.ping_endpoint = self.ping_endpoint.strip()
+
+        # Enums
+        if self.scale_mode not in ("sqrt", "dynamic", "fixed"):
+            self.scale_mode = "sqrt"
+        if self.active_view not in ("graph", "counters"):
+            self.active_view = "graph"
+        if self.footer_counter_mode not in ("today", "yesterday", "week", "month", "last_month", "session"):
+            self.footer_counter_mode = "today"
+
+        # Safe int helper
+        def _safe_int(val: object, default: int, min_val: int, max_val: int) -> int:
+            try:
+                num = int(val)  # type: ignore[arg-type]
+                return max(min_val, min(max_val, num))
+            except (ValueError, TypeError):
+                return default
+
+        self.upnp_port = _safe_int(self.upnp_port, 49000, 1, 65535)
+        self.refresh_interval_sec = _safe_int(self.refresh_interval_sec, 1, 1, 60)
+        self.start_delay_sec = _safe_int(self.start_delay_sec, 0, 0, 120)
+        self.opacity = _safe_int(self.opacity, 85, 20, 100)
+        self.widget_width = _safe_int(self.widget_width, 460, 200, 3840)
+        self.widget_height = _safe_int(self.widget_height, 300, 80, 2160)
+        self.history_seconds = _safe_int(self.history_seconds, 60, 10, 600)
+
+        # Safe float helper
+        def _safe_float(val: object, default: float, min_val: float, max_val: float) -> float:
+            try:
+                num = float(val)  # type: ignore[arg-type]
+                return max(min_val, min(max_val, num))
+            except (ValueError, TypeError):
+                return default
+
+        self.manual_download_mbps = _safe_float(self.manual_download_mbps, 500.0, 1.0, 10000.0)
+        self.manual_upload_mbps = _safe_float(self.manual_upload_mbps, 36.0, 0.5, 10000.0)
+
+        # Booleans: ensure true boolean values
+        bool_fields = (
+            "enable_guest_monitor", "enable_local_traffic_monitor", "show_local_traffic_in_graph",
+            "show_local_traffic_in_header", "autostart", "always_on_top", "locked_pos",
+            "compact_mode", "graph_only_mode", "switch_up_down", "show_as_bits", "show_peak_rate",
+            "show_guest_rate_labels", "show_session_totals", "show_connection_tooltip",
+            "auto_link_scale", "enable_ping_graph", "show_wan_status_pill", "enable_dns_monitor",
+        )
+        for b_field in bool_fields:
+            val = getattr(self, b_field, False)
+            if not isinstance(val, bool):
+                if isinstance(val, str):
+                    setattr(self, b_field, val.lower() in ("true", "1", "yes"))
+                elif isinstance(val, (int, float)):
+                    setattr(self, b_field, bool(val))
+                else:
+                    setattr(self, b_field, False)
+
     @classmethod
     def config_file_path(cls) -> Path:
         """Return full path to the JSON config file."""
@@ -170,6 +236,7 @@ class AppConfig:
             cfg.fritz_password = os.environ["FRITZBOX_PASSWORD"]
             cfg.enable_guest_monitor = True
 
+        cfg.sanitize()
         return cfg
 
     def save(self, target_path: Path | None = None) -> None:
