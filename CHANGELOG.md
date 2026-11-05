@@ -4,6 +4,11 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.17] - 2026-11-05
+### Fixed
+- **Autostart-Aktualisierung im Einstellungsdialog:**
+  - Behoben: Beim Klick auf „Speichern“ prüfte der Dialog bisher nur, ob sich der Haken geändert hatte (`want_autostart != is_autostart_enabled()`). War Autostart bereits aktiv, wurde der Registry-Befehl nicht mit dem aktuellen Startpfad überschrieben. Nun wird der Autostart-Befehl beim Speichern mit gesetztem Haken immer zuverlässig auf den aktuellen Stand aktualisiert.
+
 ## [0.11.16] - 2026-11-05
 ### Changed
 - **Fußzeilen-Layout & dynamische DNS-IP-Anzeige:**

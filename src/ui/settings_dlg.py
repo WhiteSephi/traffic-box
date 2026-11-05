@@ -883,8 +883,10 @@ class SettingsDialog(QDialog):
         self.config.start_delay_sec = self.spin_delay.value()
 
         want_autostart = self.chk_autostart.isChecked()
-        if want_autostart != is_autostart_enabled():
-            set_autostart(want_autostart)
+        if want_autostart:
+            set_autostart(True)
+        elif is_autostart_enabled():
+            set_autostart(False)
         self.config.autostart = want_autostart
 
         self.config.always_on_top = self.chk_always_on_top.isChecked()
