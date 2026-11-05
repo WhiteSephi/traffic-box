@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.20] - 2026-11-05
+### Fixed
+- **Überlappung von Elementen im Kompakt-Modus (nur Zahlen):**
+  - Behoben: Im Kompakt-Modus war das Widget auf eine veraltete Maximalhöhe von 115 px (bei initialer Zielgröße von 95–98 px) beschränkt. Durch die später hinzugekommenen Komponenten (WAN-Status-Pill, DNS-Pill, Footer-Zähler und Header-Buttons) reichte diese Höhe nicht aus, sodass Qt Rate-Labels („Down:“, „Up:“), Übertragungszahlen („910,0 kbit/s“), Fortschrittsbalken und Prozentwerte vertikal ineinander gequetscht und überlappt hat.
+  - Dynamische Kompakthöhe: Eine neue Methode `_get_compact_height()` berechnet die benötigte Mindesthöhe dynamisch anhand der aktiven UI-Komponenten (Basis ca. 122–134 px, mit PC-/Gastnetz-Raten entsprechend angepasst), sodass alle Elemente jederzeit sauber getrennt mit ausreichend Abstand gerendert werden.
+  - Header-View-Pills: Die Umschalt-Buttons „Graph“ und „Zähler“ leuchten im Kompaktmodus nicht mehr fälschlicherweise als aktiver Tab gelb auf, sondern bleiben dezent inaktiv gestylt (beim Klick darauf wird der Kompakt-Modus weiterhin wie gewohnt beendet und die jeweilige Ansicht geöffnet).
+
 ## [0.11.19] - 2026-11-05
 ### Fixed
 - **Linux-Autostart bei Pfaden mit Leerzeichen (systemd-xdg-autostart-generator):**

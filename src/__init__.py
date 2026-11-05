@@ -1,3 +1,3 @@
 """Fritz!Box Live Traffic Widget (Cross-Platform for CachyOS Linux & Windows)."""
 
-__version__ = "0.2.0"
+__version__ = "0.11.20"

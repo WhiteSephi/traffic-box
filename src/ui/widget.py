@@ -308,9 +308,19 @@ class TrafficBox(QWidget):
         interval_ms = max(500, self.config.refresh_interval_sec * 1000)
         self._poll_timer.start(interval_ms)
 
+    def _get_compact_height(self) -> int:
+        """Calculate the required compact mode height to prevent element overlapping."""
+        extra = 0
+        if self.config.enable_local_traffic_monitor and self.config.show_local_traffic_in_header:
+            extra += 14
+        if self.config.enable_guest_monitor and self.config.show_guest_rate_labels:
+            extra += 14
+        min_h = self.minimumSizeHint().height()
+        return max(min_h + 6, 122 + extra)
+
     def _restore_geometry(self) -> None:
-        w = max(210, self.config.widget_width)
-        h = 95 if self.config.compact_mode else max(175, self.config.widget_height)
+        w = max(260, self.config.widget_width)
+        h = self._get_compact_height() if self.config.compact_mode else max(210, self.config.widget_height)
         self.resize(w, h)
 
         target_pos = QPoint(self.config.pos_x, self.config.pos_y)
@@ -404,10 +414,11 @@ class TrafficBox(QWidget):
 
             if self.config.compact_mode:
                 self.center_stack.setVisible(False)
+                compact_h = self._get_compact_height()
                 self.setMinimumWidth(260)
-                self.setMinimumHeight(88)
-                self.setMaximumHeight(115)
-                self.resize(target_w, 98)
+                self.setMinimumHeight(compact_h)
+                self.setMaximumHeight(compact_h + 25)
+                self.resize(target_w, compact_h)
             else:
                 self.center_stack.setVisible(True)
                 self.setMinimumWidth(min_w)
@@ -501,9 +512,13 @@ class TrafficBox(QWidget):
         lum = 0.299 * qcol.red() + 0.587 * qcol.green() + 0.114 * qcol.blue()
         active_text = "#111111" if lum > 140 else "#FFFFFF"
 
-        # Dynamically set vector icons matching active/inactive colors
-        graph_icon_col = active_text if not is_counters else self.config.title_color
-        counters_icon_col = active_text if is_counters else self.config.title_color
+        # In compact mode, neither view tab is currently shown (center stack is hidden)
+        is_compact = self.config.compact_mode
+        graph_active = not is_counters and not is_compact
+        counters_active = is_counters and not is_compact
+
+        graph_icon_col = active_text if graph_active else self.config.title_color
+        counters_icon_col = active_text if counters_active else self.config.title_color
 
         self.btn_view_graph.setIcon(create_ui_icon("graph", graph_icon_col, 13))
         self.btn_view_counters.setIcon(create_ui_icon("counters", counters_icon_col, 13))
@@ -523,8 +538,8 @@ class TrafficBox(QWidget):
             "border-radius: 4px; padding: 2px; } "
             "QPushButton:hover { background-color: rgba(255,255,255,38); }"
         )
-        self.btn_view_graph.setStyleSheet(inactive_css if is_counters else active_css)
-        self.btn_view_counters.setStyleSheet(active_css if is_counters else inactive_css)
+        self.btn_view_graph.setStyleSheet(active_css if graph_active else inactive_css)
+        self.btn_view_counters.setStyleSheet(active_css if counters_active else inactive_css)
         self.btn_settings.setStyleSheet(settings_css)
 
     def _switch_active_view(self, view_name: str) -> None:
@@ -658,6 +673,14 @@ class TrafficBox(QWidget):
         else:
             self.lbl_guest_down.setVisible(False)
             self.lbl_guest_up.setVisible(False)
+
+        # Ensure compact mode height expands if extra labels (PC/Guest) become visible
+        if self.config.compact_mode and not self._in_layout_transition:
+            needed_h = self._get_compact_height()
+            if self.height() != needed_h:
+                self.setMinimumHeight(needed_h)
+                self.setMaximumHeight(needed_h + 25)
+                self.resize(self.width(), needed_h)
 
         # 1. WAN Status Pill (✓ / ⚠ / ✕)
         if not sample.box_reachable:
