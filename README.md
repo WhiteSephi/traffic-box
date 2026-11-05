@@ -2,6 +2,24 @@
 
 > Schlankes, plattformübergreifendes Live-Desktop-Widget (CachyOS / KDE Plasma & Windows) zur Echtzeit-Überwachung von Upload- und Download-Raten an Routern (wie AVM FRITZ!Box) per UPnP sowie optionaler Gäste-WLAN- und lokaler PC-Traffic-Analyse.
 
+<p align="center">
+  <img src="assets/preview_main.png" alt="TrafficBox Live-Graph Vorschau" width="540">
+  <br>
+  <em>Live-Desktop-Widget mit Echtzeit-Graph, Upload/Download-Wellenform, Ping, Jitter & DNS-Monitor</em>
+</p>
+
+<p align="center">
+  <img src="assets/preview_compact.png" alt="TrafficBox Kompaktmodus" width="460">
+  <br>
+  <em>Kompakt-Modus („nur Zahlen“) für minimale Desktop-Beanspruchung</em>
+</p>
+
+<p align="center">
+  <img src="assets/preview_settings.png" alt="TrafficBox Einstellungen" width="540">
+  <br>
+  <em>Umfangreicher Einstellungs-Dialog mit Farb-Themes, Einheiten & Skalierungsmodi</em>
+</p>
+
 ---
 
 ## 🛠️ Tech-Stack & Voraussetzungen
