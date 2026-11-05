@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSizeGrip,
     QStackedWidget,
     QSystemTrayIcon,
@@ -256,6 +257,11 @@ class TrafficBox(QWidget):
         self.lbl_footer.setFont(QFont("Segoe UI", 7))
         self.lbl_footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        self.footer_spacer = QWidget(self)
+        self.footer_spacer.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
+
         self.lbl_dns_pill = QLabel("✓ DNS")
         self.lbl_dns_pill.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
         self.lbl_dns_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -265,6 +271,7 @@ class TrafficBox(QWidget):
 
         footer_row.addWidget(self.lbl_wan_pill, 0)
         footer_row.addWidget(self.lbl_footer, 1)
+        footer_row.addWidget(self.footer_spacer, 1)
         footer_row.addWidget(self.lbl_dns_pill, 0)
         footer_row.addWidget(
             self.size_grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight
@@ -368,6 +375,7 @@ class TrafficBox(QWidget):
         )
         self.lbl_footer.setStyleSheet(footer_css)
         self.lbl_footer.setVisible(self.config.show_session_totals)
+        self.footer_spacer.setVisible(not self.config.show_session_totals)
         self.lbl_wan_pill.setVisible(self.config.show_wan_status_pill)
         self.lbl_dns_pill.setVisible(self.config.enable_dns_monitor)
         self.size_grip.setVisible(not self.config.locked_pos and not self.config.compact_mode)
@@ -479,6 +487,12 @@ class TrafficBox(QWidget):
 
         # 6. Online Counter View scaling
         self.counter_view.set_scale(scale)
+
+        # 7. Update footer elements responsive text if last sample is available
+        if self._last_sample:
+            if self.config.show_session_totals:
+                self.lbl_footer.setText(self._format_footer_text(self._last_sample))
+            self._update_dns_pill(self._last_sample)
 
     def _style_view_pills(self, is_counters: bool) -> None:
         """Style the header toggle buttons for Graph vs. Zähler view with custom vector icons."""
@@ -676,8 +690,25 @@ class TrafficBox(QWidget):
             self.lbl_footer.setText(self._format_footer_text(sample))
 
         # 3. Active OS DNS Status Pill (✓ / ⚠ / ✕)
+        self._update_dns_pill(sample)
+
+        self.counter_view.update_from_sample(sample)
+
+        self._update_tooltip(sample, down_pct, up_pct)
+
+    def _update_dns_pill(self, sample: TrafficSample) -> None:
+        """Update text, colors and tooltip of the DNS status pill with dynamic IP threshold."""
         if sample.dns_ms is not None:
-            dns_ip_label = f"({sample.active_dns_ip}): " if (self.width() >= 490 and sample.active_dns_ip) else ": "
+            # Dynamic threshold: 270px without middle counter, 420px with middle counter
+            has_footer = self.config.show_session_totals
+            has_wan = self.config.show_wan_status_pill
+            min_w = 420 if has_footer else (270 if has_wan else 200)
+
+            dns_ip_label = (
+                f"({sample.active_dns_ip}): "
+                if (self.width() >= min_w and sample.active_dns_ip)
+                else ": "
+            )
             ms_str = f"{sample.dns_ms:.1f} ms".replace(".", ",")
             if sample.dns_ms > 80.0:
                 self.lbl_dns_pill.setText(f"⚠ DNS{dns_ip_label}{ms_str}")
@@ -707,10 +738,6 @@ class TrafficBox(QWidget):
                 "color: rgba(255, 255, 255, 0.4); background-color: rgba(255, 255, 255, 0.05); "
                 "border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 9px; padding: 1px 7px;"
             )
-
-        self.counter_view.update_from_sample(sample)
-
-        self._update_tooltip(sample, down_pct, up_pct)
 
     def _format_footer_text(self, sample: TrafficSample) -> str:
         """Build the footer text for the selected Online-Zähler period or local session."""

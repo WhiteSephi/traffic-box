@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.11.16] - 2026-11-05
+### Changed
+- **Fußzeilen-Layout & dynamische DNS-IP-Anzeige:**
+  - **Feste Pill-Positionierung:** Die WAN-Pill bleibt dauerhaft ganz links verankert und die DNS-Pill ganz rechts. Wenn der mittlere Online-Zähler ausgeblendet ist, springen die Pills nicht mehr nach links zusammen, sondern behalten ihren Platz mit einem flexiblen Zwischenraum.
+  - **Dynamische IP-Einblendung:** Die DNS-IP-Adresse wird ohne mittleren Zähler bereits ab 270 px Fensterbreite vollständig dargestellt (statt bisher starr ab 490 px); mit aktivem Zähler ab 420 px. Bei Fenstergrößenänderungen aktualisiert sich die Anzeige nun verzögerungsfrei in Echtzeit.
+
 ## [0.11.15] - 2026-11-05
 ### Fixed
 - **Windows-Autostart im VBS- & Python-Modus:**
