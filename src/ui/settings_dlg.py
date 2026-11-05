@@ -421,8 +421,15 @@ class SettingsDialog(QDialog):
         self.lbl_test_result.setVisible(False)
 
         box_label_row = QHBoxLayout()
-        lbl_box_title = QLabel("Box-Kopplung (Schutz):")
+        lbl_box_title = QLabel("Heim-Router Bindung:")
         lbl_box_title.setStyleSheet("font-weight: bold; color: #E0E4E8; font-size: 8.5pt;")
+        tooltip_binding = (
+            "Schützt dein Passwort: Das Widget sendet Zugangsdaten ausschließlich an deinen "
+            "persönlichen Heim-Router. In fremden WLAN-Netzen (z. B. Büro, Hotel) wird der Login "
+            "automatisch blockiert."
+        )
+        lbl_box_title.setToolTip(tooltip_binding)
+        self.lbl_bound_box.setToolTip(tooltip_binding)
         box_label_row.addWidget(lbl_box_title)
         box_label_row.addWidget(self.lbl_bound_box, 1)
 
@@ -806,7 +813,7 @@ class SettingsDialog(QDialog):
                         self.config.bound_box_name = upnp_client.box_name
                         short_id = upnp_client.box_udn.split("-")[-1]
                         box_name = upnp_client.box_name or "FRITZ!Box"
-                        self.lbl_bound_box.setText(f"✓ Gekoppelt an {box_name} (ID: {short_id})")
+                        self.lbl_bound_box.setText(f"✓ Gebunden an {box_name} (ID: {short_id})")
                         self.lbl_bound_box.setStyleSheet("color: #00E676; font-size: 8.5pt;")
                     self.lbl_test_result.setText(f"✓ {msg}")
                     self.lbl_test_result.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 8.5pt;")
@@ -880,10 +887,10 @@ class SettingsDialog(QDialog):
         if self.config.bound_box_udn:
             short_id = self.config.bound_box_udn.split("-")[-1]
             box_label = self.config.bound_box_name or "FRITZ!Box"
-            self.lbl_bound_box.setText(f"✓ Gekoppelt an {box_label} (ID: {short_id})")
+            self.lbl_bound_box.setText(f"✓ Gebunden an {box_label} (ID: {short_id})")
             self.lbl_bound_box.setStyleSheet("color: #00E676; font-size: 8.5pt;")
         else:
-            self.lbl_bound_box.setText("Nicht gekoppelt (wird beim ersten Login automatisch an die Box gebunden)")
+            self.lbl_bound_box.setText("Nicht gebunden (wird beim ersten Login automatisch an diesen Heim-Router gebunden)")
             self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
     def _apply_changes(self) -> None:
@@ -999,7 +1006,7 @@ class SettingsDialog(QDialog):
             self.chk_guest.setChecked(defaults.enable_guest_monitor)
             self.txt_user.setText(defaults.fritz_username)
             self.txt_pass.setText(defaults.fritz_password)
-            self.lbl_bound_box.setText("Nicht gekoppelt (wird beim ersten Login automatisch an die Box gebunden)")
+            self.lbl_bound_box.setText("Nicht gebunden (wird beim ersten Login automatisch an diesen Heim-Router gebunden)")
             self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
             self.lbl_test_result.setVisible(False)
         elif tab_idx == 1:  # Allgemein
