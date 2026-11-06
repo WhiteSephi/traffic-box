@@ -826,18 +826,10 @@ class SettingsDialog(QDialog):
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_config_dir())))
         )
 
-        self.btn_copy_sysinfo = QPushButton("📋 Info kopieren")
-        self.btn_copy_sysinfo.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_copy_sysinfo.setToolTip(
-            "Kopiert anonymisierte Diagnose-Infos in die Zwischenablage"
-        )
-        self.btn_copy_sysinfo.clicked.connect(self._copy_system_info)
-
         links_row.addWidget(self.btn_about_github)
         links_row.addWidget(self.btn_about_releases)
         links_row.addWidget(self.btn_about_issues)
         links_row.addWidget(self.btn_about_config_dir)
-        links_row.addWidget(self.btn_copy_sysinfo)
         hero_vlayout.addLayout(links_row)
         about_layout.addWidget(hero_group)
 
@@ -876,35 +868,6 @@ class SettingsDialog(QDialog):
 
         about_layout.addStretch(1)
         return tab_about
-
-        about_layout.addStretch(1)
-        return tab_about
-
-    def _get_system_info_summary(self) -> str:
-        """Return an anonymized diagnostic summary suitable for bug reports."""
-        is_frozen = getattr(sys, "frozen", False)
-        build_mode = "Standalone-Binary" if is_frozen else "Python-Script"
-        cfg_dir = get_config_dir()
-        is_portable = cfg_dir.name.lower() == "local"
-        return (
-            f"TrafficBox v{__version__} ({build_mode})\n"
-            f"OS: {platform.system()} {platform.release()} ({platform.machine()})\n"
-            f"Runtime: Python {platform.python_version()} | Qt {qVersion()}\n"
-            f"Config Mode: {'Portable (local/)' if is_portable else 'System Profile'}\n"
-            f"Scale Mode: {self.config.scale_mode} | Compact: {self.config.compact_mode} | "
-            f"GraphOnly: {self.config.graph_only_mode}"
-        )
-
-    def _copy_system_info(self) -> None:
-        """Copy diagnostic system info to clipboard and show temporary confirmation."""
-        clipboard = QApplication.clipboard()
-        if clipboard is not None:
-            clipboard.setText(self._get_system_info_summary())
-        self.btn_copy_sysinfo.setText("✓ Kopiert!")
-        QTimer.singleShot(
-            1800,
-            lambda: self.btn_copy_sysinfo.setText("📋 System-Info kopieren"),
-        )
 
     def _on_tab_changed(self, index: int) -> None:
         """Disable tab-reset button when viewing the read-only 'Über' tab."""
