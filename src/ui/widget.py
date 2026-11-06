@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.api.models import OnlineCounterStats, PeriodCounter, TrafficSample
+from src.api.net_health import set_shutting_down
 from src.api.worker import PollingWorker
 from src.autostart import sync_kwin_position_rule
 from src.config import AppConfig
@@ -64,6 +65,7 @@ class TrafficBox(QWidget):
 
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
+        set_shutting_down(False)
         self.config = config
         self._drag_start_pos: QPoint = QPoint()
         self._drag_offset: QPoint | None = None
@@ -72,6 +74,7 @@ class TrafficBox(QWidget):
         self._last_sample: TrafficSample = TrafficSample()
         self._settings_dlg: SettingsDialog | None = None
         self._in_layout_transition: bool = False
+        self._is_quitting: bool = False
         self._was_compact: bool = self.config.compact_mode
         self._was_counters: bool = self.config.active_view == "counters"
 
@@ -306,10 +309,17 @@ class TrafficBox(QWidget):
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self.request_poll.emit)
 
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            app.aboutToQuit.connect(self._on_app_about_to_quit)
+            app.commitDataRequest.connect(self._on_commit_data_request)
+
         delay_ms = max(0, self.config.start_delay_sec * 1000)
         QTimer.singleShot(delay_ms, self._start_polling)
 
     def _start_polling(self) -> None:
+        if self._is_quitting:
+            return
         self.request_poll.emit()
         interval_ms = max(500, self.config.refresh_interval_sec * 1000)
         self._poll_timer.start(interval_ms)
@@ -1132,19 +1142,39 @@ class TrafficBox(QWidget):
         self.request_reload_credentials.emit()
         self.request_poll.emit()
 
+    def _stop_background_tasks(self, save_state: bool = True) -> None:
+        """Immediately halt polling timer and worker thread (safe to call multiple times)."""
+        if self._is_quitting:
+            return
+        self._is_quitting = True
+        self._save_pos_timer.stop()
+        self._poll_timer.stop()
+        self._worker.stop()
+
+        if save_state:
+            self.config.pos_x = self.x()
+            self.config.pos_y = self.y()
+            if not self.config.compact_mode:
+                self.config.widget_width = self.width()
+                self.config.widget_height = self.height()
+            self.config.save()
+            if sys.platform == "linux":
+                sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
+
+        if self._worker_thread.isRunning():
+            self._worker_thread.quit()
+            self._worker_thread.wait(1200)
+        self.tray_icon.hide()
+
+    def _on_commit_data_request(self, _manager: object) -> None:
+        """Stop background polling immediately when Windows/Linux session shuts down."""
+        self._stop_background_tasks(save_state=True)
+
+    def _on_app_about_to_quit(self) -> None:
+        """Ensure worker thread is stopped when QApplication exits."""
+        self._stop_background_tasks(save_state=True)
+
     def quit_application(self) -> None:
         """Cleanly stop worker thread, save position, and exit."""
-        self.config.pos_x = self.x()
-        self.config.pos_y = self.y()
-        if not self.config.compact_mode:
-            self.config.widget_width = self.width()
-            self.config.widget_height = self.height()
-        self.config.save()
-        if sys.platform == "linux":
-            sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
-
-        self._poll_timer.stop()
-        self._worker_thread.quit()
-        self._worker_thread.wait(1500)
-        self.tray_icon.hide()
+        self._stop_background_tasks(save_state=True)
         QApplication.quit()

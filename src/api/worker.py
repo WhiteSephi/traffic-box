@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from src.api.fritz_monitor import FritzGuestMonitorClient
 from src.api.local_traffic import LocalTrafficMonitor
 from src.api.models import OnlineCounterStats, TrafficSample
-from src.api.net_health import NetworkHealthMonitor
+from src.api.net_health import NetworkHealthMonitor, set_shutting_down
 from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
 
@@ -34,11 +34,17 @@ class PollingWorker(QObject):
         self._cached_counters = OnlineCounterStats()
         self._counter_tick: int = 0
         self._busy = False
+        self._stopped = False
+
+    def stop(self) -> None:
+        """Immediately mark worker as stopped to abort pending/future polls during OS shutdown."""
+        self._stopped = True
+        set_shutting_down(True)
 
     @Slot()
     def poll_once(self) -> None:
         """Execute a single network poll and emit the resulting TrafficSample."""
-        if self._busy:
+        if self._busy or self._stopped:
             return
         self._busy = True
         try:
@@ -47,6 +53,8 @@ class PollingWorker(QObject):
                 self.upnp.host, self.config.fritz_username, self.config.fritz_password
             )
             sample = self.upnp.fetch_sample()
+            if self._stopped:
+                return
 
             # Guard against foreign Fritz!Box login attempts (roaming / multi-box protection)
             is_foreign = False
@@ -66,6 +74,7 @@ class PollingWorker(QObject):
                 and self.config.enable_guest_monitor
                 and self.config.fritz_password
                 and not is_foreign
+                and not self._stopped
             ):
                 self.guest_client.update_credentials(
                     self.config.fritzbox_host,
@@ -78,7 +87,9 @@ class PollingWorker(QObject):
                     sample.guest_upload_bps = min(sample.upload_bps, g_up)
                     sample.guest_active = True
 
-                if self._counter_tick % 15 == 0 or not self._cached_counters.is_available:
+                if (
+                    self._counter_tick % 15 == 0 or not self._cached_counters.is_available
+                ) and not self._stopped:
                     fresh_counters = self.guest_client.fetch_online_counters()
                     if fresh_counters.is_available:
                         self._cached_counters = fresh_counters
@@ -90,6 +101,9 @@ class PollingWorker(QObject):
                 self._counter_tick = 0
                 self._cached_counters = OnlineCounterStats()
 
+            if self._stopped:
+                return
+
             # Execute network health diagnostics off the GUI thread
             self.net_health.set_endpoint(self.config.ping_endpoint)
             ping_val, jitter_val, dns_ip, dns_ms = self.net_health.tick(
@@ -100,6 +114,9 @@ class PollingWorker(QObject):
             sample.jitter_ms = jitter_val
             sample.active_dns_ip = dns_ip
             sample.dns_ms = dns_ms
+
+            if self._stopped:
+                return
 
             # Measure local device (PC) traffic if enabled
             if sample.is_connected and self.config.enable_local_traffic_monitor:
@@ -115,7 +132,8 @@ class PollingWorker(QObject):
                     sample.local_pc_download_bps = min(sample.download_bps, pc_down)
                     sample.local_pc_upload_bps = min(sample.upload_bps, pc_up)
 
-            self.sample_ready.emit(sample)
+            if not self._stopped:
+                self.sample_ready.emit(sample)
         finally:
             self._busy = False
 

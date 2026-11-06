@@ -30,9 +30,7 @@ class TestCompactMode(unittest.TestCase):
         self.widget = TrafficBox(self.config)
 
     def tearDown(self) -> None:
-        if hasattr(self.widget, "_worker_thread") and self.widget._worker_thread.isRunning():
-            self.widget._worker_thread.quit()
-            self.widget._worker_thread.wait(500)
+        self.widget._stop_background_tasks(save_state=False)
         self.widget.deleteLater()
 
     def test_compact_mode_height_calculation(self) -> None:

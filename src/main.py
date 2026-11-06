@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import signal
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -58,6 +59,17 @@ def main(argv: list[str] | None = None) -> int:
 
     widget = TrafficBox(config)
     widget.show()
+
+    def _handle_terminate_signal(_signum: int, _frame: object) -> None:
+        widget.quit_application()
+
+    for sig_name in ("SIGINT", "SIGTERM"):
+        sig = getattr(signal, sig_name, None)
+        if sig is not None:
+            try:
+                signal.signal(sig, _handle_terminate_signal)
+            except (OSError, ValueError):
+                pass
 
     if args.self_test:
         from PySide6.QtCore import QTimer

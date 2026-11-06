@@ -5,14 +5,96 @@ from __future__ import annotations
 import os
 import re
 import socket
+import struct
 import subprocess
 import sys
 import time
 from typing import Tuple
 
+_SHUTTING_DOWN: bool = False
+
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+
+    class _IP_OPTION_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("Ttl", ctypes.c_ubyte),
+            ("Tos", ctypes.c_ubyte),
+            ("Flags", ctypes.c_ubyte),
+            ("OptionsSize", ctypes.c_ubyte),
+            ("OptionsData", ctypes.c_void_p),
+        ]
+
+    class _ICMP_ECHO_REPLY(ctypes.Structure):
+        _fields_ = [
+            ("Address", wintypes.DWORD),
+            ("Status", wintypes.ULONG),
+            ("RoundTripTime", wintypes.ULONG),
+            ("DataSize", wintypes.USHORT),
+            ("Reserved", wintypes.USHORT),
+            ("Data", ctypes.c_void_p),
+            ("Options", _IP_OPTION_INFORMATION),
+        ]
+
+    class _IP_ADDR_STRING(ctypes.Structure):
+        pass
+
+    _IP_ADDR_STRING._fields_ = [
+        ("Next", ctypes.POINTER(_IP_ADDR_STRING)),
+        ("IpAddress", ctypes.c_char * 16),
+        ("IpMask", ctypes.c_char * 16),
+        ("Context", wintypes.DWORD),
+    ]
+
+    class _FIXED_INFO(ctypes.Structure):
+        _fields_ = [
+            ("HostName", ctypes.c_char * 132),
+            ("DomainName", ctypes.c_char * 132),
+            ("CurrentDnsServer", ctypes.POINTER(_IP_ADDR_STRING)),
+            ("DnsServerList", _IP_ADDR_STRING),
+            ("NodeType", wintypes.UINT),
+            ("ScopeId", ctypes.c_char * 260),
+            ("EnableRouting", wintypes.UINT),
+            ("EnableProxy", wintypes.UINT),
+            ("EnableDns", wintypes.UINT),
+        ]
+
+
+def set_shutting_down(shutting_down: bool = True) -> None:
+    """Signal that the OS session or application is shutting down."""
+    global _SHUTTING_DOWN
+    _SHUTTING_DOWN = shutting_down
+
+
+def _detect_windows_dns_iphlpapi() -> str:
+    """Fallback in-process DNS server detection on Windows via iphlpapi.GetNetworkParams."""
+    if sys.platform != "win32":
+        return ""
+    try:
+        iphlpapi = ctypes.windll.iphlpapi
+        size = wintypes.ULONG(ctypes.sizeof(_FIXED_INFO))
+        buf = ctypes.create_string_buffer(size.value)
+        ret = iphlpapi.GetNetworkParams(buf, ctypes.byref(size))
+        if ret == 111:  # ERROR_BUFFER_OVERFLOW
+            buf = ctypes.create_string_buffer(size.value)
+            ret = iphlpapi.GetNetworkParams(buf, ctypes.byref(size))
+        if ret == 0:
+            info = ctypes.cast(buf, ctypes.POINTER(_FIXED_INFO)).contents
+            dns_ip = info.DnsServerList.IpAddress.decode("ascii", errors="ignore").strip()
+            if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", dns_ip):
+                if not dns_ip.startswith("0.") and not dns_ip.startswith("127."):
+                    return dns_ip
+    except Exception:
+        pass
+    return ""
+
 
 def detect_active_os_dns() -> str:
     """Detect the primary active DNS server IP configured on the host OS."""
+    if _SHUTTING_DOWN:
+        return ""
+
     if sys.platform == "win32":
         try:
             import winreg
@@ -41,23 +123,8 @@ def detect_active_os_dns() -> str:
         except Exception:
             pass
 
-        # Fallback to ipconfig if registry query didn't return an IP
-        try:
-            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            res = subprocess.run(
-                ["ipconfig", "/all"],
-                capture_output=True,
-                text=True,
-                timeout=2.0,
-                creationflags=flags,
-            )
-            ips = re.findall(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", res.stdout)
-            # Find IP after "DNS-Server" or "DNS Servers"
-            match = re.search(r"DNS[^\r\n:]*:\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", res.stdout)
-            if match:
-                return match.group(1)
-        except Exception:
-            pass
+        # In-process fallback via Win32 iphlpapi.GetNetworkParams (avoids spawning ipconfig.exe)
+        return _detect_windows_dns_iphlpapi()
 
     else:
         # Linux / Unix: check systemd-resolved uplink resolv.conf first, then resolvectl, then /etc/resolv.conf
@@ -77,21 +144,22 @@ def detect_active_os_dns() -> str:
                 except Exception:
                     pass
 
-        # 2. Try resolvectl dns (for NetworkManager / systemd-resolved active link)
-        try:
-            res = subprocess.run(
-                ["resolvectl", "dns"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-            )
-            if res.returncode == 0:
-                for match in re.finditer(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", res.stdout):
-                    ip = match.group(0)
-                    if not ip.startswith("127.") and not ip.startswith("0."):
-                        return ip
-        except Exception:
-            pass
+        # 2. Try resolvectl dns (for NetworkManager / systemd-resolved active link) if not shutting down
+        if not _SHUTTING_DOWN:
+            try:
+                res = subprocess.run(
+                    ["resolvectl", "dns"],
+                    capture_output=True,
+                    text=True,
+                    timeout=1.0,
+                )
+                if res.returncode == 0:
+                    for match in re.finditer(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", res.stdout):
+                        ip = match.group(0)
+                        if not ip.startswith("127.") and not ip.startswith("0."):
+                            return ip
+            except Exception:
+                pass
 
         # 3. Fallback: if only loopback was found in /etc/resolv.conf, return it
         resolv_path = "/etc/resolv.conf"
@@ -112,7 +180,7 @@ def detect_active_os_dns() -> str:
 
 def measure_dns_latency(dns_server: str, domain: str = "cloudflare.com", timeout_sec: float = 0.8) -> float | None:
     """Measure round-trip time to DNS server via minimal RFC 1035 UDP query."""
-    if not dns_server:
+    if not dns_server or _SHUTTING_DOWN:
         return None
     try:
         # Build minimal standard DNS query for A record
@@ -141,42 +209,104 @@ def measure_dns_latency(dns_server: str, domain: str = "cloudflare.com", timeout
         return None
 
 
-def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
-    """Measure round-trip ping time to target host (ICMP or TCP fallback)."""
-    if not target_host:
+def parse_ping_output(out_text: str) -> float | None:
+    """Extract round-trip ping latency in milliseconds from CLI ping output."""
+    match = re.search(r"(?:Zeit|time)[=<]\s*(\d+(?:\.\d+)?)\s*ms", out_text, re.IGNORECASE)
+    if match:
+        return float(match.group(1))
+    return None
+
+
+def _measure_ping_windows_icmp(target_host: str, timeout_ms: int = 800) -> float | None:
+    """Measure ICMP Echo round-trip time in-process via Windows iphlpapi.dll (no ping.exe subprocess)."""
+    if sys.platform != "win32" or _SHUTTING_DOWN:
         return None
-
-    # First attempt: System ICMP ping command
     try:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        if sys.platform == "win32":
-            cmd = ["ping", "-n", "1", "-w", str(timeout_ms), target_host]
-        else:
-            timeout_sec = max(1, timeout_ms // 1000)
-            cmd = ["ping", "-c", "1", "-W", str(timeout_sec), target_host]
+        target_ip = socket.gethostbyname(target_host)
+        dest_addr = struct.unpack("<I", socket.inet_aton(target_ip))[0]
 
-        t0 = time.perf_counter()
-        res = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=max(1.5, timeout_ms / 1000.0 + 0.5),
-            creationflags=flags,
-        )
-        if res.returncode == 0:
-            encoding = "cp850" if sys.platform == "win32" else "utf-8"
-            out_text = res.stdout.decode(encoding, errors="replace")
-            # Parse time from stdout
-            # Windows: "Zeit=14ms", "Zeit<1ms", "time=14ms", "time<1ms"
-            # Linux: "time=14.2 ms"
-            match = re.search(r"(?:Zeit|time)[=<]\s*(\d+(?:\.\d+)?)\s*ms", out_text, re.IGNORECASE)
-            if match:
-                return float(match.group(1))
+        iphlpapi = ctypes.WinDLL("iphlpapi", use_last_error=True)
+        iphlpapi.IcmpCreateFile.argtypes = []
+        iphlpapi.IcmpCreateFile.restype = wintypes.HANDLE
+        iphlpapi.IcmpCloseHandle.argtypes = [wintypes.HANDLE]
+        iphlpapi.IcmpCloseHandle.restype = wintypes.BOOL
+        iphlpapi.IcmpSendEcho.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.WORD,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            wintypes.DWORD,
+        ]
+        iphlpapi.IcmpSendEcho.restype = wintypes.DWORD
+
+        handle = iphlpapi.IcmpCreateFile()
+        invalid_handle = ctypes.c_void_p(-1).value
+        if not handle or handle == invalid_handle:
+            return None
+
+        try:
+            payload = b"TrafficBoxPing16"
+            reply_size = ctypes.sizeof(_ICMP_ECHO_REPLY) + len(payload) + 16
+            reply_buf = ctypes.create_string_buffer(reply_size)
+
+            t0 = time.perf_counter()
+            res = iphlpapi.IcmpSendEcho(
+                wintypes.HANDLE(handle),
+                wintypes.DWORD(dest_addr),
+                payload,
+                len(payload),
+                None,
+                reply_buf,
+                reply_size,
+                max(100, int(timeout_ms)),
+            )
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
-            return round(elapsed_ms, 2)
+            if res > 0:
+                reply = ctypes.cast(reply_buf, ctypes.POINTER(_ICMP_ECHO_REPLY)).contents
+                if reply.Status == 0:  # IP_SUCCESS
+                    return max(0.1, round(elapsed_ms, 2))
+        finally:
+            iphlpapi.IcmpCloseHandle(wintypes.HANDLE(handle))
     except Exception:
         pass
+    return None
 
-    # Second attempt: TCP connect fallback on port 443 (HTTPS) or 53 (DNS)
+
+def _measure_ping_linux_icmp(target_host: str, timeout_ms: int = 800) -> float | None:
+    """Measure ICMP Echo round-trip time in-process via Linux unprivileged SOCK_DGRAM ICMP socket."""
+    if sys.platform == "win32" or _SHUTTING_DOWN:
+        return None
+    sock = None
+    try:
+        target_ip = socket.gethostbyname(target_host)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
+        sock.settimeout(max(0.2, timeout_ms / 1000.0))
+        # ICMP Echo Request: Type=8, Code=0, Checksum=0 (calculated by kernel), ID=0, Seq=1
+        packet = struct.pack("!BBHHH", 8, 0, 0, 0, 1) + b"TrafficBoxPing16"
+        t0 = time.perf_counter()
+        sock.sendto(packet, (target_ip, 0))
+        reply, _ = sock.recvfrom(1024)
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        if len(reply) >= 8 and reply[0] == 0:  # ICMP_ECHOREPLY (Type 0)
+            return max(0.1, round(elapsed_ms, 2))
+    except Exception:
+        pass
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+    return None
+
+
+def _measure_ping_tcp_fallback(target_host: str, timeout_ms: int = 800) -> float | None:
+    """Measure TCP handshake latency on port 443 (HTTPS) or 53 (DNS) as fallback."""
+    if _SHUTTING_DOWN:
+        return None
     for port in (443, 53):
         sock = None
         try:
@@ -194,8 +324,50 @@ def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
                     sock.close()
                 except OSError:
                     pass
-
     return None
+
+
+def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
+    """Measure round-trip ping time to target host (in-process ICMP or TCP fallback)."""
+    if not target_host or _SHUTTING_DOWN:
+        return None
+
+    if sys.platform == "win32":
+        # Windows: Native in-process Win32 IcmpSendEcho API (never spawns ping.exe, preventing 0xc0000142 on shutdown)
+        icmp_ms = _measure_ping_windows_icmp(target_host, timeout_ms=timeout_ms)
+        if icmp_ms is not None:
+            return icmp_ms
+        return _measure_ping_tcp_fallback(target_host, timeout_ms=timeout_ms)
+
+    # Linux / Unix:
+    # 1. Try unprivileged in-process ICMP datagram socket (no subprocess fork)
+    icmp_ms = _measure_ping_linux_icmp(target_host, timeout_ms=timeout_ms)
+    if icmp_ms is not None:
+        return icmp_ms
+
+    # 2. Fallback to system ping binary only if kernel restricts SOCK_DGRAM ICMP and not shutting down
+    if not _SHUTTING_DOWN:
+        try:
+            timeout_sec = max(1, timeout_ms // 1000)
+            cmd = ["ping", "-c", "1", "-W", str(timeout_sec), target_host]
+            t0 = time.perf_counter()
+            res = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=max(1.5, timeout_ms / 1000.0 + 0.5),
+            )
+            if res.returncode == 0:
+                out_text = res.stdout.decode("utf-8", errors="replace")
+                parsed = parse_ping_output(out_text)
+                if parsed is not None:
+                    return parsed
+                elapsed_ms = (time.perf_counter() - t0) * 1000.0
+                return round(elapsed_ms, 2)
+        except Exception:
+            pass
+
+    # 3. TCP connect fallback on port 443 (HTTPS) or 53 (DNS)
+    return _measure_ping_tcp_fallback(target_host, timeout_ms=timeout_ms)
 
 
 class NetworkHealthMonitor:

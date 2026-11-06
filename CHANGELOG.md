@@ -4,6 +4,14 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.12.2] - 2026-11-06
+### Fixed
+- **Kein `PING.EXE - Application Error (0xc0000142)` mehr beim Herunterfahren von Windows:**
+  - **Native In-Process-ICMP-Messung unter Windows (`iphlpapi.dll`):** Statt für jede Ping-Messung sekündlich einen externen `ping.exe`-Kindprozess über `subprocess.run()` zu starten (dessen DLL-Initialisierung während des Windows-Shutdowns mit `STATUS_DLL_INIT_FAILED` / `0xc0000142` fehlschlägt), nutzt `measure_ping()` unter Windows nun direkt die native Win32-API `IcmpCreateFile` / `IcmpSendEcho` / `IcmpCloseHandle` aus `iphlpapi.dll` (ohne Admin-Rechte, komplett im selben Prozess und mit Sub-Millisekunden-Präzision).
+  - **In-Process-DNS-Fallback unter Windows:** Der Fallback auf `ipconfig /all` in `detect_active_os_dns()` wurde durch die native Win32-Funktion `GetNetworkParams` (`iphlpapi.dll`) ersetzt, sodass unter Windows keinerlei Konsolen-Subprozesse mehr erzeugt werden.
+  - **Unprivilegierte In-Process-ICMP-Sockets unter Linux:** Unter Linux nutzt `measure_ping()` primär unprivilegierte Kernel-Datagram-ICMP-Sockets (`SOCK_DGRAM` / `IPPROTO_ICMP`), wodurch auch unter Linux (z. B. CachyOS/Arch) das sekündliche Forken von `/usr/bin/ping` entfällt.
+  - **Sauberer OS-Session-Shutdown-Handler (`commitDataRequest`, `aboutToQuit` & `SIGTERM`):** Das Widget fängt das Abmelde-/Shutdown-Signal des Betriebssystems (`QApplication.commitDataRequest` bzw. `WM_QUERYENDSESSION`, `aboutToQuit` sowie `SIGINT`/`SIGTERM`) ab, setzt sofort das Stop-Flag im `PollingWorker` und beendet Timer sowie Hintergrund-Thread kontrolliert.
+
 ## [0.12.1] - 2026-11-05
 ### Fixed
 - **Defensive Konfigurations-Validierung & Range-Clamping:**
