@@ -746,11 +746,11 @@ class SettingsDialog(QDialog):
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
     def _build_about_tab(self) -> QWidget:
-        """Build the 'Über' (About) tab with version, runtime info, privacy and legal notes."""
+        """Build a sleek, compact 'Über' tab that fits without any scrollbar."""
         tab_about = QWidget()
         about_layout = QVBoxLayout(tab_about)
-        about_layout.setContentsMargins(8, 8, 8, 8)
-        about_layout.setSpacing(8)
+        about_layout.setContentsMargins(10, 10, 10, 10)
+        about_layout.setSpacing(10)
 
         # 1. Hero / App Identity Group
         hero_group = QGroupBox("Über TrafficBox")
@@ -762,33 +762,31 @@ class SettingsDialog(QDialog):
         top_row.setSpacing(12)
 
         lbl_app_icon = QLabel()
-        lbl_app_icon.setPixmap(create_router_icon(True).pixmap(QSize(44, 44)))
-        lbl_app_icon.setFixedSize(48, 48)
+        lbl_app_icon.setPixmap(create_router_icon(True).pixmap(QSize(36, 36)))
+        lbl_app_icon.setFixedSize(38, 38)
         lbl_app_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         top_row.addWidget(lbl_app_icon)
 
         title_col = QVBoxLayout()
-        title_col.setSpacing(2)
+        title_col.setSpacing(3)
 
         name_badge_row = QHBoxLayout()
         name_badge_row.setSpacing(8)
         lbl_app_name = QLabel("TrafficBox")
-        lbl_app_name.setStyleSheet("font-size: 13pt; font-weight: bold;")
+        lbl_app_name.setStyleSheet("font-size: 12pt; font-weight: bold;")
         self.lbl_about_version = QLabel(f"v{__version__}")
         self.lbl_about_version.setStyleSheet(
             "color: #00E5FF; background-color: rgba(0, 229, 255, 0.12); "
-            "border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 8px; "
-            "padding: 1px 8px; font-weight: bold; font-size: 8.5pt;"
+            "border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 6px; "
+            "padding: 1px 7px; font-weight: bold; font-size: 8.5pt;"
         )
         name_badge_row.addWidget(lbl_app_name)
         name_badge_row.addWidget(self.lbl_about_version)
         name_badge_row.addStretch(1)
 
         lbl_tagline = QLabel(
-            "Schlankes, plattformübergreifendes Echtzeit-Desktop-Widget zur Überwachung von "
-            "Router-Bandbreite (UPnP / FRITZ!Box), Gäste-WLAN, PC-Traffic, Ping, Jitter & DNS."
+            "Schlankes Live-Desktop-Widget für Router-Traffic (UPnP), PC-Anteil, Ping, Jitter & DNS."
         )
-        lbl_tagline.setWordWrap(True)
         lbl_tagline.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
         title_col.addLayout(name_badge_row)
@@ -800,14 +798,14 @@ class SettingsDialog(QDialog):
         links_row = QHBoxLayout()
         links_row.setSpacing(6)
 
-        self.btn_about_github = QPushButton("🌐 GitHub Projekt")
+        self.btn_about_github = QPushButton("🌐 GitHub")
         self.btn_about_github.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_about_github.setToolTip(self.GITHUB_REPO_URL)
         self.btn_about_github.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(self.GITHUB_REPO_URL))
         )
 
-        self.btn_about_releases = QPushButton("🚀 Releases && Updates")
+        self.btn_about_releases = QPushButton("🚀 Releases")
         self.btn_about_releases.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_about_releases.setToolTip(self.GITHUB_RELEASES_URL)
         self.btn_about_releases.clicked.connect(
@@ -823,15 +821,15 @@ class SettingsDialog(QDialog):
 
         self.btn_about_config_dir = QPushButton("📂 Konfig-Ordner")
         self.btn_about_config_dir.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_about_config_dir.setToolTip("Öffnet das aktive Konfigurationsverzeichnis im Dateimanager")
+        self.btn_about_config_dir.setToolTip("Öffnet den Konfigurationsordner im Dateimanager")
         self.btn_about_config_dir.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_config_dir())))
         )
 
-        self.btn_copy_sysinfo = QPushButton("📋 System-Info kopieren")
+        self.btn_copy_sysinfo = QPushButton("📋 Info kopieren")
         self.btn_copy_sysinfo.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_copy_sysinfo.setToolTip(
-            "Kopiert anonymisierte Versions- und Systemdaten (für Fehlerberichte) in die Zwischenablage"
+            "Kopiert anonymisierte Diagnose-Infos in die Zwischenablage"
         )
         self.btn_copy_sysinfo.clicked.connect(self._copy_system_info)
 
@@ -840,81 +838,44 @@ class SettingsDialog(QDialog):
         links_row.addWidget(self.btn_about_issues)
         links_row.addWidget(self.btn_about_config_dir)
         links_row.addWidget(self.btn_copy_sysinfo)
-        links_row.addStretch(1)
         hero_vlayout.addLayout(links_row)
         about_layout.addWidget(hero_group)
 
-        # 2. System & Runtime Info Group
-        sysinfo_group = QGroupBox("System- && Laufzeit-Informationen")
-        sysinfo_form = QFormLayout(sysinfo_group)
-        sysinfo_form.setContentsMargins(12, 8, 12, 8)
-        sysinfo_form.setVerticalSpacing(4)
+        # 2. Compact System & Legal Info Group
+        info_group = QGroupBox("System-Diagnose && Rechtliches")
+        info_form = QFormLayout(info_group)
+        info_form.setContentsMargins(12, 8, 12, 8)
+        info_form.setVerticalSpacing(5)
 
         is_frozen = getattr(sys, "frozen", False)
-        build_mode = "Standalone-Binary (PyInstaller)" if is_frozen else "Python-Quellcode"
-        os_str = f"{platform.system()} {platform.release()} ({platform.machine()})"
-        runtime_str = f"Python {platform.python_version()} • PySide6 / Qt {qVersion()}"
-
+        build_mode = "Binary" if is_frozen else "Source"
         cfg_dir = get_config_dir()
         is_portable = cfg_dir.name.lower() == "local"
-        storage_mode = (
-            "Portabler Modus (local/config.json)"
-            if is_portable
-            else "Standard-Systemprofil (Benutzer-Konfigurationsordner)"
-        )
+        storage_mode = "Portabel (local/)" if is_portable else "Systemprofil"
 
-        lbl_ver_val = QLabel(f"{__version__} ({build_mode})")
-        lbl_os_val = QLabel(os_str)
-        lbl_rt_val = QLabel(runtime_str)
+        lbl_sys_val = QLabel(
+            f"{platform.system()} {platform.release()} ({platform.machine()}) • "
+            f"Python {platform.python_version()} • Qt {qVersion()} • {build_mode}"
+        )
+        lbl_sys_val.setStyleSheet("font-size: 8.5pt;")
+
         lbl_cfg_val = QLabel(storage_mode)
-        lbl_cfg_val.setToolTip(f"Aktiver Pfad: {cfg_dir}")
+        lbl_cfg_val.setToolTip(f"Pfad: {cfg_dir}")
+        lbl_cfg_val.setStyleSheet("font-size: 8.5pt;")
 
-        sysinfo_form.addRow("App-Version:", lbl_ver_val)
-        sysinfo_form.addRow("Betriebssystem:", lbl_os_val)
-        sysinfo_form.addRow("Laufzeitumgebung:", lbl_rt_val)
-        sysinfo_form.addRow("Konfigurationsmodus:", lbl_cfg_val)
-        about_layout.addWidget(sysinfo_group)
-
-        # 3. Privacy & Security Group
-        privacy_group = QGroupBox("Datenschutz && Sicherheit (Privacy by Design)")
-        privacy_layout = QVBoxLayout(privacy_group)
-        privacy_layout.setContentsMargins(12, 8, 12, 8)
-        privacy_layout.setSpacing(4)
-
-        lbl_privacy = QLabel(
-            "• <b>100 % Lokal & Ohne Telemetrie:</b> TrafficBox enthält keinerlei Tracking, "
-            "Werbung oder Cloud-Anbindung. Alle Abfragen erfolgen lokal im Heimnetzwerk "
-            "(UPnP Port 49000 / TR-064) sowie zum gewählten Ping-/DNS-Ziel.<br>"
-            "• <b>Verschlüsselung & Router-Bindung:</b> Optionale FRITZ!OS-Zugangsdaten werden "
-            "lokal verschlüsselt (Windows DPAPI / PBKDF2-HMAC-SHA256) abgelegt und durch die "
-            "Hardware-Bindung (UDN) niemals an fremde Router gesendet."
+        lbl_notes = QLabel(
+            "Open Source (MIT) • 100 % lokal ohne Telemetrie • "
+            "<span style='color: #8E9297;'>Kein AVM-Produkt.</span>"
         )
-        lbl_privacy.setWordWrap(True)
-        lbl_privacy.setStyleSheet("font-size: 8.5pt;")
-        privacy_layout.addWidget(lbl_privacy)
-        about_layout.addWidget(privacy_group)
+        lbl_notes.setStyleSheet("font-size: 8.5pt;")
 
-        # 4. License, Credits & Trademark Disclaimer Group
-        legal_group = QGroupBox("Lizenz, Open Source && Markenrechtlicher Hinweis")
-        legal_layout = QVBoxLayout(legal_group)
-        legal_layout.setContentsMargins(12, 8, 12, 8)
-        legal_layout.setSpacing(4)
+        info_form.addRow("Laufzeit:", lbl_sys_val)
+        info_form.addRow("Speicherort:", lbl_cfg_val)
+        info_form.addRow("Hinweise:", lbl_notes)
+        about_layout.addWidget(info_group)
 
-        lbl_legal = QLabel(
-            "<b>Entwicklung:</b> © 2026 WhiteSephi & Contributors • "
-            "<b>Lizenz:</b> Open-Source-Software (MIT License)<br>"
-            "<b>Komponenten:</b> Python Standard Library (PSF License) • "
-            "PySide6 / Qt6 (LGPLv3 – The Qt Company)<br>"
-            "<span style='color: #8E9297;'>"
-            "<b>Hinweis:</b> FRITZ!, FRITZ!Box und FRITZ!OS sind eingetragene Marken der "
-            "AVM Computersysteme Vertriebs GmbH. Dieses Projekt steht in keiner wirtschaftlichen "
-            "oder organisatorischen Verbindung zur AVM GmbH."
-            "</span>"
-        )
-        lbl_legal.setWordWrap(True)
-        lbl_legal.setStyleSheet("font-size: 8.2pt;")
-        legal_layout.addWidget(lbl_legal)
-        about_layout.addWidget(legal_group)
+        about_layout.addStretch(1)
+        return tab_about
 
         about_layout.addStretch(1)
         return tab_about
