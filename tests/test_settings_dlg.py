@@ -11,6 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from src import __version__
 from src.config import AppConfig
 from src.ui.settings_dlg import ColorButton, ModernColorPickerPopup, SettingsDialog, THEMES
 
@@ -109,6 +110,29 @@ class TestSettingsDialog(unittest.TestCase):
             dlg.slider_opacity.setValue(30)
             dlg._reset_single_tab(1)
             self.assertEqual(dlg.slider_opacity.value(), defaults.opacity)
+        finally:
+            dlg.deleteLater()
+
+    def test_about_tab_and_system_info(self) -> None:
+        """Verify 'Über' tab displays version, disables reset button, and copies diagnostics."""
+        dlg = SettingsDialog(self.config, self._on_apply, initial_tab=5)
+        try:
+            self.assertEqual(dlg.tabs.count(), 6)
+            self.assertEqual(dlg.tabs.tabText(5), "Über")
+            self.assertEqual(dlg.tabs.currentIndex(), 5)
+            self.assertFalse(dlg.btn_reset.isEnabled())
+            self.assertEqual(dlg.lbl_about_version.text(), f"v{__version__}")
+
+            summary = dlg._get_system_info_summary()
+            self.assertIn(f"TrafficBox v{__version__}", summary)
+            self.assertIn("Python", summary)
+
+            dlg._copy_system_info()
+            self.assertEqual(dlg.btn_copy_sysinfo.text(), "✓ Kopiert!")
+
+            # Switching back to tab 0 re-enables the reset button
+            dlg.tabs.setCurrentIndex(0)
+            self.assertTrue(dlg.btn_reset.isEnabled())
         finally:
             dlg.deleteLater()
 

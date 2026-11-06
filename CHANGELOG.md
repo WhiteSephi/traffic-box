@@ -4,6 +4,14 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.13.0] - 2026-11-06
+### Added
+- **„Über“-Seite im Einstellungs-Dialog & Kontextmenü (`Über TrafficBox...`):**
+  - **Neuer Reiter „Über“:** Übersichtlich als 6. Tab im Einstellungs-Dialog integriert sowie direkt per Rechtsklick- und System-Tray-Menü über den Eintrag `Über TrafficBox...` erreichbar.
+  - **App-Identität & Schnellzugriff:** Zeigt App-Icon, aktuelle Versionsnummer (`v0.13.0`), Kurzbeschreibung sowie Schnellzugriffs-Buttons für das GitHub-Repository, Releases/Updates, Fehlerberichte (Issues) und das lokale Konfigurationsverzeichnis (`📂 Konfig-Ordner`).
+  - **System- & Laufzeit-Diagnose (Privacy-Safe):** Zeigt App-Version, Build-Modus (Standalone-Binary vs. Python-Quellcode), Betriebssystem, Python-/Qt6-Version und Speichermodus (ohne private Benutzerpfade im Klartext auf Screenshots preiszugeben). Inklusive 1-Klick-Button `📋 System-Info kopieren` für anonymisierte Bug-Reports.
+  - **Datenschutz-, Lizenz- & Markenhinweise:** Transparente Übersicht zu *Privacy by Design* (100 % lokal, keine Telemetrie, DPAPI/PBKDF2-Verschlüsselung & UDN-Router-Bindung), Open-Source-Lizenzen (MIT, PSF, LGPLv3) sowie markenrechtlichem AVM/FRITZ!-Disclaimer.
+
 ## [0.12.2] - 2026-11-06
 ### Fixed
 - **Kein `PING.EXE - Application Error (0xc0000142)` mehr beim Herunterfahren von Windows:**

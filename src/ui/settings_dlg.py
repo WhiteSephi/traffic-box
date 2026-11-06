@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import platform
+import sys
 from typing import Callable
 import urllib.request
 
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, QUrl, qVersion
+from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -31,10 +33,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src import __version__
 from src.api.fritz_monitor import FritzGuestMonitorClient
 from src.api.upnp_client import FritzUpnpClient
 from src.autostart import is_autostart_enabled, set_autostart
-from src.config import AppConfig
+from src.config import AppConfig, get_config_dir
+from src.ui.tray import create_router_icon
 
 
 def make_swatch_icon(hex_color: str, size: int = 16) -> QIcon:
@@ -339,11 +343,16 @@ THEMES: dict[str, dict[str, str]] = {
 class SettingsDialog(QDialog):
     """Comprehensive settings window for TrafficBox with modern tabs."""
 
+    GITHUB_REPO_URL = "https://github.com/WhiteSephi/traffic-box"
+    GITHUB_RELEASES_URL = "https://github.com/WhiteSephi/traffic-box/releases"
+    GITHUB_ISSUES_URL = "https://github.com/WhiteSephi/traffic-box/issues"
+
     def __init__(
         self,
         config: AppConfig,
         on_apply: Callable[[], None],
         parent: QWidget | None = None,
+        initial_tab: int = 0,
     ) -> None:
         super().__init__(parent)
         self.config = config
@@ -354,6 +363,8 @@ class SettingsDialog(QDialog):
         self.resize(680, 540)
         self._build_ui()
         self._load_from_config()
+        if 0 <= initial_tab < self.tabs.count():
+            self.tabs.setCurrentIndex(initial_tab)
 
     def _build_ui(self) -> None:
         root_layout = QVBoxLayout(self)
@@ -709,22 +720,234 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self._wrap_in_scroll(tab_colors), "Farben")
 
         # =========================================================================
+        # TAB 6: Über (App-Info, Systemdiagnose, Datenschutz & Lizenz)
+        # =========================================================================
+        tab_about = self._build_about_tab()
+        self.tabs.addTab(self._wrap_in_scroll(tab_about), "Über")
+
+        # =========================================================================
         # Untere Aktions-Buttons
         # =========================================================================
         btn_row = QHBoxLayout()
-        btn_reset = QPushButton("Reset (Standardwerte)")
-        btn_reset.clicked.connect(self._reset_defaults)
-        btn_apply = QPushButton("Übernehmen")
-        btn_apply.clicked.connect(self._apply_changes)
-        btn_ok = QPushButton("Speichern && Schließen")
-        btn_ok.setDefault(True)
-        btn_ok.clicked.connect(self._save_and_close)
+        self.btn_reset = QPushButton("Reset (Standardwerte)")
+        self.btn_reset.clicked.connect(self._reset_defaults)
+        self.btn_apply = QPushButton("Übernehmen")
+        self.btn_apply.clicked.connect(self._apply_changes)
+        self.btn_ok = QPushButton("Speichern && Schließen")
+        self.btn_ok.setDefault(True)
+        self.btn_ok.clicked.connect(self._save_and_close)
 
-        btn_row.addWidget(btn_reset)
+        btn_row.addWidget(self.btn_reset)
         btn_row.addStretch(1)
-        btn_row.addWidget(btn_apply)
-        btn_row.addWidget(btn_ok)
+        btn_row.addWidget(self.btn_apply)
+        btn_row.addWidget(self.btn_ok)
         root_layout.addLayout(btn_row)
+
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _build_about_tab(self) -> QWidget:
+        """Build the 'Über' (About) tab with version, runtime info, privacy and legal notes."""
+        tab_about = QWidget()
+        about_layout = QVBoxLayout(tab_about)
+        about_layout.setContentsMargins(8, 8, 8, 8)
+        about_layout.setSpacing(8)
+
+        # 1. Hero / App Identity Group
+        hero_group = QGroupBox("Über TrafficBox")
+        hero_vlayout = QVBoxLayout(hero_group)
+        hero_vlayout.setContentsMargins(12, 10, 12, 10)
+        hero_vlayout.setSpacing(8)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(12)
+
+        lbl_app_icon = QLabel()
+        lbl_app_icon.setPixmap(create_router_icon(True).pixmap(QSize(44, 44)))
+        lbl_app_icon.setFixedSize(48, 48)
+        lbl_app_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        top_row.addWidget(lbl_app_icon)
+
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+
+        name_badge_row = QHBoxLayout()
+        name_badge_row.setSpacing(8)
+        lbl_app_name = QLabel("TrafficBox")
+        lbl_app_name.setStyleSheet("font-size: 13pt; font-weight: bold;")
+        self.lbl_about_version = QLabel(f"v{__version__}")
+        self.lbl_about_version.setStyleSheet(
+            "color: #00E5FF; background-color: rgba(0, 229, 255, 0.12); "
+            "border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 8px; "
+            "padding: 1px 8px; font-weight: bold; font-size: 8.5pt;"
+        )
+        name_badge_row.addWidget(lbl_app_name)
+        name_badge_row.addWidget(self.lbl_about_version)
+        name_badge_row.addStretch(1)
+
+        lbl_tagline = QLabel(
+            "Schlankes, plattformübergreifendes Echtzeit-Desktop-Widget zur Überwachung von "
+            "Router-Bandbreite (UPnP / FRITZ!Box), Gäste-WLAN, PC-Traffic, Ping, Jitter & DNS."
+        )
+        lbl_tagline.setWordWrap(True)
+        lbl_tagline.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
+
+        title_col.addLayout(name_badge_row)
+        title_col.addWidget(lbl_tagline)
+        top_row.addLayout(title_col, 1)
+        hero_vlayout.addLayout(top_row)
+
+        # Quick Action Buttons
+        links_row = QHBoxLayout()
+        links_row.setSpacing(6)
+
+        self.btn_about_github = QPushButton("🌐 GitHub Projekt")
+        self.btn_about_github.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_about_github.setToolTip(self.GITHUB_REPO_URL)
+        self.btn_about_github.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(self.GITHUB_REPO_URL))
+        )
+
+        self.btn_about_releases = QPushButton("🚀 Releases && Updates")
+        self.btn_about_releases.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_about_releases.setToolTip(self.GITHUB_RELEASES_URL)
+        self.btn_about_releases.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(self.GITHUB_RELEASES_URL))
+        )
+
+        self.btn_about_issues = QPushButton("🐛 Fehler melden")
+        self.btn_about_issues.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_about_issues.setToolTip(self.GITHUB_ISSUES_URL)
+        self.btn_about_issues.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(self.GITHUB_ISSUES_URL))
+        )
+
+        self.btn_about_config_dir = QPushButton("📂 Konfig-Ordner")
+        self.btn_about_config_dir.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_about_config_dir.setToolTip("Öffnet das aktive Konfigurationsverzeichnis im Dateimanager")
+        self.btn_about_config_dir.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_config_dir())))
+        )
+
+        self.btn_copy_sysinfo = QPushButton("📋 System-Info kopieren")
+        self.btn_copy_sysinfo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_copy_sysinfo.setToolTip(
+            "Kopiert anonymisierte Versions- und Systemdaten (für Fehlerberichte) in die Zwischenablage"
+        )
+        self.btn_copy_sysinfo.clicked.connect(self._copy_system_info)
+
+        links_row.addWidget(self.btn_about_github)
+        links_row.addWidget(self.btn_about_releases)
+        links_row.addWidget(self.btn_about_issues)
+        links_row.addWidget(self.btn_about_config_dir)
+        links_row.addWidget(self.btn_copy_sysinfo)
+        links_row.addStretch(1)
+        hero_vlayout.addLayout(links_row)
+        about_layout.addWidget(hero_group)
+
+        # 2. System & Runtime Info Group
+        sysinfo_group = QGroupBox("System- && Laufzeit-Informationen")
+        sysinfo_form = QFormLayout(sysinfo_group)
+        sysinfo_form.setContentsMargins(12, 8, 12, 8)
+        sysinfo_form.setVerticalSpacing(4)
+
+        is_frozen = getattr(sys, "frozen", False)
+        build_mode = "Standalone-Binary (PyInstaller)" if is_frozen else "Python-Quellcode"
+        os_str = f"{platform.system()} {platform.release()} ({platform.machine()})"
+        runtime_str = f"Python {platform.python_version()} • PySide6 / Qt {qVersion()}"
+
+        cfg_dir = get_config_dir()
+        is_portable = cfg_dir.name.lower() == "local"
+        storage_mode = (
+            "Portabler Modus (local/config.json)"
+            if is_portable
+            else "Standard-Systemprofil (Benutzer-Konfigurationsordner)"
+        )
+
+        lbl_ver_val = QLabel(f"{__version__} ({build_mode})")
+        lbl_os_val = QLabel(os_str)
+        lbl_rt_val = QLabel(runtime_str)
+        lbl_cfg_val = QLabel(storage_mode)
+        lbl_cfg_val.setToolTip(f"Aktiver Pfad: {cfg_dir}")
+
+        sysinfo_form.addRow("App-Version:", lbl_ver_val)
+        sysinfo_form.addRow("Betriebssystem:", lbl_os_val)
+        sysinfo_form.addRow("Laufzeitumgebung:", lbl_rt_val)
+        sysinfo_form.addRow("Konfigurationsmodus:", lbl_cfg_val)
+        about_layout.addWidget(sysinfo_group)
+
+        # 3. Privacy & Security Group
+        privacy_group = QGroupBox("Datenschutz && Sicherheit (Privacy by Design)")
+        privacy_layout = QVBoxLayout(privacy_group)
+        privacy_layout.setContentsMargins(12, 8, 12, 8)
+        privacy_layout.setSpacing(4)
+
+        lbl_privacy = QLabel(
+            "• <b>100 % Lokal & Ohne Telemetrie:</b> TrafficBox enthält keinerlei Tracking, "
+            "Werbung oder Cloud-Anbindung. Alle Abfragen erfolgen lokal im Heimnetzwerk "
+            "(UPnP Port 49000 / TR-064) sowie zum gewählten Ping-/DNS-Ziel.<br>"
+            "• <b>Verschlüsselung & Router-Bindung:</b> Optionale FRITZ!OS-Zugangsdaten werden "
+            "lokal verschlüsselt (Windows DPAPI / PBKDF2-HMAC-SHA256) abgelegt und durch die "
+            "Hardware-Bindung (UDN) niemals an fremde Router gesendet."
+        )
+        lbl_privacy.setWordWrap(True)
+        lbl_privacy.setStyleSheet("font-size: 8.5pt;")
+        privacy_layout.addWidget(lbl_privacy)
+        about_layout.addWidget(privacy_group)
+
+        # 4. License, Credits & Trademark Disclaimer Group
+        legal_group = QGroupBox("Lizenz, Open Source && Markenrechtlicher Hinweis")
+        legal_layout = QVBoxLayout(legal_group)
+        legal_layout.setContentsMargins(12, 8, 12, 8)
+        legal_layout.setSpacing(4)
+
+        lbl_legal = QLabel(
+            "<b>Entwicklung:</b> © 2026 WhiteSephi & Contributors • "
+            "<b>Lizenz:</b> Open-Source-Software (MIT License)<br>"
+            "<b>Komponenten:</b> Python Standard Library (PSF License) • "
+            "PySide6 / Qt6 (LGPLv3 – The Qt Company)<br>"
+            "<span style='color: #8E9297;'>"
+            "<b>Hinweis:</b> FRITZ!, FRITZ!Box und FRITZ!OS sind eingetragene Marken der "
+            "AVM Computersysteme Vertriebs GmbH. Dieses Projekt steht in keiner wirtschaftlichen "
+            "oder organisatorischen Verbindung zur AVM GmbH."
+            "</span>"
+        )
+        lbl_legal.setWordWrap(True)
+        lbl_legal.setStyleSheet("font-size: 8.2pt;")
+        legal_layout.addWidget(lbl_legal)
+        about_layout.addWidget(legal_group)
+
+        about_layout.addStretch(1)
+        return tab_about
+
+    def _get_system_info_summary(self) -> str:
+        """Return an anonymized diagnostic summary suitable for bug reports."""
+        is_frozen = getattr(sys, "frozen", False)
+        build_mode = "Standalone-Binary" if is_frozen else "Python-Script"
+        cfg_dir = get_config_dir()
+        is_portable = cfg_dir.name.lower() == "local"
+        return (
+            f"TrafficBox v{__version__} ({build_mode})\n"
+            f"OS: {platform.system()} {platform.release()} ({platform.machine()})\n"
+            f"Runtime: Python {platform.python_version()} | Qt {qVersion()}\n"
+            f"Config Mode: {'Portable (local/)' if is_portable else 'System Profile'}\n"
+            f"Scale Mode: {self.config.scale_mode} | Compact: {self.config.compact_mode} | "
+            f"GraphOnly: {self.config.graph_only_mode}"
+        )
+
+    def _copy_system_info(self) -> None:
+        """Copy diagnostic system info to clipboard and show temporary confirmation."""
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(self._get_system_info_summary())
+        self.btn_copy_sysinfo.setText("✓ Kopiert!")
+        QTimer.singleShot(
+            1800,
+            lambda: self.btn_copy_sysinfo.setText("📋 System-Info kopieren"),
+        )
+
+    def _on_tab_changed(self, index: int) -> None:
+        """Disable tab-reset button when viewing the read-only 'Über' tab."""
+        self.btn_reset.setEnabled(index != 5)
 
     def _apply_selected_theme(self) -> None:
         """Apply a selected color theme preset across all color buttons."""

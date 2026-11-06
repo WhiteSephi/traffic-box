@@ -1060,6 +1060,10 @@ class TrafficBox(QWidget):
 
         menu.addSeparator()
 
+        act_about = QAction("Über TrafficBox...", self)
+        act_about.triggered.connect(lambda: self.open_settings_dialog(5))
+        menu.addAction(act_about)
+
         act_quit = QAction("Beenden", self)
         act_quit.triggered.connect(self.quit_application)
         menu.addAction(act_quit)
@@ -1123,9 +1127,16 @@ class TrafficBox(QWidget):
         ):
             self._toggle_visibility()
 
-    def open_settings_dialog(self) -> None:
-        """Open or focus the Settings dialog."""
+    def open_settings_dialog(self, initial_tab: int = 0) -> None:
+        """Open or focus the Settings dialog, optionally switching to a specific tab."""
+        tab_idx = (
+            initial_tab
+            if isinstance(initial_tab, int) and not isinstance(initial_tab, bool)
+            else 0
+        )
         if self._settings_dlg is not None and self._settings_dlg.isVisible():
+            if 0 <= tab_idx < self._settings_dlg.tabs.count():
+                self._settings_dlg.tabs.setCurrentIndex(tab_idx)
             self._settings_dlg.raise_()
             self._settings_dlg.activateWindow()
             return
@@ -1134,6 +1145,7 @@ class TrafficBox(QWidget):
             self.config,
             on_apply=self._on_settings_applied,
             parent=None,
+            initial_tab=tab_idx,
         )
         self._settings_dlg.show()
 
