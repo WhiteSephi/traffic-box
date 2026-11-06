@@ -857,7 +857,7 @@ class SettingsDialog(QDialog):
 
         lbl_notes = QLabel(
             "Open Source (MIT) • 100 % lokal ohne Telemetrie • "
-            "<span style='color: #8E9297;'>Kein AVM-Produkt.</span>"
+            "<span style='color: #8E9297;'>Kein Produkt der FRITZ! GmbH (ehem. AVM).</span>"
         )
         lbl_notes.setStyleSheet("font-size: 8.5pt;")
 
