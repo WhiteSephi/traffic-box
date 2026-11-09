@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.13.4] - 2026-11-09
+### Fixed
+- **Ausblenden aus der Taskleiste unter XCB / XWayland:**
+  - **Automatisches Setzen des EWMH-Atoms `_NET_WM_STATE_SKIP_TASKBAR`:** Unter X11/XWayland setzt Qt bei `Tool`-Fenstern zwar den Window-Type `UTILITY`, jedoch nicht zwingend das EWMH-Zustandsatom `_NET_WM_STATE_SKIP_TASKBAR`. In `showEvent()` wendet TrafficBox nun via `xprop` direkt `_NET_WM_STATE_SKIP_TASKBAR` und `_NET_WM_STATE_SKIP_PAGER` auf die native X11-Window-ID an.
+  - **Regex-Match in KWin-Fensterregel (`.*[Tt]raffic[Bb]ox.*`):** Unter X11 lautet der Window-Class-String `"TrafficBox"` (Großschreibung), während er unter Wayland klein war (`"trafficbox"`). In `sync_kwin_position_rule()` wurde der Abgleich auf reguläre Ausdrücke (`wmclassmatch=3`) mit `.*[Tt]raffic[Bb]ox.*` umgestellt, sodass KWin das Fenster sowohl unter Wayland als auch unter XWayland/X11 zwingend aus der Taskleiste (`skiptaskbar=true`, `skiptaskbarrule=2`) verbannt.
+
 ## [0.13.3] - 2026-11-09
 ### Fixed
 - **Verlässliche Positionserkennung & dauerhafte Desktop-Speicherung unter Linux:**

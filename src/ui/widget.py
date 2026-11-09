@@ -26,6 +26,7 @@ from PySide6.QtGui import (
     QMoveEvent,
     QPainter,
     QPen,
+    QShowEvent,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -972,6 +973,41 @@ class TrafficBox(QWidget):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._apply_x11_skip_taskbar()
+
+    def _apply_x11_skip_taskbar(self) -> None:
+        """Ensure _NET_WM_STATE_SKIP_TASKBAR is set on X11 / XWayland surfaces to hide from taskbars."""
+        if sys.platform.startswith("linux"):
+            wid = self.winId()
+            if wid:
+                import shutil
+                import subprocess
+
+                xprop_bin = shutil.which("xprop")
+                if xprop_bin:
+                    try:
+                        subprocess.run(
+                            [
+                                xprop_bin,
+                                "-id",
+                                str(int(wid)),
+                                "-f",
+                                "_NET_WM_STATE",
+                                "32a",
+                                "-set",
+                                "_NET_WM_STATE",
+                                "_NET_WM_STATE_SKIP_TASKBAR, _NET_WM_STATE_SKIP_PAGER",
+                            ],
+                            check=False,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            timeout=0.5,
+                        )
+                    except Exception:
+                        pass
 
     def resizeEvent(self, event: object) -> None:
         super().resizeEvent(event)
