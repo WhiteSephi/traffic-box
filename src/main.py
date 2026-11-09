@@ -48,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
         if target_dir.is_dir():
             os.chdir(target_dir)
 
+    if sys.platform.startswith("linux") and "QT_QPA_PLATFORM" not in os.environ:
+        os.environ["QT_QPA_PLATFORM"] = "xcb;wayland"
+
     app = QApplication(sys.argv)
     app.setApplicationName("TrafficBox")
     app.setDesktopFileName("trafficbox")

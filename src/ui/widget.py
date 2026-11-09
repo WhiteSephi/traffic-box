@@ -78,6 +78,7 @@ class TrafficBox(QWidget):
         self._was_compact: bool = self.config.compact_mode
         self._was_counters: bool = self.config.active_view == "counters"
         self._user_is_moving: bool = False
+        self._last_drag_pos: QPoint | None = None
 
         self._save_pos_timer = QTimer(self)
         self._save_pos_timer.setSingleShot(True)
@@ -336,6 +337,7 @@ class TrafficBox(QWidget):
     def _on_position_settled(self) -> None:
         """Persist window position to disk and update KWin rules on Linux/Wayland."""
         self._user_is_moving = False
+        self._last_drag_pos = None
         if self.isVisible() and self.config.pos_x >= 0 and self.config.pos_y >= 0:
             self.config.save()
             if sys.platform == "linux":
@@ -928,13 +930,16 @@ class TrafficBox(QWidget):
             delta = (event.globalPosition().toPoint() - self._drag_start_pos).manhattanLength()
             if delta >= 3:
                 self._user_is_moving = True
-                handle = self.windowHandle()
-                if handle is not None and hasattr(handle, "startSystemMove"):
-                    if handle.startSystemMove():
-                        self._drag_offset = None
-                        event.accept()
-                        return
+                app = QApplication.instance()
+                if app is not None and app.platformName() == "wayland":
+                    handle = self.windowHandle()
+                    if handle is not None and hasattr(handle, "startSystemMove"):
+                        if handle.startSystemMove():
+                            self._drag_offset = None
+                            event.accept()
+                            return
                 new_pos = event.globalPosition().toPoint() - self._drag_offset
+                self._last_drag_pos = new_pos
                 self.move(new_pos)
                 event.accept()
                 return
@@ -943,8 +948,9 @@ class TrafficBox(QWidget):
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)
         if not self._in_layout_transition and self.isVisible() and self._user_is_moving:
-            self.config.pos_x = self.x()
-            self.config.pos_y = self.y()
+            p = event.pos()
+            self.config.pos_x = p.x()
+            self.config.pos_y = p.y()
             if hasattr(self, "_save_pos_timer"):
                 self._save_pos_timer.start(500)
 
@@ -952,8 +958,10 @@ class TrafficBox(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_offset = None
             if self._user_is_moving:
-                self.config.pos_x = self.x()
-                self.config.pos_y = self.y()
+                pos = self._last_drag_pos if self._last_drag_pos is not None else self.pos()
+                self.config.pos_x = pos.x()
+                self.config.pos_y = pos.y()
+                self._last_drag_pos = None
                 if not self.config.compact_mode:
                     self.config.widget_width = self.width()
                     self.config.widget_height = self.height()

@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.13.3] - 2026-11-09
+### Fixed
+- **Verlässliche Positionserkennung & dauerhafte Desktop-Speicherung unter Linux:**
+  - **Präferenz für XCB/XWayland (`QT_QPA_PLATFORM="xcb;wayland"`):** Nativ unter Wayland verbietet das Protokoll Anwendungen das Abfragen und Setzen globaler Bildschirmkoordinaten (`pos()` liefert stets `0, 0`). In `start_linux.sh` und `src/main.py` wird nun standardmäßig `xcb;wayland` als Plattform-Fallback vorgegeben, wodurch Qt via XWayland echte Desktop-Koordinaten verarbeiten kann und `move(x, y)` pixelgenau funktioniert.
+  - **Direktes Client-seitiges Drag & Drop mit `_last_drag_pos`:** Das zuvor genutzte `startSystemMove()` übertrug die Maus-Steuerung an den Compositor, wodurch in Qt nach dem Loslassen kein `mouseReleaseEvent()` mehr ankam und neue Positionen niemals in `local/config.json` gespeichert wurden. Auf Nicht-Wayland-Plattformen (XCB, Windows, macOS) führt TrafficBox nun wieder direktes Verschieben aus und sichert beim Loslassen der linken Maustaste die exakten Koordinaten dauerhaft ab.
+
 ## [0.13.2] - 2026-11-09
 ### Fixed
 - **Ausblenden des Widgets aus der Taskleiste (Task-Manager) unter Linux:**
