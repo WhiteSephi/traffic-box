@@ -138,7 +138,7 @@ def set_autostart(enabled: bool) -> bool:
 
 
 def sync_kwin_position_rule(x: int, y: int) -> bool:
-    """Register or update a KWin window rule on KDE Plasma to enforce window position under Wayland."""
+    """Register or update a KWin window rule on KDE Plasma to enforce window position and hide from taskbar."""
     if sys.platform != "linux":
         return False
 
@@ -152,38 +152,60 @@ def sync_kwin_position_rule(x: int, y: int) -> bool:
         f"position={x},{y}\n"
         "positionrule=3\n"
         "wmclass=trafficbox\n"
-        "wmclassmatch=1\n"
+        "wmclassmatch=2\n"
+        "wmclasscomplete=false\n"
+        "skiptaskbar=true\n"
+        "skiptaskbarrule=2\n"
+        "skipswitcher=true\n"
+        "skipswitcherrule=2\n"
     )
 
     try:
-        content = kwinrules.read_text(encoding="utf-8") if kwinrules.is_file() else "[General]\nrules=\n"
+        content = kwinrules.read_text(encoding="utf-8") if kwinrules.is_file() else "[General]\ncount=0\nrules=\nOrder=\n"
     except OSError:
-        content = "[General]\nrules=\n"
+        content = "[General]\ncount=0\nrules=\nOrder=\n"
 
     import re
 
     pattern = rf"\[{re.escape(rule_name)}\].*?(?=\n\[|\Z)"
     if re.search(pattern, content, flags=re.DOTALL):
-        new_content = re.sub(pattern, rule_section.strip(), content, flags=re.DOTALL)
+        content = re.sub(pattern, rule_section.strip(), content, flags=re.DOTALL)
     else:
-        new_content = content.rstrip() + "\n\n" + rule_section
+        content = content.rstrip() + "\n\n" + rule_section.strip()
 
-    m = re.search(r"(\[General\][^\[]*?rules=)([^\n]*)", new_content)
-    if m:
-        prefix, existing_rules = m.group(1), m.group(2)
-        rule_list = [r.strip() for r in existing_rules.split(",") if r.strip()]
-        if rule_name not in rule_list:
-            rule_list.append(rule_name)
-            new_rules_line = f"{prefix}{','.join(rule_list)}"
-            new_content = new_content[:m.start()] + new_rules_line + new_content[m.end():]
+    # Ensure [General] section exists and contains count, rules, and Order keys
+    gen_match = re.search(r"\[General\](.*?)(?=\n\[|\Z)", content, flags=re.DOTALL)
+    if gen_match:
+        gen_body = gen_match.group(1)
+        r_m = re.search(r"rules=([^\n]*)", gen_body)
+        rules_list = [r.strip() for r in r_m.group(1).split(",") if r.strip()] if r_m else []
+        if rule_name not in rules_list:
+            rules_list.append(rule_name)
+
+        o_m = re.search(r"Order=([^\n]*)", gen_body)
+        order_list = [r.strip() for r in o_m.group(1).split(",") if r.strip()] if o_m else []
+        if rule_name not in order_list:
+            order_list.append(rule_name)
+
+        count_val = max(len(rules_list), len(order_list), 1)
+
+        lines = [l for l in gen_body.split("\n") if not l.startswith(("rules=", "Order=", "count="))]
+        lines = [l for l in lines if l.strip()]
+        new_gen = "\n[General]\n" + "\n".join(
+            lines
+            + [
+                f"count={count_val}",
+                f"rules={','.join(rules_list)}",
+                f"Order={','.join(order_list)}",
+            ]
+        ) + "\n"
+        content = content[:gen_match.start()] + new_gen.lstrip() + content[gen_match.end():]
     else:
-        if "[General]" in new_content:
-            new_content = re.sub(r"\[General\]", f"[General]\nrules={rule_name}", new_content, count=1)
-        else:
-            new_content = f"[General]\nrules={rule_name}\n\n" + new_content
+        content = f"[General]\ncount=1\nrules={rule_name}\nOrder={rule_name}\n\n" + content
 
     try:
-        kwinrules.write_text(new_content, encoding="utf-8")
+        kwinrules.parent.mkdir(parents=True, exist_ok=True)
+        kwinrules.write_text(content.strip() + "\n", encoding="utf-8")
     except OSError:
         return False
 

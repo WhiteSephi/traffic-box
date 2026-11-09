@@ -134,12 +134,27 @@ class TestCompactMode(unittest.TestCase):
         self.assertTrue(self.widget.center_stack.isVisible())
 
     def test_position_save_timer(self) -> None:
-        """Verify moveEvent starts the debounce timer for persisting window coordinates."""
+        """Verify moveEvent ignores unprompted moves but debounces user moves."""
         self.widget.show()
         _app.processEvents()
+        # Unprompted move (e.g. compositor mapping) should NOT trigger save timer
         self.widget.move(500, 300)
         _app.processEvents()
+        self.assertFalse(self.widget._save_pos_timer.isActive())
+
+        # User-initiated move should trigger save timer
+        self.widget._user_is_moving = True
+        self.widget.move(600, 400)
+        _app.processEvents()
         self.assertTrue(self.widget._save_pos_timer.isActive())
+
+    def test_window_flags_skip_taskbar(self) -> None:
+        """Verify window has Tool and Frameless flags to remain hidden from taskbars across OSes."""
+        from PySide6.QtCore import Qt
+
+        flags = self.widget.windowFlags()
+        self.assertTrue(bool(flags & Qt.WindowType.FramelessWindowHint))
+        self.assertTrue(bool(flags & Qt.WindowType.Tool))
 
 
 if __name__ == "__main__":

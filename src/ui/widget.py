@@ -77,6 +77,7 @@ class TrafficBox(QWidget):
         self._is_quitting: bool = False
         self._was_compact: bool = self.config.compact_mode
         self._was_counters: bool = self.config.active_view == "counters"
+        self._user_is_moving: bool = False
 
         self._save_pos_timer = QTimer(self)
         self._save_pos_timer.setSingleShot(True)
@@ -90,10 +91,8 @@ class TrafficBox(QWidget):
         self._setup_worker_thread()
 
     def _configure_window_flags(self) -> None:
-        """Apply frameless, tool (Windows only), and optional always-on-top window flags."""
-        flags = Qt.WindowType.FramelessWindowHint
-        if sys.platform == "win32":
-            flags |= Qt.WindowType.Tool
+        """Apply frameless, tool (hides from taskbar), and optional always-on-top window flags."""
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
         if self.config.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
@@ -336,6 +335,7 @@ class TrafficBox(QWidget):
 
     def _on_position_settled(self) -> None:
         """Persist window position to disk and update KWin rules on Linux/Wayland."""
+        self._user_is_moving = False
         if self.isVisible() and self.config.pos_x >= 0 and self.config.pos_y >= 0:
             self.config.save()
             if sys.platform == "linux":
@@ -345,6 +345,9 @@ class TrafficBox(QWidget):
         w = max(260, self.config.widget_width)
         h = self._get_compact_height() if self.config.compact_mode else max(210, self.config.widget_height)
         self.resize(w, h)
+
+        if sys.platform == "linux" and self.config.pos_x >= 0 and self.config.pos_y >= 0:
+            sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
 
         target_pos = QPoint(self.config.pos_x, self.config.pos_y)
         is_on_screen = False
@@ -911,6 +914,7 @@ class TrafficBox(QWidget):
         if event.button() == Qt.MouseButton.LeftButton and not self.config.locked_pos:
             self._drag_start_pos = event.globalPosition().toPoint()
             self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._user_is_moving = True
             event.accept()
             return
         super().mousePressEvent(event)
@@ -923,6 +927,7 @@ class TrafficBox(QWidget):
         ):
             delta = (event.globalPosition().toPoint() - self._drag_start_pos).manhattanLength()
             if delta >= 3:
+                self._user_is_moving = True
                 handle = self.windowHandle()
                 if handle is not None and hasattr(handle, "startSystemMove"):
                     if handle.startSystemMove():
@@ -937,7 +942,7 @@ class TrafficBox(QWidget):
 
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)
-        if not self._in_layout_transition and self.isVisible():
+        if not self._in_layout_transition and self.isVisible() and self._user_is_moving:
             self.config.pos_x = self.x()
             self.config.pos_y = self.y()
             if hasattr(self, "_save_pos_timer"):
@@ -946,14 +951,16 @@ class TrafficBox(QWidget):
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_offset = None
-            self.config.pos_x = self.x()
-            self.config.pos_y = self.y()
-            if not self.config.compact_mode:
-                self.config.widget_width = self.width()
-                self.config.widget_height = self.height()
-            self.config.save()
-            if sys.platform == "linux":
-                sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
+            if self._user_is_moving:
+                self.config.pos_x = self.x()
+                self.config.pos_y = self.y()
+                if not self.config.compact_mode:
+                    self.config.widget_width = self.width()
+                    self.config.widget_height = self.height()
+                self.config.save()
+                if sys.platform == "linux":
+                    sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
+                self._user_is_moving = False
             event.accept()
             return
         super().mouseReleaseEvent(event)

@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.13.2] - 2026-11-09
+### Fixed
+- **Ausblenden des Widgets aus der Taskleiste (Task-Manager) unter Linux:**
+  - **Tool-Window-Flag plattformübergreifend aktiviert:** In `_configure_window_flags()` war `Qt.WindowType.Tool` bisher ausschließlich auf `win32` beschränkt. Unter Linux führte dies dazu, dass TrafficBox als normales Hauptfenster behandelt und in der KDE-Plasma-Taskleiste als aktives Anwendungsfenster angezeigt wurde. Das Flag `Qt.WindowType.Tool` ist nun plattformübergreifend aktiv, wodurch das Widget wie unter Windows rein als Desktop-Widget bzw. über das System-Tray-Icon agiert und nicht mehr in der Taskleiste erscheint.
+  - **Erzwungene KWin-Regel `skiptaskbar=true` & `skipswitcher=true`:** In `sync_kwin_position_rule()` wurden die Direktiven `skiptaskbar=true` (`skiptaskbarrule=2` / Force) und `skipswitcher=true` (`skipswitcherrule=2` / Force) in die KWin-Regel (`~/.config/kwinrulesrc`) integriert, sodass KWin das Widget auch auf Compositor-Ebene unter Wayland dauerhaft aus der Taskleiste und der Fensterumschaltung (Alt+Tab) fernhält.
+- **Dauerhafte Speicherung der Widget-Position beim Systemstart:**
+  - **Schutz vor ungewolltem Überschreiben der Startkoordinaten (`_user_is_moving`):** Wenn Wayland bzw. KWin das Widget beim Starten auf dem Bildschirm platziert hat, feuerte Qt bisher sofort ein `moveEvent()`, das die gespeicherten Desktop-Koordinaten innerhalb von 500 ms mit der zentrierten Position überschrieben hat. Das automatische Speichern von `pos_x` und `pos_y` sowie der 500-ms-Timer greifen nun nur noch, wenn der Nutzer das Widget aktiv mit der Maus bewegt (`_user_is_moving = True`).
+  - **KWin-Regelstruktur für KDE Plasma 6 korrigiert:** In `~/.config/kwinrulesrc` werden im Block `[General]` nun zuverlässig `count=`, `rules=` und `Order=` gepflegt und der Fensterabgleich mit `wmclassmatch=2` (Teilstring) sowie `wmclasscomplete=false` ausgeführt, sodass KWin die Fensterregel verlässlich auf die TrafficBox anwendet.
+
 ## [0.13.1] - 2026-11-09
 ### Fixed
 - **Widget-Fenster unter CachyOS / KDE Plasma (Wayland) wieder frei verschiebbar:**
