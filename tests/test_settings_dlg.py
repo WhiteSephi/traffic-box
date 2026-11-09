@@ -32,6 +32,8 @@ class TestSettingsDialog(unittest.TestCase):
             bound_box_udn="uuid:test-box-1234",
             bound_box_name="Test FRITZ!Box",
         )
+        # Prevent test instances from overwriting the real user config on disk
+        self.config.save = MagicMock()  # type: ignore[method-assign]
         self.applied = False
 
     def _on_apply(self) -> None:

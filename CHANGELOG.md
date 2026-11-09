@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.13.1] - 2026-11-09
+### Fixed
+- **Widget-Fenster unter CachyOS / KDE Plasma (Wayland) wieder frei verschiebbar:**
+  - Behoben: In der automatischen KWin-Regel (`~/.config/kwinrulesrc`) war `positionrule=2` hinterlegt. Im KWin-Enum bedeutet `2` jedoch `Force` (Erzwingen). KWin hat dadurch jeden Versuch, das Widget mit der Maus zu bewegen, blockiert und das Fenster festgenagelt.
+  - Korrigiert auf `positionrule=3` (`Apply` = nur beim initialen Fensteraufbau anwenden). Das Widget startet weiterhin an der gespeicherten Position, lässt sich danach aber wieder völlig frei mit der Maus auf dem Desktop platzieren.
+- **Hängender Graph & Verbindungsverlust behoben:**
+  - Behoben: Ein Einstellungsdialog-Testlauf hatte die echte `local/config.json` mit Testwerten (`host=192.168.1.254`, `port=49001`, `refresh_interval=4s`) überschrieben. Da die IP/Port-Kombination nicht existierte, liefen die UPnP-Abfragen ins Leere, und das 4-Sekunden-Intervall ließ den Graphen einfrieren.
+  - Test-Isolation: `tests/test_settings_dlg.py` und alle weiteren Tests mocken `config.save()`, sodass reale Konfigurationsdateien niemals berührt werden.
+  - Die Konfigurationsdatei wurde auf die korrekten Standardwerte (`fritz.box`, Port `49000`, 1 s Intervall) repariert.
 ## [0.13.0] - 2026-11-06
 ### Added
 - **„Über“-Seite im Einstellungs-Dialog & Kontextmenü (`Über TrafficBox...`):**

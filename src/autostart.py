@@ -150,7 +150,7 @@ def sync_kwin_position_rule(x: int, y: int) -> bool:
         f"[{rule_name}]\n"
         "Description=TrafficBox Placement\n"
         f"position={x},{y}\n"
-        "positionrule=2\n"
+        "positionrule=3\n"
         "wmclass=trafficbox\n"
         "wmclassmatch=1\n"
     )
