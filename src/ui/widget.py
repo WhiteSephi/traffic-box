@@ -25,6 +25,7 @@ from PySide6.QtGui import (
     QMouseEvent,
     QMoveEvent,
     QPainter,
+    QPaintEvent,
     QPen,
     QShowEvent,
 )
@@ -55,6 +56,35 @@ from src.ui.icons import create_arrow_pixmap, create_ui_icon
 from src.ui.online_counter_view import OnlineCounterView
 from src.ui.settings_dlg import SettingsDialog
 from src.ui.tray import create_router_icon
+
+
+class VisualSizeGrip(QSizeGrip):
+    """QSizeGrip with custom diagonal grip dots that remain visible across all desktop themes."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedSize(14, 14)
+        self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        self.setToolTip("Größe anpassen (Ziehen)")
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        w, h = self.width(), self.height()
+        pen_shadow = QColor(0, 0, 0, 180)
+        pen_fg = QColor(255, 255, 255, 140)
+        # Classic 6-dot diagonal resize grip triangle (3 rows: 1, 2, 3 dots)
+        dots = [
+            (3, 3),
+            (7, 3), (3, 7),
+            (11, 3), (7, 7), (3, 11),
+        ]
+        for dx, dy in dots:
+            painter.setPen(pen_shadow)
+            painter.drawPoint(w - dx + 1, h - dy + 1)
+            painter.setPen(pen_fg)
+            painter.drawPoint(w - dx, h - dy)
+        painter.end()
 
 
 class TrafficBox(QWidget):
@@ -276,8 +306,7 @@ class TrafficBox(QWidget):
         self.lbl_dns_pill.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
         self.lbl_dns_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.size_grip = QSizeGrip(self)
-        self.size_grip.setFixedSize(12, 12)
+        self.size_grip = VisualSizeGrip(self)
 
         footer_row.addWidget(self.lbl_wan_pill, 0)
         footer_row.addWidget(self.lbl_footer, 1)
@@ -499,6 +528,8 @@ class TrafficBox(QWidget):
             self._update_live_rate_displays(self._last_sample)
 
         self._update_dynamic_scaling()
+        if hasattr(self, "tray_icon") and self.tray_icon is not None:
+            self.tray_icon.setContextMenu(self._build_context_menu())
         self.update()
 
     def _update_dynamic_scaling(self) -> None:
@@ -1056,8 +1087,21 @@ class TrafficBox(QWidget):
             scale_menu.addAction(act)
 
         # Footer Counter Period Submenu
-        footer_menu = menu.addMenu("Footer-Zähler (Zeitraum)")
+        footer_menu_title = (
+            "Footer-Zähler (Zeitraum)"
+            if self.config.show_session_totals
+            else "Footer-Zähler (Deaktiviert)"
+        )
+        footer_menu = menu.addMenu(footer_menu_title)
         footer_group = QActionGroup(self)
+
+        act_f_off = QAction("Ausblenden (deaktiviert)", self, checkable=True)
+        act_f_off.setChecked(not self.config.show_session_totals)
+        act_f_off.triggered.connect(lambda _chk=False: self._toggle_footer_counter(False))
+        footer_group.addAction(act_f_off)
+        footer_menu.addAction(act_f_off)
+        footer_menu.addSeparator()
+
         for f_label, f_key in [
             ("Heute (Online-Zähler)", "today"),
             ("Gestern (Online-Zähler)", "yesterday"),
@@ -1067,10 +1111,17 @@ class TrafficBox(QWidget):
             ("Seit Widget-Start (ohne Login)", "session"),
         ]:
             act_f = QAction(f_label, self, checkable=True)
-            act_f.setChecked(self.config.footer_counter_mode == f_key)
+            act_f.setChecked(
+                self.config.show_session_totals and self.config.footer_counter_mode == f_key
+            )
             act_f.triggered.connect(lambda _chk=False, k=f_key: self._set_footer_mode(k))
             footer_group.addAction(act_f)
             footer_menu.addAction(act_f)
+
+        act_footer = QAction("Footer-Zähler anzeigen", self, checkable=True)
+        act_footer.setChecked(self.config.show_session_totals)
+        act_footer.triggered.connect(self._toggle_footer_counter)
+        menu.addAction(act_footer)
 
         act_bits = QAction("Als Bit/s anzeigen (Mbit/s)", self, checkable=True)
         act_bits.setChecked(self.config.show_as_bits)
@@ -1100,6 +1151,7 @@ class TrafficBox(QWidget):
         menu.addSeparator()
 
         act_reset_session = QAction("Zähler „Seit Widget-Start“ zurücksetzen", self)
+        act_reset_session.setEnabled(self.config.show_session_totals)
         act_reset_session.triggered.connect(self._reset_session_counter)
         menu.addAction(act_reset_session)
 
@@ -1128,8 +1180,18 @@ class TrafficBox(QWidget):
 
     def _set_footer_mode(self, mode: str) -> None:
         self.config.footer_counter_mode = mode
+        self.config.show_session_totals = True
         self.config.save()
-        self._on_sample_received(self._last_sample)
+        self._apply_config_visuals()
+        if self._last_sample:
+            self._on_sample_received(self._last_sample)
+
+    def _toggle_footer_counter(self, checked: bool) -> None:
+        self.config.show_session_totals = checked
+        self.config.save()
+        self._apply_config_visuals()
+        if self._last_sample:
+            self._on_sample_received(self._last_sample)
 
     def _toggle_bits(self, checked: bool) -> None:
         self.config.show_as_bits = checked

@@ -4,6 +4,22 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.13.5] - 2026-11-09
+### Added
+- **Sichtbarer Resize-Griff (`VisualSizeGrip`) unten rechts:**
+  - Unter Linux (insbesondere KDE Plasma Breeze) zeichnet das native `QSizeGrip`-Widget auf dunklem, transparentem Hintergrund keinerlei Punkte oder Linien, wodurch der Anfasser zur Größenänderung unsichtbar war.
+  - Mit `VisualSizeGrip` wird nun plattformübergreifend ein klares, klassisches 6-Punkte-Diagonalraster mit Schatten und Highlight unten rechts gerendert, inklusive Größenänderungs-Cursor (`SizeFDiagCursor`) und Tooltip.
+- **Direktes Umschalten des Footer-Zählers im Kontextmenü:**
+  - Im Kontextmenü steht nun der direkte Umschalter `Footer-Zähler anzeigen` zur Verfügung, sodass der Zähler ohne Umweg über das Einstellungsmenü per Rechtsklick ein- und ausgeschaltet werden kann.
+
+### Changed
+- **Klarer Deaktiviert-Status im Zeitraum-Untermenü:**
+  - Ist der Footer-Zähler in den Einstellungen oder im Kontextmenü deaktiviert, wechselt der Titel des Untermenüs auf `Footer-Zähler (Deaktiviert)`.
+  - Im Untermenü selbst wurde der explizite Eintrag `Ausblenden (deaktiviert)` ergänzt, der im deaktivierten Zustand angehakt ist.
+  - Das Anklicken eines beliebigen Zeitraums (z. B. Heute, Woche, Monat) aktiviert den Footer-Zähler automatisch und wechselt direkt auf den gewählten Zeitraum.
+  - Die Kontextmenü-Aktion `Zähler „Seit Widget-Start“ zurücksetzen` wird bei deaktiviertem Footer-Zähler ausgegraut.
+  - Das Kontextmenü des System-Tray-Icons wird bei visuellen Einstellungsänderungen nun ebenfalls sofort dynamisch aktualisiert.
+
 ## [0.13.4] - 2026-11-09
 ### Fixed
 - **Ausblenden aus der Taskleiste unter XCB / XWayland:**

@@ -156,6 +156,68 @@ class TestCompactMode(unittest.TestCase):
         self.assertTrue(bool(flags & Qt.WindowType.FramelessWindowHint))
         self.assertTrue(bool(flags & Qt.WindowType.Tool))
 
+    def test_context_menu_footer_counter_states(self) -> None:
+        """Verify context menu accurately reflects active vs deactivated footer counter."""
+        # 1. Active state
+        self.widget.config.show_session_totals = True
+        self.widget.config.footer_counter_mode = "today"
+        menu_active = self.widget._build_context_menu()
+        menu_titles = [a.text() for a in menu_active.actions()]
+        self.assertIn("Footer-Zähler (Zeitraum)", menu_titles)
+        self.assertIn("Footer-Zähler anzeigen", menu_titles)
+
+        act_footer = next(a for a in menu_active.actions() if a.text() == "Footer-Zähler anzeigen")
+        self.assertTrue(act_footer.isChecked())
+
+        # Submenu options
+        footer_sub = act_footer.menu() or next(
+            a.menu() for a in menu_active.actions() if a.text() == "Footer-Zähler (Zeitraum)"
+        )
+        sub_actions = {a.text(): a.isChecked() for a in footer_sub.actions() if not a.isSeparator()}
+        self.assertFalse(sub_actions["Ausblenden (deaktiviert)"])
+        self.assertTrue(sub_actions["Heute (Online-Zähler)"])
+
+        # 2. Deactivated state
+        self.widget.config.show_session_totals = False
+        menu_deact = self.widget._build_context_menu()
+        menu_deact_titles = [a.text() for a in menu_deact.actions()]
+        self.assertIn("Footer-Zähler (Deaktiviert)", menu_deact_titles)
+
+        act_footer_deact = next(a for a in menu_deact.actions() if a.text() == "Footer-Zähler anzeigen")
+        self.assertFalse(act_footer_deact.isChecked())
+
+        footer_sub_deact = next(
+            a.menu() for a in menu_deact.actions() if a.text() == "Footer-Zähler (Deaktiviert)"
+        )
+        sub_deact_actions = {
+            a.text(): a.isChecked() for a in footer_sub_deact.actions() if not a.isSeparator()
+        }
+        self.assertTrue(sub_deact_actions["Ausblenden (deaktiviert)"])
+        self.assertFalse(sub_deact_actions["Heute (Online-Zähler)"])
+
+        # 3. Toggling via _toggle_footer_counter
+        self.widget._toggle_footer_counter(True)
+        self.assertTrue(self.widget.config.show_session_totals)
+        self.assertFalse(self.widget.lbl_footer.isHidden())
+
+        self.widget._toggle_footer_counter(False)
+        self.assertFalse(self.widget.config.show_session_totals)
+        self.assertTrue(self.widget.lbl_footer.isHidden())
+
+    def test_visual_size_grip_present_and_visible(self) -> None:
+        """Verify custom VisualSizeGrip is configured and reacts to locked_pos / compact_mode."""
+        from src.ui.widget import VisualSizeGrip
+
+        self.assertIsInstance(self.widget.size_grip, VisualSizeGrip)
+        self.widget.config.locked_pos = False
+        self.widget.config.compact_mode = False
+        self.widget._apply_config_visuals()
+        self.assertFalse(self.widget.size_grip.isHidden())
+
+        self.widget.config.locked_pos = True
+        self.widget._apply_config_visuals()
+        self.assertTrue(self.widget.size_grip.isHidden())
+
 
 if __name__ == "__main__":
     unittest.main()
