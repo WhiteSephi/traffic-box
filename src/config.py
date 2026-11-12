@@ -183,6 +183,7 @@ class AppConfig:
         self.settings_width = _safe_int(self.settings_width, 680, 500, 3840)
         self.settings_height = _safe_int(self.settings_height, 540, 400, 2160)
         self.ui_scale_percent = _safe_int(self.ui_scale_percent, 100, 70, 300)
+        self.ui_scale_percent = int(round(self.ui_scale_percent / 5.0)) * 5
         self.history_seconds = _safe_int(self.history_seconds, 60, 10, 600)
 
         # Safe float helper

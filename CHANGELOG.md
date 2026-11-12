@@ -12,8 +12,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Vordergrund-Garantie für das Einstellungsfenster (Z-Order Korrektur):**
   - Behoben: Das Einstellungsfenster öffnete sich zuvor hinter dem Widget, da das rahmenlose Widget als `Tool`-Fenster mit optionalem `WindowStaysOnTopHint` über normalen Standard-Fenstern gerendert wurde.
   - Das Einstellungsfenster besitzt nun `Qt.WindowType.WindowStaysOnTopHint` und wird beim Öffnen über `raise_()` und `activateWindow()` garantiert in den Vordergrund über das Widget geholt.
-- **Umfassende UI-Skalierung für HiDPI / kleine Bildschirme (70 % bis 300 %):**
-  - Neuer Bereich `Benutzeroberflächen-Skalierung (HiDPI / Kleine Displays)` im Reiter `Anzeige` der Einstellungen mit Slider, SpinBox und Schnellwahl-Button `100 % (Standard)`.
+- **Umfassende UI-Skalierung für HiDPI / kleine Bildschirme (70 % bis 300 % in 5 %-Schritten):**
+  - Neuer Bereich `Benutzeroberflächen-Skalierung (HiDPI / Kleine Displays)` im Reiter `Anzeige` der Einstellungen mit Slider, SpinBox (beide fest in 5 %-Schritten gerastert) und Schnellwahl-Button `100 % (Standard)`.
   - Skaliert alle visuellen Elemente konsistent mit:
     - **Header:** Router-Icon, Fenstertitel, View-Buttons („Graph“ / „Zähler“) und Einstellungen-Button.
     - **Raten-Anzeige:** Header („Down:“ / „Up:“), Raten-Texte, Auslastungsbalken, Meta-Zeilen sowie PC- und Gast-WLAN-Labels.

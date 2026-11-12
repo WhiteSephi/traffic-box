@@ -166,22 +166,27 @@ class TestSettingsDialog(unittest.TestCase):
             dlg.deleteLater()
 
     def test_ui_scale_form_controls(self) -> None:
-        """Verify modifying UI scale updates AppConfig upon apply."""
+        """Verify modifying UI scale updates AppConfig upon apply in 5% steps."""
         dlg = SettingsDialog(self.config, self._on_apply)
         try:
             self.assertEqual(dlg.spin_ui_scale.value(), 100)
-            self.assertEqual(dlg.slider_ui_scale.value(), 100)
+            self.assertEqual(dlg.slider_ui_scale.value(), 20)  # 20 * 5 = 100%
 
             dlg.spin_ui_scale.setValue(150)
-            self.assertEqual(dlg.slider_ui_scale.value(), 150)
+            self.assertEqual(dlg.slider_ui_scale.value(), 30)  # 30 * 5 = 150%
+
+            # Slider drag to 25 -> 125%
+            dlg.slider_ui_scale.setValue(25)
+            self.assertEqual(dlg.spin_ui_scale.value(), 125)
 
             dlg._apply_changes()
-            self.assertEqual(self.config.ui_scale_percent, 150)
-            self.assertAlmostEqual(self.config.ui_scale, 1.5)
+            self.assertEqual(self.config.ui_scale_percent, 125)
+            self.assertAlmostEqual(self.config.ui_scale, 1.25)
 
             # Test reset single tab
             dlg._reset_single_tab(2)
             self.assertEqual(dlg.spin_ui_scale.value(), 100)
+            self.assertEqual(dlg.slider_ui_scale.value(), 20)
         finally:
             dlg.deleteLater()
 

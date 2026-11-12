@@ -582,20 +582,25 @@ class SettingsDialog(QDialog):
         ui_scale_form.setVerticalSpacing(6)
 
         scale_row = QHBoxLayout()
+        # Slider works in discrete 5% steps (14..60 -> 70%..300%)
         self.slider_ui_scale = QSlider(Qt.Orientation.Horizontal)
-        self.slider_ui_scale.setRange(70, 300)
-        self.slider_ui_scale.setSingleStep(5)
-        self.slider_ui_scale.setPageStep(25)
+        self.slider_ui_scale.setRange(14, 60)
+        self.slider_ui_scale.setSingleStep(1)
+        self.slider_ui_scale.setPageStep(5)
         self.slider_ui_scale.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.slider_ui_scale.setTickInterval(25)
+        self.slider_ui_scale.setTickInterval(5)
 
         self.spin_ui_scale = QSpinBox()
         self.spin_ui_scale.setRange(70, 300)
         self.spin_ui_scale.setSingleStep(5)
         self.spin_ui_scale.setSuffix(" %")
 
-        self.slider_ui_scale.valueChanged.connect(self.spin_ui_scale.setValue)
-        self.spin_ui_scale.valueChanged.connect(self.slider_ui_scale.setValue)
+        self.slider_ui_scale.valueChanged.connect(
+            lambda val: self.spin_ui_scale.setValue(val * 5)
+        )
+        self.spin_ui_scale.valueChanged.connect(
+            lambda val: self.slider_ui_scale.setValue(max(14, min(60, int(round(val / 5.0)))))
+        )
 
         btn_scale_100 = QPushButton("100 % (Standard)")
         btn_scale_100.setCursor(Qt.CursorShape.PointingHandCursor)
