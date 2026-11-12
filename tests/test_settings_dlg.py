@@ -100,19 +100,23 @@ class TestSettingsDialog(unittest.TestCase):
         """Verify _reset_single_tab restores default values for specific tab index."""
         dlg = SettingsDialog(self.config, self._on_apply)
         try:
+            self.assertEqual(dlg.tabs.tabText(0), "Allgemein")
+            self.assertEqual(dlg.tabs.tabText(1), "FRITZ!Box")
+            self.assertEqual(dlg.tabs.currentIndex(), 0)
+
+            defaults = AppConfig()
+
+            # Reset Tab 0 (Allgemein)
+            dlg.slider_opacity.setValue(30)
+            dlg._reset_single_tab(0)
+            self.assertEqual(dlg.slider_opacity.value(), defaults.opacity)
+
+            # Reset Tab 1 (FRITZ!Box)
             dlg.txt_host.setText("custom-host.invalid")
             dlg.spin_port.setValue(1234)
-
-            # Reset Tab 0 (FRITZ!Box)
-            dlg._reset_single_tab(0)
-            defaults = AppConfig()
+            dlg._reset_single_tab(1)
             self.assertEqual(dlg.txt_host.text(), defaults.fritzbox_host)
             self.assertEqual(dlg.spin_port.value(), defaults.upnp_port)
-
-            # Reset Tab 1 (Allgemein)
-            dlg.slider_opacity.setValue(30)
-            dlg._reset_single_tab(1)
-            self.assertEqual(dlg.slider_opacity.value(), defaults.opacity)
         finally:
             dlg.deleteLater()
 

@@ -429,7 +429,61 @@ class SettingsDialog(QDialog):
         root_layout.addWidget(self.tabs)
 
         # =========================================================================
-        # TAB 1: FRITZ!Box (Verbindung & Login)
+        # TAB 1: Allgemein (Systemstart, Fenster & Verhalten)
+        # =========================================================================
+        tab_general = QWidget()
+        gen_layout = QVBoxLayout(tab_general)
+        gen_layout.setContentsMargins(8, 8, 8, 8)
+        gen_layout.setSpacing(8)
+
+        # Systemstart & Autostart
+        sys_group = QGroupBox("Systemstart && Autostart")
+        sys_form = QFormLayout(sys_group)
+        sys_form.setContentsMargins(10, 10, 10, 10)
+        sys_form.setVerticalSpacing(6)
+
+        self.chk_autostart = QCheckBox("Autostart mit dem Betriebssystem aktivieren")
+        self.spin_delay = QSpinBox()
+        self.spin_delay.setRange(0, 120)
+        self.spin_delay.setSuffix(" Sek.")
+        self.spin_delay.setToolTip("Wartezeit nach dem Systemstart vor dem ersten Verbindungsversuch")
+
+        sys_form.addRow(self.chk_autostart)
+        sys_form.addRow("Startverzögerung beim Booten:", self.spin_delay)
+        gen_layout.addWidget(sys_group)
+
+        # Fenster & Position
+        win_group = QGroupBox("Fenster-Verhalten && Position")
+        win_form = QFormLayout(win_group)
+        win_form.setContentsMargins(10, 10, 10, 10)
+        win_form.setVerticalSpacing(6)
+
+        self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
+        self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren (LockedPos)")
+        self.chk_snap_edges = QCheckBox("Magnetisches Einrasten an Bildschirmrändern")
+
+        opacity_row = QHBoxLayout()
+        opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
+        self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.slider_opacity.setRange(25, 100)
+        self.lbl_opacity_val = QLabel("85%")
+        self.slider_opacity.valueChanged.connect(
+            lambda v: self.lbl_opacity_val.setText(f"{v}%")
+        )
+        opacity_row.addWidget(self.slider_opacity, 1)
+        opacity_row.addWidget(self.lbl_opacity_val)
+
+        win_form.addRow(self.chk_always_on_top)
+        win_form.addRow(self.chk_locked_pos)
+        win_form.addRow(self.chk_snap_edges)
+        win_form.addRow(opacity_row)
+        gen_layout.addWidget(win_group)
+        gen_layout.addStretch(1)
+
+        self.tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein")
+
+        # =========================================================================
+        # TAB 2: FRITZ!Box (Verbindung & Login)
         # =========================================================================
         tab_fritz = QWidget()
         fritz_layout = QVBoxLayout(tab_fritz)
@@ -514,60 +568,6 @@ class SettingsDialog(QDialog):
         fritz_layout.addStretch(1)
 
         self.tabs.addTab(self._wrap_in_scroll(tab_fritz), "FRITZ!Box")
-
-        # =========================================================================
-        # TAB 2: Allgemein (Systemstart, Fenster & Verhalten)
-        # =========================================================================
-        tab_general = QWidget()
-        gen_layout = QVBoxLayout(tab_general)
-        gen_layout.setContentsMargins(8, 8, 8, 8)
-        gen_layout.setSpacing(8)
-
-        # Systemstart & Autostart
-        sys_group = QGroupBox("Systemstart && Autostart")
-        sys_form = QFormLayout(sys_group)
-        sys_form.setContentsMargins(10, 10, 10, 10)
-        sys_form.setVerticalSpacing(6)
-
-        self.chk_autostart = QCheckBox("Autostart mit dem Betriebssystem aktivieren")
-        self.spin_delay = QSpinBox()
-        self.spin_delay.setRange(0, 120)
-        self.spin_delay.setSuffix(" Sek.")
-        self.spin_delay.setToolTip("Wartezeit nach dem Systemstart vor dem ersten Verbindungsversuch")
-
-        sys_form.addRow(self.chk_autostart)
-        sys_form.addRow("Startverzögerung beim Booten:", self.spin_delay)
-        gen_layout.addWidget(sys_group)
-
-        # Fenster & Position
-        win_group = QGroupBox("Fenster-Verhalten && Position")
-        win_form = QFormLayout(win_group)
-        win_form.setContentsMargins(10, 10, 10, 10)
-        win_form.setVerticalSpacing(6)
-
-        self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
-        self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren (LockedPos)")
-        self.chk_snap_edges = QCheckBox("Magnetisches Einrasten an Bildschirmrändern")
-
-        opacity_row = QHBoxLayout()
-        opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
-        self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
-        self.slider_opacity.setRange(25, 100)
-        self.lbl_opacity_val = QLabel("85%")
-        self.slider_opacity.valueChanged.connect(
-            lambda v: self.lbl_opacity_val.setText(f"{v}%")
-        )
-        opacity_row.addWidget(self.slider_opacity, 1)
-        opacity_row.addWidget(self.lbl_opacity_val)
-
-        win_form.addRow(self.chk_always_on_top)
-        win_form.addRow(self.chk_locked_pos)
-        win_form.addRow(self.chk_snap_edges)
-        win_form.addRow(opacity_row)
-        gen_layout.addWidget(win_group)
-        gen_layout.addStretch(1)
-
-        self.tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein")
 
         # =========================================================================
         # TAB 3: Anzeige (Skalierung, Graphen & Raten-Darstellung)
@@ -1253,7 +1253,14 @@ class SettingsDialog(QDialog):
         """Reset only the settings belonging to a specific tab index."""
         defaults = AppConfig()
 
-        if tab_idx == 0:  # FRITZ!Box
+        if tab_idx == 0:  # Allgemein
+            self.chk_autostart.setChecked(defaults.autostart)
+            self.spin_delay.setValue(defaults.start_delay_sec)
+            self.chk_always_on_top.setChecked(defaults.always_on_top)
+            self.chk_locked_pos.setChecked(defaults.locked_pos)
+            self.chk_snap_edges.setChecked(defaults.snap_to_edges)
+            self.slider_opacity.setValue(defaults.opacity)
+        elif tab_idx == 1:  # FRITZ!Box
             self.txt_host.setText(defaults.fritzbox_host)
             self.spin_port.setValue(defaults.upnp_port)
             self.spin_refresh.setValue(defaults.refresh_interval_sec)
@@ -1263,13 +1270,6 @@ class SettingsDialog(QDialog):
             self.lbl_bound_box.setText("Nicht gebunden (wird beim ersten Login automatisch an diesen Heim-Router gebunden)")
             self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
             self.lbl_test_result.setVisible(False)
-        elif tab_idx == 1:  # Allgemein
-            self.chk_autostart.setChecked(defaults.autostart)
-            self.spin_delay.setValue(defaults.start_delay_sec)
-            self.chk_always_on_top.setChecked(defaults.always_on_top)
-            self.chk_locked_pos.setChecked(defaults.locked_pos)
-            self.chk_snap_edges.setChecked(defaults.snap_to_edges)
-            self.slider_opacity.setValue(defaults.opacity)
         elif tab_idx == 2:  # Anzeige
             self.spin_ui_scale.setValue(defaults.ui_scale_percent)
             idx = self.cmb_scale_mode.findData(defaults.scale_mode)
