@@ -106,6 +106,16 @@ class AppConfig:
     widget_height: int = 300
     pos_x: int = -1
     pos_y: int = -1
+    settings_pos_x: int = -1
+    settings_pos_y: int = -1
+    settings_width: int = 680
+    settings_height: int = 540
+    ui_scale_percent: int = 100  # 70..300 %
+
+    @property
+    def ui_scale(self) -> float:
+        """Return UI scaling factor as float (1.0 = 100%)."""
+        return max(0.5, min(3.0, self.ui_scale_percent / 100.0))
 
     # Scaling & Bandwidth Limits
     # scale_mode: "sqrt" (Wurzel-Skala), "dynamic" (Auto-Peak), "fixed" (Leitungs-Max)
@@ -168,6 +178,11 @@ class AppConfig:
         self.opacity = _safe_int(self.opacity, 85, 20, 100)
         self.widget_width = _safe_int(self.widget_width, 460, 200, 3840)
         self.widget_height = _safe_int(self.widget_height, 300, 80, 2160)
+        self.settings_pos_x = _safe_int(self.settings_pos_x, -1, -10000, 10000)
+        self.settings_pos_y = _safe_int(self.settings_pos_y, -1, -10000, 10000)
+        self.settings_width = _safe_int(self.settings_width, 680, 500, 3840)
+        self.settings_height = _safe_int(self.settings_height, 540, 400, 2160)
+        self.ui_scale_percent = _safe_int(self.ui_scale_percent, 100, 70, 300)
         self.history_seconds = _safe_int(self.history_seconds, 60, 10, 600)
 
         # Safe float helper
@@ -217,6 +232,11 @@ class AppConfig:
                 for key, value in raw_data.items():
                     if key in valid_keys:
                         setattr(cfg, key, value)
+                if "ui_scale" in raw_data and "ui_scale_percent" not in raw_data:
+                    try:
+                        cfg.ui_scale_percent = int(round(float(raw_data["ui_scale"]) * 100.0))
+                    except (ValueError, TypeError):
+                        pass
                 # Transparently decrypt stored password if encrypted
                 cfg.fritz_password = decrypt_secret(cfg.fritz_password)
             except (OSError, json.JSONDecodeError) as exc:

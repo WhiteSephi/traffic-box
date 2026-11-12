@@ -30,7 +30,7 @@ class SplitTrafficGraphWidget(QWidget):
     def __init__(self, config: AppConfig, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.config = config
-        self.setMinimumHeight(85)
+        self.setMinimumHeight(max(60, int(round(85.0 * self.config.ui_scale))))
         self.setMouseTracking(True)
 
         self._hover_idx: int | None = None
@@ -259,7 +259,8 @@ class SplitTrafficGraphWidget(QWidget):
             "fixed": "Max",
         }.get(self.config.scale_mode, "Max")
         ceil_text = f"{scale_tag}: {format_rate(ceiling, self.config.show_as_bits)}"
-        font_pt = max(7, min(10, int(round(7.0 * max(1.0, self.height() / 150.0)))))
+        base_s = self.config.ui_scale
+        font_pt = max(7, min(14, int(round(7.0 * base_s * max(1.0, self.height() / (150.0 * base_s))))))
         font = QFont("Segoe UI", font_pt)
         painter.setFont(font)
         label_color = QColor(self.config.title_color)
@@ -381,19 +382,20 @@ class SplitTrafficGraphWidget(QWidget):
                     painter.drawEllipse(pt, 1.5, 1.5)
 
         # Header Legend & Stats
-        font_pt = max(7, min(9, int(round(7.0 * max(1.0, self.height() / 150.0)))))
+        base_s = self.config.ui_scale
+        font_pt = max(7, min(14, int(round(7.0 * base_s * max(1.0, self.height() / (150.0 * base_s))))))
         font = QFont("Segoe UI", font_pt)
         painter.setFont(font)
 
         # Left legend: ◆ Ping (Cyan)   ▲ Jitter (Amber)
-        legend_left = rect.left() + 5.0
-        legend_top = rect.top() + 2.0
+        legend_left = rect.left() + 5.0 * base_s
+        legend_top = rect.top() + 2.0 * base_s
 
         painter.setPen(QColor(self.config.ping_color))
         painter.drawText(QPointF(legend_left, legend_top + font_pt + 1), "◆ Ping")
 
         painter.setPen(QColor(self.config.jitter_color))
-        painter.drawText(QPointF(legend_left + 48.0, legend_top + font_pt + 1), "▲ Jitter")
+        painter.drawText(QPointF(legend_left + 48.0 * base_s, legend_top + font_pt + 1), "▲ Jitter")
 
         # Right stats: Min / Max
         if active_pings:
@@ -408,31 +410,34 @@ class SplitTrafficGraphWidget(QWidget):
             )
 
         # Right-edge live pill badges for Ping & Jitter
+        badge_pt = max(6, int(round(7.0 * base_s)))
+        badge_w = max(42.0, 44.0 * base_s)
+        badge_h = max(12.0, 12.0 * base_s)
         if last_ping_y is not None and last_ping_val > 0:
-            badge_font = QFont("Segoe UI", 7, QFont.Weight.Bold)
+            badge_font = QFont("Segoe UI", badge_pt, QFont.Weight.Bold)
             painter.setFont(badge_font)
 
             ping_txt = f"{last_ping_val:.1f} ms"
-            p_rect = QRectF(rect.right() - 44.0, max(rect.top() + 2.0, min(rect.bottom() - 14.0, last_ping_y - 6.0)), 42.0, 12.0)
+            p_rect = QRectF(rect.right() - badge_w - 2.0, max(rect.top() + 2.0, min(rect.bottom() - (badge_h + 2.0), last_ping_y - (badge_h / 2.0))), badge_w, badge_h)
             painter.setBrush(QColor(self.config.ping_color))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(p_rect, 3.0, 3.0)
+            painter.drawRoundedRect(p_rect, 3.0 * base_s, 3.0 * base_s)
             painter.setPen(QColor("#000000"))
             painter.drawText(p_rect, Qt.AlignmentFlag.AlignCenter, ping_txt)
 
         if last_jitter_y is not None and last_jitter_val >= 0:
-            badge_font = QFont("Segoe UI", 7, QFont.Weight.Bold)
+            badge_font = QFont("Segoe UI", badge_pt, QFont.Weight.Bold)
             painter.setFont(badge_font)
 
             jit_txt = f"{last_jitter_val:.1f} ms"
             # Offset slightly if close to ping badge
-            jit_y = last_jitter_y - 6.0
-            if last_ping_y is not None and abs(last_ping_y - last_jitter_y) < 14.0:
-                jit_y = last_jitter_y + 7.0
-            j_rect = QRectF(rect.right() - 44.0, max(rect.top() + 2.0, min(rect.bottom() - 14.0, jit_y)), 42.0, 12.0)
+            jit_y = last_jitter_y - (badge_h / 2.0)
+            if last_ping_y is not None and abs(last_ping_y - last_jitter_y) < (badge_h + 2.0):
+                jit_y = last_jitter_y + (badge_h / 2.0) + 1.0
+            j_rect = QRectF(rect.right() - badge_w - 2.0, max(rect.top() + 2.0, min(rect.bottom() - (badge_h + 2.0), jit_y)), badge_w, badge_h)
             painter.setBrush(QColor(self.config.jitter_color))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(j_rect, 3.0, 3.0)
+            painter.drawRoundedRect(j_rect, 3.0 * base_s, 3.0 * base_s)
             painter.setPen(QColor("#000000"))
             painter.drawText(j_rect, Qt.AlignmentFlag.AlignCenter, jit_txt)
 
@@ -658,12 +663,16 @@ class SplitTrafficGraphWidget(QWidget):
         show_pc = self.config.enable_local_traffic_monitor and (val_pc_down > 0 or val_pc_up > 0)
         show_ping = ping_rect is not None and (val_ping > 0 or val_jitter > 0)
 
-        badge_w = 175.0 if show_pc else 145.0
-        badge_h = 54.0
+        base_s = max(1.0, self.config.ui_scale)
+        badge_w = (185.0 if show_pc else 150.0) * base_s
+        line_h = 16.0 * base_s
+        pad_x = 8.0 * base_s
+        pad_y = 4.0 * base_s
+        badge_h = 54.0 * base_s
         if show_pc:
-            badge_h += 16.0
+            badge_h += line_h
         if show_ping:
-            badge_h += 16.0
+            badge_h += line_h
 
         if x + 10.0 + badge_w <= w - 4.0:
             badge_x = x + 10.0
@@ -680,17 +689,17 @@ class SplitTrafficGraphWidget(QWidget):
         # Translucent dark HUD card
         painter.setBrush(QColor(16, 22, 28, 235))
         painter.setPen(QPen(QColor(255, 255, 255, 45), 1.0))
-        painter.drawRoundedRect(badge_rect, 5.0, 5.0)
+        painter.drawRoundedRect(badge_rect, 5.0 * base_s, 5.0 * base_s)
 
-        font_hdr = QFont("Segoe UI", 8, QFont.Weight.Bold)
-        font_body = QFont("Segoe UI", 8, QFont.Weight.DemiBold)
-        font_sub = QFont("Segoe UI", 7, QFont.Weight.Bold)
+        font_hdr = QFont("Segoe UI", max(7, int(round(8.0 * base_s))), QFont.Weight.Bold)
+        font_body = QFont("Segoe UI", max(7, int(round(8.0 * base_s))), QFont.Weight.DemiBold)
+        font_sub = QFont("Segoe UI", max(6, int(round(7.0 * base_s))), QFont.Weight.Bold)
 
         # Header: [vor Xs] or [Jetzt • Live]
         painter.setFont(font_hdr)
         painter.setPen(QColor("#94A3B8"))
         painter.drawText(
-            QRectF(badge_x + 8.0, badge_y + 4.0, badge_w - 16.0, 14.0),
+            QRectF(badge_x + pad_x, badge_y + pad_y, badge_w - 2 * pad_x, line_h),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             f"[{age_text}]",
         )
@@ -700,7 +709,7 @@ class SplitTrafficGraphWidget(QWidget):
         painter.setPen(down_color)
         down_str = format_rate(val_down, self.config.show_as_bits)
         painter.drawText(
-            QRectF(badge_x + 8.0, badge_y + 19.0, badge_w - 16.0, 15.0),
+            QRectF(badge_x + pad_x, badge_y + pad_y + line_h, badge_w - 2 * pad_x, line_h),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             f"↓ Down:  {down_str}",
         )
@@ -709,12 +718,12 @@ class SplitTrafficGraphWidget(QWidget):
         painter.setPen(up_color)
         up_str = format_rate(val_up, self.config.show_as_bits)
         painter.drawText(
-            QRectF(badge_x + 8.0, badge_y + 34.0, badge_w - 16.0, 15.0),
+            QRectF(badge_x + pad_x, badge_y + pad_y + 2 * line_h, badge_w - 2 * pad_x, line_h),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             f"↑ Up:      {up_str}",
         )
 
-        curr_y = badge_y + 49.0
+        curr_y = badge_y + pad_y + 3 * line_h
 
         # Local PC row (if active)
         if show_pc:
@@ -723,27 +732,28 @@ class SplitTrafficGraphWidget(QWidget):
             pc_u = format_rate(val_pc_up, self.config.show_as_bits)
             painter.setPen(QColor("#CBD5E1"))
             painter.drawText(
-                QRectF(badge_x + 8.0, curr_y, badge_w - 16.0, 14.0),
+                QRectF(badge_x + pad_x, curr_y, badge_w - 2 * pad_x, line_h),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 f"PC:  ↓ {pc_d}  •  ↑ {pc_u}",
             )
-            curr_y += 15.0
+            curr_y += line_h
 
         # Ping & Jitter row (if active)
         if show_ping:
             painter.setFont(font_sub)
-            ping_x = badge_x + 8.0
+            ping_x = badge_x + pad_x
             p_str = f"◆ {val_ping:.1f} ms"
             j_str = f"▲ {val_jitter:.1f} ms"
+            w_half = (badge_w - 2 * pad_x) / 2.0
             painter.setPen(QColor(self.config.ping_color))
             painter.drawText(
-                QRectF(ping_x, curr_y, 62.0, 14.0),
+                QRectF(ping_x, curr_y, w_half, line_h),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 p_str,
             )
             painter.setPen(QColor(self.config.jitter_color))
             painter.drawText(
-                QRectF(ping_x + 64.0, curr_y, 60.0, 14.0),
+                QRectF(ping_x + w_half, curr_y, w_half, line_h),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 j_str,
             )

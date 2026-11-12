@@ -67,6 +67,11 @@ class VisualSizeGrip(QSizeGrip):
         self.setCursor(Qt.CursorShape.SizeFDiagCursor)
         self.setToolTip("Größe anpassen (Ziehen)")
 
+    def update_scale(self, scale: float) -> None:
+        """Adjust physical grip area to match UI scaling factor."""
+        sz = max(12, int(round(14.0 * scale)))
+        self.setFixedSize(sz, sz)
+
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
@@ -74,11 +79,13 @@ class VisualSizeGrip(QSizeGrip):
         pen_shadow = QColor(0, 0, 0, 180)
         pen_fg = QColor(255, 255, 255, 140)
         # Classic 6-dot diagonal resize grip triangle (3 rows: 1, 2, 3 dots)
-        dots = [
+        scale = max(1.0, w / 14.0)
+        base_dots = [
             (3, 3),
             (7, 3), (3, 7),
             (11, 3), (7, 7), (3, 11),
         ]
+        dots = [(int(round(x * scale)), int(round(y * scale))) for x, y in base_dots]
         for dx, dy in dots:
             painter.setPen(pen_shadow)
             painter.drawPoint(w - dx + 1, h - dy + 1)
@@ -356,13 +363,14 @@ class TrafficBox(QWidget):
 
     def _get_compact_height(self) -> int:
         """Calculate the required compact mode height to prevent element overlapping."""
+        base_scale = self.config.ui_scale
         extra = 0
         if self.config.enable_local_traffic_monitor and self.config.show_local_traffic_in_header:
-            extra += 14
+            extra += int(round(14.0 * base_scale))
         if self.config.enable_guest_monitor and self.config.show_guest_rate_labels:
-            extra += 14
+            extra += int(round(14.0 * base_scale))
         min_h = self.minimumSizeHint().height()
-        return max(min_h + 6, 122 + extra)
+        return max(min_h + 6, int(round(122.0 * base_scale)) + extra)
 
     def _on_position_settled(self) -> None:
         """Persist window position to disk and update KWin rules on Linux/Wayland."""
@@ -374,8 +382,11 @@ class TrafficBox(QWidget):
                 sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
 
     def _restore_geometry(self) -> None:
-        w = max(260, self.config.widget_width)
-        h = self._get_compact_height() if self.config.compact_mode else max(210, self.config.widget_height)
+        base_scale = self.config.ui_scale
+        min_w = int(round(260.0 * base_scale))
+        min_h = int(round(210.0 * base_scale))
+        w = max(min_w, self.config.widget_width)
+        h = self._get_compact_height() if self.config.compact_mode else max(min_h, self.config.widget_height)
         self.resize(w, h)
 
         if sys.platform == "linux" and self.config.pos_x >= 0 and self.config.pos_y >= 0:
@@ -468,14 +479,15 @@ class TrafficBox(QWidget):
                 self.config.widget_width = self.width()
                 self.config.widget_height = self.height()
 
-            # Minimum dimensions: identical 260px width for both Graph & Online-Zähler
-            min_w = 260
+            # Minimum dimensions: identical 260px width for both Graph & Online-Zähler scaled to UI factor
+            base_scale = self.config.ui_scale
+            min_w = int(round(260.0 * base_scale))
             if is_counters:
-                min_h = 295
+                min_h = int(round(295.0 * base_scale))
             elif self.config.graph_only_mode:
-                min_h = 160
+                min_h = int(round(160.0 * base_scale))
             else:
-                min_h = 210
+                min_h = int(round(210.0 * base_scale))
 
             target_w = max(min_w, self.config.widget_width)
             target_h = max(min_h, self.config.widget_height)
@@ -484,9 +496,9 @@ class TrafficBox(QWidget):
                 self.rates_container.setVisible(True)
                 self.center_stack.setVisible(False)
                 compact_h = self._get_compact_height()
-                self.setMinimumWidth(260)
+                self.setMinimumWidth(min_w)
                 self.setMinimumHeight(compact_h)
-                self.setMaximumHeight(compact_h + 25)
+                self.setMaximumHeight(compact_h + int(round(25.0 * base_scale)))
                 self.resize(target_w, compact_h)
             elif self.config.graph_only_mode:
                 self.rates_container.setVisible(False)
@@ -532,44 +544,74 @@ class TrafficBox(QWidget):
             self.tray_icon.setContextMenu(self._build_context_menu())
         self.update()
 
+    def _get_pill_style(self, text_col: str, bg_col: str, border_col: str, is_bold: bool = True) -> str:
+        """Return responsive stylesheet for footer status pills (WAN/DNS) scaled to HiDPI."""
+        base_scale = self.config.ui_scale
+        radius = max(6, int(round(9.0 * base_scale)))
+        pad_v = max(1, int(round(1.5 * base_scale)))
+        pad_h = max(4, int(round(7.0 * base_scale)))
+        bold_css = " font-weight: bold;" if is_bold else ""
+        return (
+            f"color: {text_col}; background-color: {bg_col}; "
+            f"border: 1px solid {border_col}; border-radius: {radius}px; "
+            f"padding: {pad_v}px {pad_h}px;{bold_css}"
+        )
+
     def _update_dynamic_scaling(self) -> None:
-        """Dynamically scale fonts, bar heights, and icons based on widget dimensions."""
-        w = max(260, self.width())
-        h = max(180, self.height())
+        """Dynamically scale fonts, bar heights, and icons based on widget dimensions and UI scale."""
+        base_scale = self.config.ui_scale
+        w = max(int(round(260.0 * base_scale)), self.width())
+        h = max(int(round(180.0 * base_scale)), self.height())
 
         # Scale factor relative to baseline 420x270, clamped between 0.82 and 1.50
-        scale = max(0.82, min(1.50, (w / 420.0) * 0.55 + (h / 270.0) * 0.45))
+        dim_scale = max(0.82, min(1.50, (w / (420.0 * base_scale)) * 0.55 + (h / (270.0 * base_scale)) * 0.45))
+        scale = base_scale * dim_scale
 
-        # 1. Live Rate Readouts: 9pt (compact) up to 15pt (large)
-        rate_pt = max(9, min(15, int(round(10.5 * scale))))
+        # 0. Header Bar Elements (Icon, Title, Buttons)
+        hdr_icon_sz = max(14, int(round(18.0 * base_scale)))
+        is_conn = self._last_sample.is_connected if self._last_sample else True
+        self.lbl_icon.setPixmap(create_router_icon(is_conn).pixmap(QSize(hdr_icon_sz, hdr_icon_sz)))
+        title_pt = max(8, int(round(10.0 * base_scale)))
+        self.lbl_title.setFont(QFont("Segoe UI", title_pt, QFont.Weight.Bold))
+        is_counters = self.config.active_view == "counters"
+        self._style_view_pills(is_counters)
+
+        # 1. Live Rate Readouts: 9pt (compact) up to 15pt (large) scaled
+        rate_pt = max(8, int(round(10.5 * scale)))
         rate_font = QFont("Segoe UI", rate_pt, QFont.Weight.Bold)
         self.lbl_down_rate.setFont(rate_font)
         self.lbl_up_rate.setFont(rate_font)
 
-        # 2. Header Rate Utilization Bars: 4px to 8px
-        bar_h = max(4, min(8, int(round(5.0 * scale))))
+        # 2. Header Rate Utilization Bars: 4px to 8px scaled
+        bar_h = max(3, int(round(5.0 * scale)))
         self.bar_down_util.setFixedHeight(bar_h)
         self.bar_up_util.setFixedHeight(bar_h)
 
-        # 3. Meta Labels: 7pt to 9pt
-        meta_pt = max(7, min(9, int(round(7.5 * scale))))
+        # 3. Meta Labels & PC/Guest labels
+        meta_pt = max(6, int(round(7.5 * scale)))
         meta_font = QFont("Segoe UI", meta_pt)
         self.lbl_down_meta.setFont(meta_font)
         self.lbl_up_meta.setFont(meta_font)
 
-        # 4. Header Arrow Icons & Labels
-        hdr_icon_sz = max(10, min(14, int(round(11.0 * scale))))
-        self.icon_down_header.setFixedSize(hdr_icon_sz, hdr_icon_sz)
-        self.icon_up_header.setFixedSize(hdr_icon_sz, hdr_icon_sz)
-        self.icon_down_header.setPixmap(create_arrow_pixmap(self.config.download_color, "down", hdr_icon_sz))
-        self.icon_up_header.setPixmap(create_arrow_pixmap(self.config.upload_color, "up", hdr_icon_sz))
+        sub_font = QFont("Segoe UI", meta_pt, QFont.Weight.DemiBold)
+        self.lbl_pc_down.setFont(sub_font)
+        self.lbl_pc_up.setFont(sub_font)
+        self.lbl_guest_down.setFont(sub_font)
+        self.lbl_guest_up.setFont(sub_font)
 
-        hdr_pt = max(8, min(11, int(round(9.0 * scale))))
+        # 4. Header Arrow Icons & Labels
+        arrow_icon_sz = max(9, int(round(11.0 * scale)))
+        self.icon_down_header.setFixedSize(arrow_icon_sz, arrow_icon_sz)
+        self.icon_up_header.setFixedSize(arrow_icon_sz, arrow_icon_sz)
+        self.icon_down_header.setPixmap(create_arrow_pixmap(self.config.download_color, "down", arrow_icon_sz))
+        self.icon_up_header.setPixmap(create_arrow_pixmap(self.config.upload_color, "up", arrow_icon_sz))
+
+        hdr_pt = max(7, int(round(9.0 * scale)))
         self.lbl_down_header.setFont(QFont("Segoe UI", hdr_pt, QFont.Weight.DemiBold))
         self.lbl_up_header.setFont(QFont("Segoe UI", hdr_pt, QFont.Weight.DemiBold))
 
         # 5. Footer Pill Fonts scaling
-        footer_pt = max(7, min(9, int(round(7.2 * scale))))
+        footer_pt = max(6, int(round(7.2 * scale)))
         self.lbl_footer.setFont(QFont("Segoe UI", footer_pt))
         pill_font = QFont("Segoe UI", footer_pt, QFont.Weight.DemiBold)
         self.lbl_wan_pill.setFont(pill_font)
@@ -578,14 +620,20 @@ class TrafficBox(QWidget):
         # 6. Online Counter View scaling
         self.counter_view.set_scale(scale)
 
-        # 7. Update footer elements responsive text if last sample is available
+        # 7. SizeGrip scaling
+        if hasattr(self, "size_grip") and hasattr(self.size_grip, "update_scale"):
+            self.size_grip.update_scale(base_scale)
+
+        # 8. Update footer elements responsive text if last sample is available
         if self._last_sample:
             if self.config.show_session_totals:
                 self.lbl_footer.setText(self._format_footer_text(self._last_sample))
+            self._update_wan_status_pill(self._last_sample)
             self._update_dns_pill(self._last_sample)
 
     def _style_view_pills(self, is_counters: bool) -> None:
         """Style the header toggle buttons for Graph vs. Zähler view with custom vector icons."""
+        base_scale = self.config.ui_scale
         active_col = self.config.download_color
         qcol = QColor(active_col)
         lum = 0.299 * qcol.red() + 0.587 * qcol.green() + 0.114 * qcol.blue()
@@ -599,22 +647,35 @@ class TrafficBox(QWidget):
         graph_icon_col = active_text if graph_active else self.config.title_color
         counters_icon_col = active_text if counters_active else self.config.title_color
 
-        self.btn_view_graph.setIcon(create_ui_icon("graph", graph_icon_col, 13))
-        self.btn_view_counters.setIcon(create_ui_icon("counters", counters_icon_col, 13))
-        self.btn_settings.setIcon(create_ui_icon("settings", self.config.title_color, 13))
+        btn_icon_sz = max(11, int(round(13.0 * base_scale)))
+        btn_h = max(18, int(round(20.0 * base_scale)))
+        btn_font_px = max(8, int(round(9.0 * base_scale)))
+        btn_radius = max(3, int(round(4.0 * base_scale)))
+        pad_v = max(1, int(round(1.0 * base_scale)))
+        pad_h = max(4, int(round(6.0 * base_scale)))
+        settings_sz = max(18, int(round(20.0 * base_scale)))
+
+        self.btn_view_graph.setFixedHeight(btn_h)
+        self.btn_view_counters.setFixedHeight(btn_h)
+        self.btn_settings.setFixedSize(settings_sz, settings_sz)
+
+        self.btn_view_graph.setIcon(create_ui_icon("graph", graph_icon_col, btn_icon_sz))
+        self.btn_view_counters.setIcon(create_ui_icon("counters", counters_icon_col, btn_icon_sz))
+        self.btn_settings.setIcon(create_ui_icon("settings", self.config.title_color, btn_icon_sz))
+        self.btn_settings.setIconSize(QSize(btn_icon_sz, btn_icon_sz))
 
         active_css = (
             f"QPushButton {{ background-color: {active_col}; color: {active_text}; "
-            "font-weight: bold; font-size: 9px; border: none; border-radius: 4px; padding: 1px 6px; }"
+            f"font-weight: bold; font-size: {btn_font_px}px; border: none; border-radius: {btn_radius}px; padding: {pad_v}px {pad_h}px; }}"
         )
         inactive_css = (
             f"QPushButton {{ background-color: rgba(255,255,255,20); color: {self.config.title_color}; "
-            "font-size: 9px; border: 1px solid rgba(255,255,255,35); border-radius: 4px; padding: 1px 6px; } "
+            f"font-size: {btn_font_px}px; border: 1px solid rgba(255,255,255,35); border-radius: {btn_radius}px; padding: {pad_v}px {pad_h}px; }} "
             "QPushButton:hover { background-color: rgba(255,255,255,38); }"
         )
         settings_css = (
             f"QPushButton {{ background-color: rgba(255,255,255,20); border: 1px solid rgba(255,255,255,35); "
-            "border-radius: 4px; padding: 2px; } "
+            f"border-radius: {btn_radius}px; padding: {pad_v}px; }} "
             "QPushButton:hover { background-color: rgba(255,255,255,38); }"
         )
         self.btn_view_graph.setStyleSheet(active_css if graph_active else inactive_css)
@@ -693,7 +754,8 @@ class TrafficBox(QWidget):
     def _on_sample_received(self, sample: TrafficSample) -> None:
         """Update labels, utilization bars, graph, and tooltips with a fresh TrafficSample."""
         self._last_sample = sample
-        self.lbl_icon.setPixmap(create_router_icon(sample.is_connected).pixmap(QSize(18, 18)))
+        hdr_icon_sz = max(14, int(round(18.0 * self.config.ui_scale)))
+        self.lbl_icon.setPixmap(create_router_icon(sample.is_connected).pixmap(QSize(hdr_icon_sz, hdr_icon_sz)))
 
         self.graph_widget.push_sample(
             sample.download_bps if sample.is_connected else 0.0,
@@ -758,34 +820,11 @@ class TrafficBox(QWidget):
             needed_h = self._get_compact_height()
             if self.height() != needed_h:
                 self.setMinimumHeight(needed_h)
-                self.setMaximumHeight(needed_h + 25)
+                self.setMaximumHeight(needed_h + int(round(25.0 * self.config.ui_scale)))
                 self.resize(self.width(), needed_h)
 
         # 1. WAN Status Pill (✓ / ⚠ / ✕)
-        if not sample.box_reachable:
-            self.lbl_wan_pill.setText("✕ Box Offline")
-            self.lbl_wan_pill.setStyleSheet(
-                "color: #FF5252; background-color: rgba(255, 82, 82, 0.16); "
-                "border: 1px solid rgba(255, 82, 82, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
-            )
-        elif not sample.physical_link_up:
-            self.lbl_wan_pill.setText("⚠ Kein Sync")
-            self.lbl_wan_pill.setStyleSheet(
-                "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
-                "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
-            )
-        elif not sample.wan_connected:
-            self.lbl_wan_pill.setText("⚠ Kein Internet")
-            self.lbl_wan_pill.setStyleSheet(
-                "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
-                "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
-            )
-        else:
-            self.lbl_wan_pill.setText("✓ WAN OK")
-            self.lbl_wan_pill.setStyleSheet(
-                "color: #00E5FF; background-color: rgba(0, 229, 255, 0.10); "
-                "border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
-            )
+        self._update_wan_status_pill(sample)
 
         # 2. Volume Footer Pill (Online-Zähler or Session traffic)
         if self.config.show_session_totals:
@@ -798,13 +837,37 @@ class TrafficBox(QWidget):
 
         self._update_tooltip(sample, down_pct, up_pct)
 
+    def _update_wan_status_pill(self, sample: TrafficSample) -> None:
+        """Update text, colors and tooltip of the WAN status pill with HiDPI styling."""
+        if not sample.box_reachable:
+            self.lbl_wan_pill.setText("✕ Box Offline")
+            self.lbl_wan_pill.setStyleSheet(
+                self._get_pill_style("#FF5252", "rgba(255, 82, 82, 0.16)", "rgba(255, 82, 82, 0.45)")
+            )
+        elif not sample.physical_link_up:
+            self.lbl_wan_pill.setText("⚠ Kein Sync")
+            self.lbl_wan_pill.setStyleSheet(
+                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
+            )
+        elif not sample.wan_connected:
+            self.lbl_wan_pill.setText("⚠ Kein Internet")
+            self.lbl_wan_pill.setStyleSheet(
+                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
+            )
+        else:
+            self.lbl_wan_pill.setText("✓ WAN OK")
+            self.lbl_wan_pill.setStyleSheet(
+                self._get_pill_style("#00E5FF", "rgba(0, 229, 255, 0.10)", "rgba(0, 229, 255, 0.35)")
+            )
+
     def _update_dns_pill(self, sample: TrafficSample) -> None:
-        """Update text, colors and tooltip of the DNS status pill with dynamic IP threshold."""
+        """Update text, colors and tooltip of the DNS status pill with dynamic IP threshold and HiDPI styling."""
         if sample.dns_ms is not None:
-            # Dynamic threshold: 270px without middle counter, 420px with middle counter
+            # Dynamic threshold: 270px without middle counter, 420px with middle counter scaled to UI factor
             has_footer = self.config.show_session_totals
             has_wan = self.config.show_wan_status_pill
-            min_w = 420 if has_footer else (270 if has_wan else 200)
+            base_w = 420 if has_footer else (270 if has_wan else 200)
+            min_w = int(round(base_w * self.config.ui_scale))
 
             dns_ip_label = (
                 f"({sample.active_dns_ip}): "
@@ -815,14 +878,12 @@ class TrafficBox(QWidget):
             if sample.dns_ms > 80.0:
                 self.lbl_dns_pill.setText(f"⚠ DNS{dns_ip_label}{ms_str}")
                 self.lbl_dns_pill.setStyleSheet(
-                    "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
-                    "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+                    self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
                 )
             else:
                 self.lbl_dns_pill.setText(f"✓ DNS{dns_ip_label}{ms_str}")
                 self.lbl_dns_pill.setStyleSheet(
-                    "color: #00E5FF; background-color: rgba(0, 229, 255, 0.10); "
-                    "border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+                    self._get_pill_style("#00E5FF", "rgba(0, 229, 255, 0.10)", "rgba(0, 229, 255, 0.35)")
                 )
             if sample.active_dns_ip:
                 self.lbl_dns_pill.setToolTip(f"Aktiver OS-DNS: {sample.active_dns_ip}\nAntwortzeit: {ms_str}")
@@ -830,15 +891,13 @@ class TrafficBox(QWidget):
             self.lbl_dns_pill.setText("⚠ DNS: Timeout")
             self.lbl_dns_pill.setToolTip(f"Aktiver OS-DNS: {sample.active_dns_ip} (Keine Antwort)")
             self.lbl_dns_pill.setStyleSheet(
-                "color: #FFAB00; background-color: rgba(255, 171, 0, 0.16); "
-                "border: 1px solid rgba(255, 171, 0, 0.45); border-radius: 9px; padding: 1px 7px; font-weight: bold;"
+                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
             )
         else:
             self.lbl_dns_pill.setText("✕ DNS: n/a")
             self.lbl_dns_pill.setToolTip("Kein aktiver DNS-Server erkannt")
             self.lbl_dns_pill.setStyleSheet(
-                "color: rgba(255, 255, 255, 0.4); background-color: rgba(255, 255, 255, 0.05); "
-                "border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 9px; padding: 1px 7px;"
+                self._get_pill_style("rgba(255, 255, 255, 0.4)", "rgba(255, 255, 255, 0.05)", "rgba(255, 255, 255, 0.15)", is_bold=False)
             )
 
     def _format_footer_text(self, sample: TrafficSample) -> str:
@@ -1261,6 +1320,8 @@ class TrafficBox(QWidget):
             initial_tab=tab_idx,
         )
         self._settings_dlg.show()
+        self._settings_dlg.raise_()
+        self._settings_dlg.activateWindow()
 
     def _on_settings_applied(self) -> None:
         self._apply_config_visuals()

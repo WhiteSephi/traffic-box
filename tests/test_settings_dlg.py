@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from src import __version__
@@ -148,6 +149,41 @@ class TestSettingsDialog(unittest.TestCase):
                 popup.deleteLater()
         finally:
             btn.deleteLater()
+
+    def test_dialog_stays_on_top_and_geometry_saved(self) -> None:
+        """Verify SettingsDialog has WindowStaysOnTopHint and geometry is persisted."""
+        dlg = SettingsDialog(self.config, self._on_apply)
+        try:
+            self.assertTrue(bool(dlg.windowFlags() & Qt.WindowType.WindowStaysOnTopHint))
+            dlg.move(250, 350)
+            dlg.resize(700, 550)
+            dlg._save_geometry_to_config()
+            self.assertEqual(self.config.settings_pos_x, 250)
+            self.assertEqual(self.config.settings_pos_y, 350)
+            self.assertEqual(self.config.settings_width, 700)
+            self.assertEqual(self.config.settings_height, 550)
+        finally:
+            dlg.deleteLater()
+
+    def test_ui_scale_form_controls(self) -> None:
+        """Verify modifying UI scale updates AppConfig upon apply."""
+        dlg = SettingsDialog(self.config, self._on_apply)
+        try:
+            self.assertEqual(dlg.spin_ui_scale.value(), 100)
+            self.assertEqual(dlg.slider_ui_scale.value(), 100)
+
+            dlg.spin_ui_scale.setValue(150)
+            self.assertEqual(dlg.slider_ui_scale.value(), 150)
+
+            dlg._apply_changes()
+            self.assertEqual(self.config.ui_scale_percent, 150)
+            self.assertAlmostEqual(self.config.ui_scale, 1.5)
+
+            # Test reset single tab
+            dlg._reset_single_tab(2)
+            self.assertEqual(dlg.spin_ui_scale.value(), 100)
+        finally:
+            dlg.deleteLater()
 
 
 if __name__ == "__main__":

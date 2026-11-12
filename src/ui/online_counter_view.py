@@ -141,18 +141,18 @@ class PeriodCardWidget(QWidget):
         """Dynamically scale fonts, bar height, and icon sizes."""
         self._scale = scale
 
-        title_pt = max(8, min(12, int(round(9.0 * scale))))
+        title_pt = max(8, min(16, int(round(9.0 * scale))))
         self.lbl_period.setFont(QFont("Segoe UI", title_pt, QFont.Weight.DemiBold))
         self.lbl_total.setFont(QFont("Segoe UI", title_pt, QFont.Weight.Bold))
 
-        bar_h = max(3, min(7, int(round(4.0 * scale))))
+        bar_h = max(3, min(10, int(round(4.0 * scale))))
         self.bar.setFixedHeight(bar_h)
 
-        sub_pt = max(7, min(10, int(round(8.0 * scale))))
+        sub_pt = max(7, min(14, int(round(8.0 * scale))))
         self.lbl_down.setFont(QFont("Segoe UI", sub_pt))
         self.lbl_up.setFont(QFont("Segoe UI", sub_pt))
 
-        icon_sz = max(9, min(14, int(round(10.0 * scale))))
+        icon_sz = max(9, min(18, int(round(10.0 * scale))))
         self.icon_down.setFixedSize(icon_sz, icon_sz)
         self.icon_up.setFixedSize(icon_sz, icon_sz)
 
@@ -222,7 +222,7 @@ class OnlineCounterView(QWidget):
         self.config = config
         self.on_open_settings = on_open_settings
         self._scale: float = 1.0
-        self.setMinimumHeight(145)
+        self.setMinimumHeight(max(120, int(round(145.0 * self.config.ui_scale))))
 
         self._build_ui()
         self.apply_theme()
@@ -250,6 +250,7 @@ class OnlineCounterView(QWidget):
     def set_scale(self, scale: float) -> None:
         """Apply dynamic scale to all period cards."""
         self._scale = scale
+        self.setMinimumHeight(max(120, int(round(145.0 * self.config.ui_scale))))
         for card in self.cards:
             card.set_scale(scale, self.config)
 

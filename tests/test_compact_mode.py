@@ -218,6 +218,29 @@ class TestCompactMode(unittest.TestCase):
         self.widget._apply_config_visuals()
         self.assertTrue(self.widget.size_grip.isHidden())
 
+    def test_ui_scale_applied_to_elements(self) -> None:
+        """Verify UI scaling factor updates fonts, header buttons, and minimum window size."""
+        self.widget.config.ui_scale_percent = 150
+        self.widget._apply_config_visuals()
+
+        # Title font should scale from baseline 10pt -> 15pt
+        self.assertEqual(self.widget.lbl_title.font().pointSize(), 15)
+
+        # Header buttons height should scale from 20px -> 30px
+        self.assertEqual(self.widget.btn_view_graph.height(), 30)
+        self.assertEqual(self.widget.btn_view_counters.height(), 30)
+        self.assertEqual(self.widget.btn_settings.height(), 30)
+
+        # Minimum width scales from baseline 260 -> 390
+        self.assertEqual(self.widget.minimumWidth(), 390)
+
+        # Reset to 100%
+        self.widget.config.ui_scale_percent = 100
+        self.widget._apply_config_visuals()
+        self.assertEqual(self.widget.lbl_title.font().pointSize(), 10)
+        self.assertEqual(self.widget.btn_view_graph.height(), 20)
+        self.assertEqual(self.widget.minimumWidth(), 260)
+
 
 if __name__ == "__main__":
     unittest.main()

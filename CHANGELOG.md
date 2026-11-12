@@ -4,6 +4,24 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.14.0] - 2026-11-12
+### Added
+- **Separate Speicherung der Position & Größe des Einstellungsfensters:**
+  - Das Einstellungsfenster speichert nun seine Desktop-Koordinaten (`settings_pos_x`, `settings_pos_y`) sowie Abmessungen (`settings_width`, `settings_height`) in der Konfiguration (`config.json`).
+  - Beim erneuten Öffnen wird die exakte Position auf dem Bildschirm wiederhergestellt, inklusive Sicherheitsprüfung gegen getrennte Monitore (automatisches Re-Centering bei fehlendem Bildschirm).
+- **Vordergrund-Garantie für das Einstellungsfenster (Z-Order Korrektur):**
+  - Behoben: Das Einstellungsfenster öffnete sich zuvor hinter dem Widget, da das rahmenlose Widget als `Tool`-Fenster mit optionalem `WindowStaysOnTopHint` über normalen Standard-Fenstern gerendert wurde.
+  - Das Einstellungsfenster besitzt nun `Qt.WindowType.WindowStaysOnTopHint` und wird beim Öffnen über `raise_()` und `activateWindow()` garantiert in den Vordergrund über das Widget geholt.
+- **Umfassende UI-Skalierung für HiDPI / kleine Bildschirme (70 % bis 300 %):**
+  - Neuer Bereich `Benutzeroberflächen-Skalierung (HiDPI / Kleine Displays)` im Reiter `Anzeige` der Einstellungen mit Slider, SpinBox und Schnellwahl-Button `100 % (Standard)`.
+  - Skaliert alle visuellen Elemente konsistent mit:
+    - **Header:** Router-Icon, Fenstertitel, View-Buttons („Graph“ / „Zähler“) und Einstellungen-Button.
+    - **Raten-Anzeige:** Header („Down:“ / „Up:“), Raten-Texte, Auslastungsbalken, Meta-Zeilen sowie PC- und Gast-WLAN-Labels.
+    - **Live-Graph:** Mindesthöhe, Achsenskalierungs-Labels, Ping- und Jitter-Badges sowie Hover-HUD-Tooltip.
+    - **Footer:** WAN-Status-Pille, Volumen-Zähler, DNS-Pille (`lbl_dns_pill`) sowie Resize-Grip (`VisualSizeGrip`).
+    - **Online-Zähler Ansicht:** Perioden-Karten, Schriftgrößen, Balkenhöhe und Pfeil-Icons.
+    - **Fenstermaße:** Dynamische Skalierung der Mindestmaße (`minimumSize`) zur Vermeidung von Textüberlappungen.
+
 ## [0.13.5] - 2026-11-09
 ### Added
 - **Sichtbarer Resize-Griff (`VisualSizeGrip`) unten rechts:**

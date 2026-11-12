@@ -7,8 +7,16 @@ import sys
 from typing import Callable
 import urllib.request
 
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer, QUrl, qVersion
-from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, QTimer, QUrl, qVersion
+from PySide6.QtGui import (
+    QCloseEvent,
+    QColor,
+    QDesktopServices,
+    QHideEvent,
+    QIcon,
+    QPainter,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -360,11 +368,59 @@ class SettingsDialog(QDialog):
 
         self.setWindowTitle("TrafficBox Einstellungen")
         self.setMinimumSize(600, 480)
-        self.resize(680, 540)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self._build_ui()
+        self._restore_geometry()
         self._load_from_config()
         if 0 <= initial_tab < self.tabs.count():
             self.tabs.setCurrentIndex(initial_tab)
+
+    def _restore_geometry(self) -> None:
+        """Restore window position and size from config if valid on current screens."""
+        cfg_w = max(600, self.config.settings_width)
+        cfg_h = max(480, self.config.settings_height)
+        self.resize(cfg_w, cfg_h)
+
+        if self.config.settings_pos_x >= 0 and self.config.settings_pos_y >= 0:
+            target_pt = QPoint(self.config.settings_pos_x, self.config.settings_pos_y)
+            target_rect = QRect(target_pt, QSize(cfg_w, cfg_h))
+            for screen in QApplication.screens():
+                if screen.availableGeometry().intersects(target_rect):
+                    self.move(target_pt)
+                    return
+
+        primary = QApplication.primaryScreen()
+        if primary:
+            avail = primary.availableGeometry()
+            x = avail.x() + max(0, (avail.width() - cfg_w) // 2)
+            y = avail.y() + max(0, (avail.height() - cfg_h) // 2)
+            self.move(x, y)
+
+    def _save_geometry_to_config(self) -> None:
+        """Store current window geometry in config."""
+        self.config.settings_pos_x = self.x()
+        self.config.settings_pos_y = self.y()
+        self.config.settings_width = self.width()
+        self.config.settings_height = self.height()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._save_geometry_to_config()
+        self.config.save()
+        super().closeEvent(event)
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        self._save_geometry_to_config()
+        super().hideEvent(event)
+
+    def accept(self) -> None:
+        self._save_geometry_to_config()
+        self.config.save()
+        super().accept()
+
+    def reject(self) -> None:
+        self._save_geometry_to_config()
+        self.config.save()
+        super().reject()
 
     def _build_ui(self) -> None:
         root_layout = QVBoxLayout(self)
@@ -518,6 +574,45 @@ class SettingsDialog(QDialog):
         disp_layout = QVBoxLayout(tab_display)
         disp_layout.setContentsMargins(8, 8, 8, 8)
         disp_layout.setSpacing(8)
+
+        # Benutzeroberflächen-Skalierung
+        ui_scale_group = QGroupBox("Benutzeroberflächen-Skalierung (HiDPI / Kleine Displays)")
+        ui_scale_form = QFormLayout(ui_scale_group)
+        ui_scale_form.setContentsMargins(10, 10, 10, 10)
+        ui_scale_form.setVerticalSpacing(6)
+
+        scale_row = QHBoxLayout()
+        self.slider_ui_scale = QSlider(Qt.Orientation.Horizontal)
+        self.slider_ui_scale.setRange(70, 300)
+        self.slider_ui_scale.setSingleStep(5)
+        self.slider_ui_scale.setPageStep(25)
+        self.slider_ui_scale.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.slider_ui_scale.setTickInterval(25)
+
+        self.spin_ui_scale = QSpinBox()
+        self.spin_ui_scale.setRange(70, 300)
+        self.spin_ui_scale.setSingleStep(5)
+        self.spin_ui_scale.setSuffix(" %")
+
+        self.slider_ui_scale.valueChanged.connect(self.spin_ui_scale.setValue)
+        self.spin_ui_scale.valueChanged.connect(self.slider_ui_scale.setValue)
+
+        btn_scale_100 = QPushButton("100 % (Standard)")
+        btn_scale_100.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_scale_100.clicked.connect(lambda: self.spin_ui_scale.setValue(100))
+
+        scale_row.addWidget(self.slider_ui_scale, 1)
+        scale_row.addWidget(self.spin_ui_scale, 0)
+        scale_row.addWidget(btn_scale_100, 0)
+
+        ui_scale_form.addRow("UI-Größe / Skalierung:", scale_row)
+        lbl_scale_hint = QLabel(
+            "Skaliert alle Elemente des Widgets (Header, Raten-Zahlen, DNS-Pille, Buttons & Zähler) für hochauflösende Bildschirme."
+        )
+        lbl_scale_hint.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
+        lbl_scale_hint.setWordWrap(True)
+        ui_scale_form.addRow(lbl_scale_hint)
+        disp_layout.addWidget(ui_scale_group)
 
         # Skalierung & Leitungskapazität
         scale_group = QGroupBox("Graph-Skalierung && Leitungskapazität")
@@ -1002,6 +1097,7 @@ class SettingsDialog(QDialog):
         f_idx = self.cmb_footer_mode.findData(self.config.footer_counter_mode)
         self.cmb_footer_mode.setCurrentIndex(max(0, f_idx))
         self.slider_opacity.setValue(self.config.opacity)
+        self.spin_ui_scale.setValue(self.config.ui_scale_percent)
 
         idx = self.cmb_scale_mode.findData(self.config.scale_mode)
         self.cmb_scale_mode.setCurrentIndex(max(0, idx))
@@ -1067,6 +1163,8 @@ class SettingsDialog(QDialog):
         self.config.show_local_traffic_in_header = self.chk_pc_in_header.isChecked()
         self.config.footer_counter_mode = str(self.cmb_footer_mode.currentData() or "today")
         self.config.opacity = self.slider_opacity.value()
+        self.config.ui_scale_percent = self.spin_ui_scale.value()
+        self._save_geometry_to_config()
 
         self.config.scale_mode = str(self.cmb_scale_mode.currentData() or "sqrt")
         self.config.auto_link_scale = self.chk_auto_link.isChecked()
@@ -1163,6 +1261,7 @@ class SettingsDialog(QDialog):
             self.chk_locked_pos.setChecked(defaults.locked_pos)
             self.slider_opacity.setValue(defaults.opacity)
         elif tab_idx == 2:  # Anzeige
+            self.spin_ui_scale.setValue(defaults.ui_scale_percent)
             idx = self.cmb_scale_mode.findData(defaults.scale_mode)
             self.cmb_scale_mode.setCurrentIndex(max(0, idx))
             self.chk_auto_link.setChecked(defaults.auto_link_scale)

@@ -160,6 +160,47 @@ class TestConfig(unittest.TestCase):
             finally:
                 AppConfig.config_file_path = original_fn  # type: ignore[assignment]
 
+    def test_settings_geometry_and_ui_scale(self) -> None:
+        """Verify settings dialog position and UI scaling attributes and properties."""
+        cfg = AppConfig(
+            settings_pos_x=120,
+            settings_pos_y=180,
+            settings_width=720,
+            settings_height=580,
+            ui_scale_percent=125,
+        )
+        self.assertEqual(cfg.settings_pos_x, 120)
+        self.assertEqual(cfg.settings_pos_y, 180)
+        self.assertEqual(cfg.settings_width, 720)
+        self.assertEqual(cfg.settings_height, 580)
+        self.assertEqual(cfg.ui_scale_percent, 125)
+        self.assertAlmostEqual(cfg.ui_scale, 1.25)
+
+        # Clamping behavior
+        cfg.ui_scale_percent = 500
+        cfg.sanitize()
+        self.assertEqual(cfg.ui_scale_percent, 300)
+        self.assertAlmostEqual(cfg.ui_scale, 3.0)
+
+        cfg.ui_scale_percent = 20
+        cfg.sanitize()
+        self.assertEqual(cfg.ui_scale_percent, 70)
+        self.assertAlmostEqual(cfg.ui_scale, 0.7)
+
+    def test_backward_compatible_ui_scale_loading(self) -> None:
+        """Verify backward-compatible loading of float ui_scale into ui_scale_percent."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "config.json"
+            tmp_path.write_text(json.dumps({"ui_scale": 1.5}), encoding="utf-8")
+            original_fn = AppConfig.config_file_path
+            try:
+                AppConfig.config_file_path = classmethod(lambda cls: tmp_path)  # type: ignore[assignment]
+                loaded = AppConfig.load()
+                self.assertEqual(loaded.ui_scale_percent, 150)
+                self.assertAlmostEqual(loaded.ui_scale, 1.5)
+            finally:
+                AppConfig.config_file_path = original_fn  # type: ignore[assignment]
+
 
 if __name__ == "__main__":
     unittest.main()
