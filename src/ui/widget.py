@@ -1030,11 +1030,47 @@ class TrafficBox(QWidget):
                             event.accept()
                             return
                 new_pos = event.globalPosition().toPoint() - self._drag_offset
+                if self.config.snap_to_edges:
+                    new_pos = self._snap_position(new_pos)
                 self._last_drag_pos = new_pos
                 self.move(new_pos)
                 event.accept()
                 return
         super().mouseMoveEvent(event)
+
+    def _snap_position(self, pos: QPoint, snap_dist: int = 14) -> QPoint:
+        """Snap widget position magnetically to the available screen edges."""
+        x, y = pos.x(), pos.y()
+        w, h = self.width(), self.height()
+        center = QPoint(x + w // 2, y + h // 2)
+        screen = QApplication.screenAt(center) or QApplication.primaryScreen()
+
+        if screen is None:
+            return pos
+
+        avail = screen.availableGeometry()
+        left_edge = avail.x()
+        right_edge = avail.x() + avail.width() - w
+        top_edge = avail.y()
+        bottom_edge = avail.y() + avail.height() - h
+
+        candidates_x: list[tuple[int, int]] = []
+        candidates_y: list[tuple[int, int]] = []
+
+        for edge_x in (left_edge, right_edge):
+            d = abs(x - edge_x)
+            if d <= snap_dist:
+                candidates_x.append((d, edge_x))
+        for edge_y in (top_edge, bottom_edge):
+            d = abs(y - edge_y)
+            if d <= snap_dist:
+                candidates_y.append((d, edge_y))
+
+        if candidates_x:
+            x = min(candidates_x, key=lambda item: item[0])[1]
+        if candidates_y:
+            y = min(candidates_y, key=lambda item: item[0])[1]
+        return QPoint(x, y)
 
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)

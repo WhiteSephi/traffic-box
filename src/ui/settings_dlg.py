@@ -547,6 +547,7 @@ class SettingsDialog(QDialog):
 
         self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
         self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren (LockedPos)")
+        self.chk_snap_edges = QCheckBox("Magnetisches Einrasten an Bildschirmrändern")
 
         opacity_row = QHBoxLayout()
         opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
@@ -561,6 +562,7 @@ class SettingsDialog(QDialog):
 
         win_form.addRow(self.chk_always_on_top)
         win_form.addRow(self.chk_locked_pos)
+        win_form.addRow(self.chk_snap_edges)
         win_form.addRow(opacity_row)
         gen_layout.addWidget(win_group)
         gen_layout.addStretch(1)
@@ -1088,6 +1090,7 @@ class SettingsDialog(QDialog):
         )
         self.chk_always_on_top.setChecked(self.config.always_on_top)
         self.chk_locked_pos.setChecked(self.config.locked_pos)
+        self.chk_snap_edges.setChecked(self.config.snap_to_edges)
         self.chk_switch_up_down.setChecked(self.config.switch_up_down)
         self.chk_show_bits.setChecked(self.config.show_as_bits)
         self.chk_compact.setChecked(self.config.compact_mode)
@@ -1156,6 +1159,7 @@ class SettingsDialog(QDialog):
 
         self.config.always_on_top = self.chk_always_on_top.isChecked()
         self.config.locked_pos = self.chk_locked_pos.isChecked()
+        self.config.snap_to_edges = self.chk_snap_edges.isChecked()
         self.config.switch_up_down = self.chk_switch_up_down.isChecked()
         self.config.show_as_bits = self.chk_show_bits.isChecked()
         self.config.compact_mode = self.chk_compact.isChecked()
@@ -1264,6 +1268,7 @@ class SettingsDialog(QDialog):
             self.spin_delay.setValue(defaults.start_delay_sec)
             self.chk_always_on_top.setChecked(defaults.always_on_top)
             self.chk_locked_pos.setChecked(defaults.locked_pos)
+            self.chk_snap_edges.setChecked(defaults.snap_to_edges)
             self.slider_opacity.setValue(defaults.opacity)
         elif tab_idx == 2:  # Anzeige
             self.spin_ui_scale.setValue(defaults.ui_scale_percent)

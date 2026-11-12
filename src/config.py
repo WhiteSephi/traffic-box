@@ -89,6 +89,7 @@ class AppConfig:
     autostart: bool = False
     always_on_top: bool = False
     locked_pos: bool = False
+    snap_to_edges: bool = True
     compact_mode: bool = False
     graph_only_mode: bool = False  # True = Obere Zahlen ausblenden, Fokus rein auf den Graphen
     # active_view: "graph" (Live-Graph) or "counters" (Online-Zähler Tabelle)
@@ -200,7 +201,7 @@ class AppConfig:
         # Booleans: ensure true boolean values
         bool_fields = (
             "enable_guest_monitor", "enable_local_traffic_monitor", "show_local_traffic_in_graph",
-            "show_local_traffic_in_header", "autostart", "always_on_top", "locked_pos",
+            "show_local_traffic_in_header", "autostart", "always_on_top", "locked_pos", "snap_to_edges",
             "compact_mode", "graph_only_mode", "switch_up_down", "show_as_bits", "show_peak_rate",
             "show_guest_rate_labels", "show_session_totals", "show_connection_tooltip",
             "auto_link_scale", "enable_ping_graph", "show_wan_status_pill", "enable_dns_monitor",
