@@ -566,8 +566,8 @@ class SettingsDialog(QDialog):
         disp_layout.setContentsMargins(8, 8, 8, 8)
         disp_layout.setSpacing(8)
 
-        # Benutzeroberflächen-Skalierung
-        ui_scale_group = QGroupBox("Benutzeroberflächen-Skalierung (HiDPI / Kleine Displays)")
+        # Globale Darstellung (Skalierung & Deckkraft)
+        ui_scale_group = QGroupBox("Globale Darstellung")
         ui_scale_form = QFormLayout(ui_scale_group)
         ui_scale_form.setContentsMargins(10, 10, 10, 10)
         ui_scale_form.setVerticalSpacing(6)
@@ -584,7 +584,7 @@ class SettingsDialog(QDialog):
         self.spin_ui_scale = QSpinBox()
         self.spin_ui_scale.setRange(70, 300)
         self.spin_ui_scale.setSingleStep(5)
-        self.spin_ui_scale.setSuffix(" %")
+        self.spin_ui_scale.setSuffix("%")
 
         self.slider_ui_scale.valueChanged.connect(
             lambda val: self.spin_ui_scale.setValue(val * 5)
@@ -593,7 +593,7 @@ class SettingsDialog(QDialog):
             lambda val: self.slider_ui_scale.setValue(max(14, min(60, int(round(val / 5.0)))))
         )
 
-        btn_scale_100 = QPushButton("100 % (Standard)")
+        btn_scale_100 = QPushButton("100% (Standard)")
         btn_scale_100.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_scale_100.clicked.connect(lambda: self.spin_ui_scale.setValue(100))
 
@@ -601,7 +601,7 @@ class SettingsDialog(QDialog):
         scale_row.addWidget(self.spin_ui_scale, 0)
         scale_row.addWidget(btn_scale_100, 0)
 
-        ui_scale_form.addRow("UI-Größe / Skalierung:", scale_row)
+        ui_scale_form.addRow("UI-Skalierung:", scale_row)
 
         opacity_row = QHBoxLayout()
         self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
