@@ -4,6 +4,20 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.15.3] - 2026-11-13
+### Changed
+- **Einstellungen an SystemBox angeglichen (`src/ui/settings_dlg.py`):**
+  - Eigenes Router-Icon (`create_router_icon()`) als Fenster- & Taskleisten-Icon im Einstellungsdialog gesetzt.
+  - `Deckkraft` in den Tab `Anzeige` verschoben und englische Klammerzusätze (`(Always on Top)`, `(LockedPos)`, `(Opacity)`) entfernt.
+  - Tab `Farben` in `Design & Themes` umbenannt und untere Button-Leiste auf `Reset (Standardwerte)` + `Übernehmen | OK | Abbrechen` vereinheitlicht.
+
+## [0.15.2] - 2026-11-13
+### Changed
+- **PyInstaller-Build verschlankt (`TrafficBox.spec`):** Ungenutzte Qt-Imageformat- und Touch-Plugins (`qtiff`, `qwebp`, `qjpeg`, `qpdf`, `qsvg`, `qtga`, `qwbmp`, `qicns`, `qgif`, `qsvgicon`, `qtuiotouchplugin`) sowie ungenutzte Python-Module (`decimal`, `lzma`, `bz2`, `sqlite3`) werden nun ausgeschlossen.
+
+### Fixed
+- **Qt-Übersetzungsfilter unter Windows (`TrafficBox.spec`):** Pfadtrenner werden vor dem Abgleich auf `PySide6/translations/` normalisiert, sodass neben `qt_help_*` nun tatsächlich alle nicht benötigten Sprachdateien (außer `de`/`en`) entfernt werden. Die Binary-Größe sinkt dadurch von 26,43 MB auf **23,27 MB** (-3,16 MB).
+
 ## [0.15.1] - 2026-11-12
 ### Changed
 - **Reihenfolge im Einstellungsfenster:** Die Reiter `Allgemein` und `FRITZ!Box` wurden getauscht, sodass die Einstellungen nun standardmäßig mit `Allgemein` starten (inkl. Anpassung der tab-spezifischen Zurücksetzen-Logik).

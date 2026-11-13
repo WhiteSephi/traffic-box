@@ -367,6 +367,7 @@ class SettingsDialog(QDialog):
         self.on_apply = on_apply
 
         self.setWindowTitle("TrafficBox Einstellungen")
+        self.setWindowIcon(create_router_icon())
         self.setMinimumSize(600, 480)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self._build_ui()
@@ -458,25 +459,13 @@ class SettingsDialog(QDialog):
         win_form.setContentsMargins(10, 10, 10, 10)
         win_form.setVerticalSpacing(6)
 
-        self.chk_always_on_top = QCheckBox("Immer im Vordergrund (Always on Top)")
-        self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren (LockedPos)")
+        self.chk_always_on_top = QCheckBox("Immer im Vordergrund halten")
+        self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren")
         self.chk_snap_edges = QCheckBox("Magnetisches Einrasten an Bildschirmrändern")
-
-        opacity_row = QHBoxLayout()
-        opacity_row.addWidget(QLabel("Deckkraft (Opacity):"))
-        self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
-        self.slider_opacity.setRange(25, 100)
-        self.lbl_opacity_val = QLabel("85%")
-        self.slider_opacity.valueChanged.connect(
-            lambda v: self.lbl_opacity_val.setText(f"{v}%")
-        )
-        opacity_row.addWidget(self.slider_opacity, 1)
-        opacity_row.addWidget(self.lbl_opacity_val)
 
         win_form.addRow(self.chk_always_on_top)
         win_form.addRow(self.chk_locked_pos)
         win_form.addRow(self.chk_snap_edges)
-        win_form.addRow(opacity_row)
         gen_layout.addWidget(win_group)
         gen_layout.addStretch(1)
 
@@ -613,6 +602,18 @@ class SettingsDialog(QDialog):
         scale_row.addWidget(btn_scale_100, 0)
 
         ui_scale_form.addRow("UI-Größe / Skalierung:", scale_row)
+
+        opacity_row = QHBoxLayout()
+        self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.slider_opacity.setRange(25, 100)
+        self.lbl_opacity_val = QLabel("85%")
+        self.slider_opacity.valueChanged.connect(
+            lambda v: self.lbl_opacity_val.setText(f"{v}%")
+        )
+        opacity_row.addWidget(self.slider_opacity, 1)
+        opacity_row.addWidget(self.lbl_opacity_val)
+        ui_scale_form.addRow("Deckkraft:", opacity_row)
+
         lbl_scale_hint = QLabel(
             "Skaliert alle Elemente des Widgets (Header, Raten-Zahlen, DNS-Pille, Buttons & Zähler) für hochauflösende Bildschirme."
         )
@@ -819,7 +820,7 @@ class SettingsDialog(QDialog):
         col_layout.addLayout(colors_row)
         col_layout.addStretch(1)
 
-        self.tabs.addTab(self._wrap_in_scroll(tab_colors), "Farben")
+        self.tabs.addTab(self._wrap_in_scroll(tab_colors), "Design && Themes")
 
         # =========================================================================
         # TAB 6: Über (App-Info, Systemdiagnose, Datenschutz & Lizenz)
@@ -835,14 +836,17 @@ class SettingsDialog(QDialog):
         self.btn_reset.clicked.connect(self._reset_defaults)
         self.btn_apply = QPushButton("Übernehmen")
         self.btn_apply.clicked.connect(self._apply_changes)
-        self.btn_ok = QPushButton("Speichern && Schließen")
+        self.btn_ok = QPushButton("OK")
         self.btn_ok.setDefault(True)
         self.btn_ok.clicked.connect(self._save_and_close)
+        self.btn_cancel = QPushButton("Abbrechen")
+        self.btn_cancel.clicked.connect(self.reject)
 
         btn_row.addWidget(self.btn_reset)
         btn_row.addStretch(1)
         btn_row.addWidget(self.btn_apply)
         btn_row.addWidget(self.btn_ok)
+        btn_row.addWidget(self.btn_cancel)
         root_layout.addLayout(btn_row)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
