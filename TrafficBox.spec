@@ -11,6 +11,7 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         'tkinter', 'unittest', 'test',
+        'decimal', '_decimal', 'lzma', '_lzma', 'bz2', '_bz2', 'sqlite3', '_sqlite3',
         'PySide6.QtQuick', 'PySide6.QtQml', 'PySide6.QtPdf',
         'PySide6.QtNetwork', 'PySide6.QtOpenGL', 'PySide6.QtVirtualKeyboard',
         'PySide6.QtWebEngine', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets',
@@ -41,12 +42,32 @@ excluded_binaries = {
     'qcertonlybackend.dll',
     'qopensslbackend.dll',
     'qschannelbackend.dll',
+    'qtiff.dll',
+    'qwebp.dll',
+    'qjpeg.dll',
+    'qpdf.dll',
+    'qsvg.dll',
+    'qtga.dll',
+    'qwbmp.dll',
+    'qicns.dll',
+    'qgif.dll',
+    'qsvgicon.dll',
+    'qtuiotouchplugin.dll',
 }
 
 a.binaries = [x for x in a.binaries if not any(ex in x[0].lower() for ex in excluded_binaries)]
 
-# Strip unused language files from Qt (we only need German and English)
-a.datas = [x for x in a.datas if not (x[0].startswith('PySide6/translations') and not any(k in x[0] for k in ['_de.', '_en.']))]
+# Strip unused language files from Qt (we only need German and English, no help translations)
+a.datas = [
+    x for x in a.datas
+    if not (
+        x[0].replace('\\', '/').startswith('PySide6/translations/')
+        and (
+            'qt_help_' in x[0]
+            or not any(k in x[0] for k in ['_de.', '_en.'])
+        )
+    )
+]
 
 pyz = PYZ(a.pure)
 
