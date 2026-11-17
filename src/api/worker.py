@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QObject, Signal, Slot
 
 from src.api.fritz_monitor import FritzGuestMonitorClient
@@ -33,8 +35,12 @@ class PollingWorker(QObject):
         self.local_traffic = LocalTrafficMonitor()
         self._cached_counters = OnlineCounterStats()
         self._counter_tick: int = 0
+        self._last_upnp_probe_ts: float = 0.0
+        self._box_unreachable: bool = False
         self._busy = False
         self._stopped = False
+
+    UPNP_RETRY_COOLDOWN_SEC: float = 10.0
 
     def stop(self) -> None:
         """Immediately mark worker as stopped to abort pending/future polls during OS shutdown."""
@@ -48,11 +54,26 @@ class PollingWorker(QObject):
             return
         self._busy = True
         try:
-            self.upnp.update_target(self.config.fritzbox_host, self.config.upnp_port)
-            self.guest_client.update_credentials(
-                self.upnp.host, self.config.fritz_username, self.config.fritz_password
-            )
-            sample = self.upnp.fetch_sample()
+            now = time.monotonic()
+            if (
+                self._box_unreachable
+                and (now - self._last_upnp_probe_ts) < self.UPNP_RETRY_COOLDOWN_SEC
+            ):
+                sample = TrafficSample(
+                    box_reachable=False,
+                    physical_link_up=False,
+                    wan_connected=False,
+                    is_connected=False,
+                    connection_status="Nicht erreichbar",
+                )
+            else:
+                self.upnp.update_target(self.config.fritzbox_host, self.config.upnp_port)
+                self.guest_client.update_credentials(
+                    self.upnp.host, self.config.fritz_username, self.config.fritz_password
+                )
+                self._last_upnp_probe_ts = now
+                sample = self.upnp.fetch_sample()
+                self._box_unreachable = not sample.box_reachable
             if self._stopped:
                 return
 
@@ -118,8 +139,27 @@ class PollingWorker(QObject):
             if self._stopped:
                 return
 
-            # Measure local device (PC) traffic if enabled
-            if sample.is_connected and self.config.enable_local_traffic_monitor:
+            # Fallback to local network adapter traffic when no Fritz!Box is reachable
+            if (
+                not sample.box_reachable
+                and self.config.enable_local_fallback
+                and not self._stopped
+            ):
+                pc_down, pc_up, pc_ok = self.local_traffic.fetch_rates_bps()
+                if pc_ok:
+                    sample.is_local_fallback = True
+                    sample.is_connected = True
+                    sample.download_bps = pc_down
+                    sample.upload_bps = pc_up
+                    sample.session_bytes_received = self.local_traffic.session_bytes_received
+                    sample.session_bytes_sent = self.local_traffic.session_bytes_sent
+                    sample.connection_status = "Lokal (Fallback)"
+            # Measure local device (PC) traffic overlay if Fritz!Box is connected and option is enabled
+            elif (
+                sample.box_reachable
+                and sample.is_connected
+                and self.config.enable_local_traffic_monitor
+            ):
                 pc_down, pc_up, pc_ok = self.local_traffic.fetch_rates_bps()
                 if pc_ok:
                     sample.local_pc_active = True
@@ -141,12 +181,15 @@ class PollingWorker(QObject):
     def reset_session(self) -> None:
         """Reset cumulative session counters."""
         self.upnp.reset_session_counters()
+        self.local_traffic.reset_session_counters()
 
     @Slot()
     def reload_credentials(self) -> None:
         """Reset cached session and counters when user updates settings."""
         self._cached_counters = OnlineCounterStats()
         self._counter_tick = 0
+        self._last_upnp_probe_ts = 0.0
+        self._box_unreachable = False
         self.guest_client.update_credentials(
             self.config.fritzbox_host,
             self.config.fritz_username,

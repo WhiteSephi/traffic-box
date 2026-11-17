@@ -61,6 +61,7 @@ class TrafficSample:
     local_pc_upload_bps: float = 0.0  # Bytes per second (local machine internet share)
     local_pc_active: bool = False
     local_pc_is_lan_spike: bool = False
+    is_local_fallback: bool = False
     box_name: str = ""
     box_udn: str = ""
     is_foreign_box: bool = False

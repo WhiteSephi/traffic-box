@@ -226,10 +226,10 @@ class TestCompactMode(unittest.TestCase):
         # Title font should scale from baseline 10pt -> 15pt
         self.assertEqual(self.widget.lbl_title.font().pointSize(), 15)
 
-        # Header buttons height should scale from 20px -> 30px
-        self.assertEqual(self.widget.btn_view_graph.height(), 30)
-        self.assertEqual(self.widget.btn_view_counters.height(), 30)
-        self.assertEqual(self.widget.btn_settings.height(), 30)
+        # Header buttons height should scale from 26px -> 39px
+        self.assertEqual(self.widget.btn_view_graph.height(), 39)
+        self.assertEqual(self.widget.btn_view_counters.height(), 39)
+        self.assertEqual(self.widget.btn_settings.height(), 39)
 
         # Minimum width scales from baseline 260 -> 390
         self.assertEqual(self.widget.minimumWidth(), 390)
@@ -238,7 +238,7 @@ class TestCompactMode(unittest.TestCase):
         self.widget.config.ui_scale_percent = 100
         self.widget._apply_config_visuals()
         self.assertEqual(self.widget.lbl_title.font().pointSize(), 10)
-        self.assertEqual(self.widget.btn_view_graph.height(), 20)
+        self.assertEqual(self.widget.btn_view_graph.height(), 26)
         self.assertEqual(self.widget.minimumWidth(), 260)
 
 

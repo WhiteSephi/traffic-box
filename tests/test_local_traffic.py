@@ -49,6 +49,13 @@ class TestLocalTraffic(unittest.TestCase):
                     self.assertTrue(ok)
                     self.assertAlmostEqual(down, 10000.0, places=1)
                     self.assertAlmostEqual(up, 5000.0, places=1)
+                    self.assertEqual(monitor.session_bytes_received, 10000)
+                    self.assertEqual(monitor.session_bytes_sent, 5000)
+
+        # Step 3: Reset session counters
+        monitor.reset_session_counters()
+        self.assertEqual(monitor.session_bytes_received, 0)
+        self.assertEqual(monitor.session_bytes_sent, 0)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QFontMetrics,
     QLinearGradient,
     QMouseEvent,
     QPainter,
@@ -49,6 +50,17 @@ class SplitTrafficGraphWidget(QWidget):
 
         self._max_down_bps: float = (self.config.manual_download_mbps * 1_000_000.0) / 8.0
         self._max_up_bps: float = (self.config.manual_upload_mbps * 1_000_000.0) / 8.0
+        self._is_local_fallback: bool = False
+
+    @property
+    def current_ceiling_down_bps(self) -> float:
+        """Return the effective download graph ceiling in bytes/sec."""
+        return self._effective_ceiling(self._down_history, self._max_down_bps)
+
+    @property
+    def current_ceiling_up_bps(self) -> float:
+        """Return the effective upload graph ceiling in bytes/sec."""
+        return self._effective_ceiling(self._up_history, self._max_up_bps)
 
     @property
     def current_peak_down_bps(self) -> float:
@@ -72,8 +84,10 @@ class SplitTrafficGraphWidget(QWidget):
         jitter_ms: float = 0.0,
         pc_down_bps: float = 0.0,
         pc_up_bps: float = 0.0,
+        is_local_fallback: bool = False,
     ) -> None:
         """Append a new sample to the time series and trigger a repaint."""
+        self._is_local_fallback = is_local_fallback
         target_len = max(15, self.config.history_seconds)
         if self._down_history.maxlen != target_len:
             self._down_history = deque(self._down_history, maxlen=target_len)
@@ -117,10 +131,13 @@ class SplitTrafficGraphWidget(QWidget):
 
     def _effective_ceiling(self, series: deque[float], max_line_bps: float) -> float:
         """Determine the graph ceiling based on the configured scale_mode."""
-        if self.config.scale_mode == "dynamic":
+        if self.config.scale_mode == "dynamic" or (
+            self._is_local_fallback and self.config.auto_link_scale
+        ):
             peak = max(series) if series else 0.0
-            # Keep at least 32 kB/s minimum ceiling so idle noise stays flat
-            return max(32 * 1024.0, peak * 1.15)
+            # Keep at least 1 Mbit/s (125 kB/s) in fallback or 32 kB/s in dynamic mode
+            min_floor = 125_000.0 if self._is_local_fallback else 32 * 1024.0
+            return max(min_floor, peak * 1.15)
         return max(1024.0, max_line_bps)
 
     def _draw_single_graph(
@@ -253,11 +270,14 @@ class SplitTrafficGraphWidget(QWidget):
                 painter.drawPath(guest_line)
 
         # Subtle scale label in top-right corner of the sub-graph
-        scale_tag = {
-            "sqrt": "√-Skala",
-            "dynamic": "Dyn",
-            "fixed": "Max",
-        }.get(self.config.scale_mode, "Max")
+        if self._is_local_fallback and self.config.auto_link_scale and self.config.scale_mode != "dynamic":
+            scale_tag = "Dyn (√)" if self.config.scale_mode == "sqrt" else "Dyn"
+        else:
+            scale_tag = {
+                "sqrt": "√-Skala",
+                "dynamic": "Dyn",
+                "fixed": "Max",
+            }.get(self.config.scale_mode, "Max")
         ceil_text = f"{scale_tag}: {format_rate(ceiling, self.config.show_as_bits)}"
         base_s = self.config.ui_scale
         font_pt = max(7, min(14, int(round(7.0 * base_s * max(1.0, self.height() / (150.0 * base_s))))))
@@ -388,14 +408,18 @@ class SplitTrafficGraphWidget(QWidget):
         painter.setFont(font)
 
         # Left legend: ◆ Ping (Cyan)   ▲ Jitter (Amber)
+        fm = QFontMetrics(font)
         legend_left = rect.left() + 5.0 * base_s
         legend_top = rect.top() + 2.0 * base_s
+        legend_y = legend_top + fm.ascent()
+        ping_label = "◆ Ping"
 
         painter.setPen(QColor(self.config.ping_color))
-        painter.drawText(QPointF(legend_left, legend_top + font_pt + 1), "◆ Ping")
+        painter.drawText(QPointF(legend_left, legend_y), ping_label)
 
+        jitter_left = legend_left + fm.horizontalAdvance(ping_label) + 10.0 * base_s
         painter.setPen(QColor(self.config.jitter_color))
-        painter.drawText(QPointF(legend_left + 48.0 * base_s, legend_top + font_pt + 1), "▲ Jitter")
+        painter.drawText(QPointF(jitter_left, legend_y), "▲ Jitter")
 
         # Right stats: Min / Max
         if active_pings:

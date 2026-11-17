@@ -123,6 +123,23 @@ class LocalTrafficMonitor:
         self._last_in_bytes: int = 0
         self._last_out_bytes: int = 0
         self._initialized: bool = False
+        self._session_rx: int = 0
+        self._session_tx: int = 0
+
+    @property
+    def session_bytes_received(self) -> int:
+        """Return cumulative received bytes since widget start or last reset."""
+        return self._session_rx
+
+    @property
+    def session_bytes_sent(self) -> int:
+        """Return cumulative sent bytes since widget start or last reset."""
+        return self._session_tx
+
+    def reset_session_counters(self) -> None:
+        """Reset cumulative local session byte counters to zero."""
+        self._session_rx = 0
+        self._session_tx = 0
 
     def fetch_rates_bps(self) -> tuple[float, float, bool]:
         """Return (download_bps, upload_bps, is_success)."""
@@ -153,6 +170,9 @@ class LocalTrafficMonitor:
         # Guard against adapter reset or wrap-around
         if delta_in < 0 or delta_out < 0:
             return 0.0, 0.0, True
+
+        self._session_rx += delta_in
+        self._session_tx += delta_out
 
         down_bps = float(delta_in) / dt
         up_bps = float(delta_out) / dt

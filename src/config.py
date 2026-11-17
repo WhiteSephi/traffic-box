@@ -80,6 +80,7 @@ class AppConfig:
     bound_box_name: str = ""  # Friendly model name of the bound Fritz!Box
 
     # Optional Local Device (PC) Traffic Monitor
+    enable_local_fallback: bool = True
     enable_local_traffic_monitor: bool = False
     show_local_traffic_in_graph: bool = True
     show_local_traffic_in_header: bool = False

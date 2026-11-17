@@ -4,6 +4,23 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.16.0] - 2026-11-17
+### Added
+- **Automatischer Fallback auf lokalen Netzwerktraffic (`src/api/worker.py`, `src/api/local_traffic.py`, `src/ui/widget.py`, `src/ui/settings_dlg.py`):**
+  - Ist keine FRITZ!Box erreichbar (z. B. unterwegs im Fremdnetzwerk), schaltet TrafficBox automatisch auf die Messung des lokalen Netzwerkadapters um und zeigt Live-Down/Up-Raten, Graph, Auslastungsbalken, Peak-Werte sowie das Session-Volumen (`Seit Widget-Start`) an.
+  - Die Status-Pill zeigt im Fallback-Modus `⚡ Lokal (ohne Box)` an; ein 10-Sekunden-UPnP-Cooldown verhindert wiederholte Timeouts im 1-Sekunden-Takt und wechselt automatisch zurück, sobald wieder eine FRITZ!Box gefunden wird.
+  - Die Graph-Skalierung richtet sich im Fallback-Modus (bei aktivierter automatischer Leitungsskalierung) dynamisch am gemessenen Traffic aus (`Dyn (√)` bzw. `Dyn`, mindestens 1 Mbit/s), statt auf die statischen Home-Werte zurückzufallen.
+  - Neue Einstellungsoption unter `Netzwerk → Lokales Gerät`: `Lokalen Netzwerktraffic als Fallback anzeigen (wenn keine FRITZ!Box erreichbar ist)` (standardmäßig aktiviert).
+
+### Changed
+- **Header-Buttons vergrößert (`src/ui/widget.py`):** Die Buttons `Graph`, `Zähler` und das Einstellungs-Zahnrad (`⚙`) sind nun etwas größer skaliert (`26 px` Höhe statt `20 px`, größere Icons und Schrift), um besser zum Rest des Widgets zu passen.
+- **UI-Modularisierung (`src/ui/widget_window.py`, `src/ui/color_picker.py`):**
+  - Fenster-Interaktion, Edge-Snapping, `VisualSizeGrip`, Kontextmenü und Tray-/Shutdown-Logik aus `src/ui/widget.py` nach `src/ui/widget_window.py` (`TrafficBoxWindowMixin`) ausgelagert.
+  - Farbauswahl-Popup (`ModernColorPickerPopup`), `ColorButton` und `THEMES` aus `src/ui/settings_dlg.py` nach `src/ui/color_picker.py` ausgelagert.
+
+### Fixed
+- **Ping/Jitter-Legende (`src/ui/graph_canvas.py`):** Die Position von `▲ Jitter` wird nun per `QFontMetrics` dynamisch hinter `◆ Ping` berechnet, sodass sich beide Labels bei größeren Schriftarten/Skalierungen nicht mehr überlappen.
+
 ## [0.15.4] - 2026-11-13
 ### Changed
 - **Einheitliche Benennung in `Anzeige` (`src/ui/settings_dlg.py`):** Gruppe auf `Globale Darstellung`, Label auf `UI-Skalierung:` sowie Prozentangaben einheitlich ohne Leerzeichen (`100% (Standard)`, `setSuffix("%")`) an SystemBox angeglichen.
