@@ -114,6 +114,7 @@ python -m unittest discover -s tests -v
 │   └── ui/
 │       ├── widget.py           # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
 │       ├── graph_canvas.py     # Custom Qt6-Graph mit Oszilloskop-Hover-HUD & Mehrschicht-Flächen
+│       ├── health_dialog.py    # Klickbare Status-Pillen & Internet-Diagnose-Detailfenster mit Tipps
 │       ├── online_counter_view.py # Integrierte Online-Zähler-Tabellenansicht
 │       ├── settings_dlg.py     # Umfangreicher Einstellungs-Dialog (Tabs, Farb-Picker, Cooldowns)
 │       ├── formatters.py       # Formatierungshelfer für Raten, Einheiten (SI-Dezimal/Binär) & Zeiten
@@ -123,6 +124,7 @@ python -m unittest discover -s tests -v
 │   ├── test_config.py          # Konfiguration, Standardwerte & .env-Parser
 │   ├── test_crypto.py          # Ver-/Entschlüsselung & Windows DPAPI Roundtrip
 │   ├── test_formatters.py      # Raten-, Datenvolumen- & Uptime-Formatierung
+│   ├── test_health_dialog.py   # Diagnose-Detailfenster, klickbare Pillen & Handlungstipps
 │   ├── test_internet_health.py # 5-Stufen-Statuslogik, Quorum, Hysterese, Baseline & Zombie-WAN
 │   ├── test_local_traffic.py   # Linux /proc/net/dev-Parsing & lokale Ratenberechnung
 │   ├── test_net_health.py      # Ping-Regex, ICMP, DNS-RCODE/Hijack & HTTPS-204-Canaries

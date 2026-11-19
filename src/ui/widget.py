@@ -54,6 +54,7 @@ from src.autostart import sync_kwin_position_rule
 from src.config import AppConfig
 from src.ui.formatters import format_bytes, format_rate, format_uptime
 from src.ui.graph_canvas import SplitTrafficGraphWidget
+from src.ui.health_dialog import ClickablePillLabel, InternetHealthDialog
 from src.ui.icons import create_arrow_pixmap, create_ui_icon
 from src.ui.online_counter_view import OnlineCounterView
 from src.ui.settings_dlg import SettingsDialog
@@ -67,6 +68,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
     request_poll = Signal()
     request_reset_session = Signal()
     request_reload_credentials = Signal()
+    request_health_probe = Signal()
 
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
@@ -76,8 +78,11 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         self._drag_offset: QPoint | None = None
         self._peak_down_bps: float = 0.0
         self._peak_up_bps: float = 0.0
+        self._last_down_pct: float = 0.0
+        self._last_up_pct: float = 0.0
         self._last_sample: TrafficSample = TrafficSample()
         self._settings_dlg: SettingsDialog | None = None
+        self._health_dlg: InternetHealthDialog | None = None
         self._in_layout_transition: bool = False
         self._is_quitting: bool = False
         self._was_compact: bool = self.config.compact_mode
@@ -264,9 +269,10 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         footer_row.setContentsMargins(2, 2, 0, 0)
         footer_row.setSpacing(5)
 
-        self.lbl_wan_pill = QLabel("✓ WAN OK")
+        self.lbl_wan_pill = ClickablePillLabel("✓ WAN OK")
         self.lbl_wan_pill.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
         self.lbl_wan_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_wan_pill.clicked.connect(self.open_health_dialog)
 
         self.lbl_footer = QLabel("Heute: 0 B")
         self.lbl_footer.setFont(QFont("Segoe UI", 7))
@@ -277,9 +283,10 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
 
-        self.lbl_dns_pill = QLabel("✓ DNS")
+        self.lbl_dns_pill = ClickablePillLabel("✓ DNS")
         self.lbl_dns_pill.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
         self.lbl_dns_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_dns_pill.clicked.connect(self.open_health_dialog)
 
         self.size_grip = VisualSizeGrip(self)
 
@@ -307,6 +314,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         self.request_poll.connect(self._worker.poll_once)
         self.request_reset_session.connect(self._worker.reset_session)
         self.request_reload_credentials.connect(self._worker.reload_credentials)
+        self.request_health_probe.connect(self._worker.trigger_health_probe)
         self._worker.sample_ready.connect(self._on_sample_received)
 
         self._worker_thread.start()
@@ -919,7 +927,12 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
 
         self.counter_view.update_from_sample(sample)
 
+        self._last_down_pct = down_pct
+        self._last_up_pct = up_pct
         self._update_tooltip(sample, down_pct, up_pct)
+
+        if self._health_dlg is not None and self._health_dlg.isVisible():
+            self._health_dlg.update_from_sample(sample, down_pct, up_pct)
 
     def _update_wan_status_pill(self, sample: TrafficSample) -> None:
         """Update text, colors and tooltip of the WAN/Internet health status pill with HiDPI styling."""

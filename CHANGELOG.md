@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.18.0] - 2026-11-19
+### Added
+- **Klickbares Internet-Diagnose- & Status-Detailfenster (`src/ui/health_dialog.py`, `src/ui/widget.py`, `src/ui/widget_window.py`):**
+  - Ein Klick auf die Status- oder DNS-Pille im Footer (sowie der neue Kontextmenü-Eintrag *„Internet-Diagnose & Details…“*) öffnet ein separates, live aktualisierendes Diagnose-Fenster.
+  - **Reiter „Aktuelle Diagnose“:** Zeigt das farbige Status-Banner inkl. Zeitstempel & Prüfmodus (`Normal` vs. `Fast-Burst`), eine Übersicht aller 4 Messstufen (Heimnetz/Router, Dual-Stack HTTPS-`204`, Uncached-DNS und 15s-Qualität/Baseline/Auslastung) sowie eine kontextbezogene Ursachen-Einschätzung mit konkreten Handlungstipps (inkl. Bufferbloat-Tipps, DNS-/AdGuard-Prüfung, Zombie-WAN-Reconnect und ehrlicher Einordnung bei Provider-Ursachen).
+  - **Reiter „Status-Erklärung & Legende“:** Erklärt alle 5 Status-Stufen (Stabil, Eingeschränkt, DNS-Störung, Offline / Zombie-WAN, LAN-Problem) mit Bedingung, Bedeutung und typischer Ursache sowie die Messmethodik.
+  - **Sofort-Prüfung (`src/api/internet_health.py`, `src/api/worker.py`):** Über den Button *„🔄 Jetzt prüfen“* lässt sich jederzeit eine sofortige On-Demand-Gegenprobe im Hintergrund auslösen; *„⚙ Diagnose-Einstellungen…“* springt direkt zum Reiter `Netzwerk`.
+- **Automatisierte UI-Tests (`tests/test_health_dialog.py`):** Unit-Tests für `build_health_advice()` (alle Status & Ursachen), `InternetHealthDialog`, `ClickablePillLabel`, Kontextmenü und `trigger_probe_now()`.
+
 ## [0.17.2] - 2026-11-19
 ### Fixed
 - **Schnellere Erholung nach Last-/Ping-Spitzen (`src/api/internet_health.py`, `src/ui/widget.py`):**

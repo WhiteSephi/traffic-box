@@ -242,6 +242,12 @@ class PollingWorker(QObject):
         return max(0.0, min(1.0, max(down_u, up_u)))
 
     @Slot()
+    def trigger_health_probe(self) -> None:
+        """Trigger an immediate on-demand internet health check in the background."""
+        if not self._stopped and self.config.enable_internet_health:
+            self.internet_health.trigger_probe_now()
+
+    @Slot()
     def reset_session(self) -> None:
         """Reset cumulative session counters."""
         self.upnp.reset_session_counters()

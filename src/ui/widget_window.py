@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.autostart import sync_kwin_position_rule
+from src.ui.health_dialog import InternetHealthDialog
 from src.ui.settings_dlg import SettingsDialog
 
 
@@ -249,6 +250,10 @@ class TrafficBoxWindowMixin:
         act_settings.triggered.connect(self.open_settings_dialog)
         menu.addAction(act_settings)
 
+        act_health = QAction("Internet-Diagnose && Details...", self)
+        act_health.triggered.connect(self.open_health_dialog)
+        menu.addAction(act_health)
+
         menu.addSeparator()
 
         # Scaling Submenu
@@ -443,6 +448,36 @@ class TrafficBoxWindowMixin:
         self._settings_dlg.raise_()
         self._settings_dlg.activateWindow()
 
+    def open_health_dialog(self, initial_tab: int = 0) -> None:
+        """Open or focus the Internet Health diagnosis & tips dialog."""
+        tab_idx = (
+            initial_tab
+            if isinstance(initial_tab, int) and not isinstance(initial_tab, bool)
+            else 0
+        )
+        down_pct = getattr(self, "_last_down_pct", 0.0)
+        up_pct = getattr(self, "_last_up_pct", 0.0)
+
+        if self._health_dlg is not None and self._health_dlg.isVisible():
+            if 0 <= tab_idx < self._health_dlg.tabs.count():
+                self._health_dlg.tabs.setCurrentIndex(tab_idx)
+            self._health_dlg.update_from_sample(self._last_sample, down_pct, up_pct)
+            self._health_dlg.raise_()
+            self._health_dlg.activateWindow()
+            return
+
+        self._health_dlg = InternetHealthDialog(
+            self.config,
+            on_recheck=self.request_health_probe.emit,
+            on_open_settings=lambda: self.open_settings_dialog(3),
+            parent=None,
+            initial_tab=tab_idx,
+        )
+        self._health_dlg.update_from_sample(self._last_sample, down_pct, up_pct)
+        self._health_dlg.show()
+        self._health_dlg.raise_()
+        self._health_dlg.activateWindow()
+
     def _on_settings_applied(self) -> None:
         self._apply_config_visuals()
         self.request_reload_credentials.emit()
@@ -456,6 +491,14 @@ class TrafficBoxWindowMixin:
         self._save_pos_timer.stop()
         self._poll_timer.stop()
         self._worker.stop()
+
+        for dlg_attr in ("_settings_dlg", "_health_dlg"):
+            dlg = getattr(self, dlg_attr, None)
+            if dlg is not None:
+                try:
+                    dlg.close()
+                except Exception:
+                    pass
 
         if save_state:
             self.config.pos_x = self.x()

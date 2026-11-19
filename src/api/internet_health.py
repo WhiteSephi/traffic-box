@@ -743,14 +743,27 @@ class InternetHealthMonitor:
                     should_spawn = True
 
         if should_spawn:
-            self._probe_thread = threading.Thread(
-                target=self._run_background_cycle,
-                name="TrafficBoxHealthProbe",
-                daemon=True,
-            )
-            self._probe_thread.start()
+            self._spawn_probe_thread()
 
         return snapshot
+
+    def _spawn_probe_thread(self) -> None:
+        """Start the background probe daemon thread (caller must already set _in_flight)."""
+        self._probe_thread = threading.Thread(
+            target=self._run_background_cycle,
+            name="TrafficBoxHealthProbe",
+            daemon=True,
+        )
+        self._probe_thread.start()
+
+    def trigger_probe_now(self) -> bool:
+        """Immediately trigger a background health probe if none is currently running."""
+        with self._lock:
+            if self._stop_event.is_set() or self._in_flight:
+                return False
+            self._in_flight = True
+        self._spawn_probe_thread()
+        return True
 
     def get_snapshot(self) -> InternetHealthSnapshot:
         """Return the latest computed InternetHealthSnapshot thread-safely."""
