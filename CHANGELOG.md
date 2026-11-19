@@ -4,6 +4,35 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.16.3] - 2026-11-19
+### Security
+- **Heim-Router-Bindung & DNS-Fallback gehärtet (`src/api/worker.py`, `src/ui/settings_dlg.py`):**
+  - Gast-/Online-Zähler-Logins nutzen nun durchgängig die bereits geprüfte, lokal aufgelöste Gateway-IP (`self.upnp.host`) statt des unaufgelösten Hostnamens, sodass bei manipuliertem oder externem `fritz.box`-DNS keine Anmeldedaten nach außen gesendet werden.
+  - **Fail-Closed UDN-Prüfung:** Ist eine `bound_box_udn` hinterlegt, aber das Gerät liefert keine `<UDN>`, wird der Login nun blockiert statt durchgelassen.
+  - Der Verbindungstest in den Einstellungen wertet den Rückgabewert von `_discover_endpoints()` nun korrekt aus und beendet Test-Sessions direkt per `logout()`.
+- **Fritz!OS-Client & UPnP-HTTP-Härtung (`src/api/fritz_monitor.py`, `src/api/upnp_client.py`):**
+  - MD5-v1-Downgrade ist standardmäßig blockiert (`allow_legacy_md5=False`); PBKDF2-Iterationen sind auf `MAX_PBKDF2_ITERATIONS = 100_000` (Salt-Länge `1..64` Bytes) begrenzt.
+  - HTTP-Redirects werden über `_NoRedirectHandler` strikt abgelehnt, Antwortgrößen auf `1 MiB` (`MAX_RESPONSE_BYTES`) begrenzt und UPnP-`controlURL`-Pfade gegen Pfad-/URL-Injektion validiert.
+  - Aktive Fritz!OS-Sessions werden beim Beenden/Neuladen über `logout()` (`logout=1`) sauber abgemeldet.
+- **Konfiguration, Secrets & Dateirechte (`src/config.py`, `src/api/crypto.py`, `src/main.py`):**
+  - Linux-/Fallback-Schutz nutzt nun authentifiziertes Encrypt-then-MAC (`v2:` mit PBKDF2-HMAC-SHA256, 200.000 Iterationen, HMAC-SHA256 & User-UID im Salt); Windows DPAPI erhält explizite `argtypes`/`restype` und sichere Buffer-Lebensdauer.
+  - `AppConfig.save()` schreibt atomar über temporäre Dateien (`os.replace`) mit `0o600`-Rechten (und `0o700` für den Konfig-Ordner unter POSIX).
+  - `.env`-Werte (insb. `FRITZBOX_PASSWORD`) werden über `read_dotenv_file()` direkt in `AppConfig` gelesen, ohne sie über `os.environ` an Kindprozesse zu vererben.
+  - `AppConfig.sanitize()` validiert `fritzbox_host` und `ping_endpoint` per `is_valid_host()`, prüft alle 10 Hex-Farbfelder gegen `#RRGGBB` und bereinigt auch `enable_local_fallback` (sowie CLI `--host` in `src/main.py`).
+- **Netzwerkdiagnose, Autostart, UI & Speicher-Sicherheit (`src/api/net_health.py`, `src/api/local_traffic.py`, `src/autostart.py`, `src/ui/widget.py`, `src/ui/settings_dlg.py`):**
+  - `measure_ping()` prüft Ziele per `is_valid_host()`, Linux-`ping`-Fallback nutzt `--`; `measure_dns_latency()` verwendet zufällige 2-Byte-TxIDs und prüft Quell-IP sowie TxID der Antwort.
+  - `_MIB_IF_ROW2` in `local_traffic.py` um die fehlenden 8 `uint64`-Felder (64 Bytes → `1352` Bytes unter Win64) korrigiert und `argtypes`/`restype` für `iphlpapi` ergänzt.
+  - Autostart-Skriptgenerierung nutzt voll qualifiziertes `wscript.exe`, Base64-gekapselten Pfad im Windows-Fallback, Freedesktop-konformes Escaping in `.desktop`-Dateien und atomares Schreiben für `kwinrulesrc`.
+  - Tooltips in `TrafficBox._update_tooltip()` escapen UPnP-Gerätedaten per `html.escape()`; Status-Labels im Einstellungs-Dialog erzwingen `PlainText`; Hinweis im „Über“-Tab auf *„Keine Telemetrie (Ping-/DNS-Checks optional)“* präzisiert.
+
+## [0.16.2] - 2026-11-19
+### Changed
+- **Datenschutz & GitHub-Vorbereitung (`.gitignore`, `TrafficBox.spec`, `CHANGELOG.md`):** `TODO.md` und `config.json` in `.gitignore` ergänzt, optionales App-Icon in `TrafficBox.spec` defensiv geprüft (damit Builds ohne `local/` funktionieren) und DNS-Hinweis im Changelog neutralisiert.
+
+## [0.16.1] - 2026-11-17
+### Added
+- **Graph-Legende für Down & Up (`src/ui/graph_canvas.py`):** Download- und Upload-Graph zeigen oben links nun analog zu `◆ Ping` / `▲ Jitter` die farbige Bezeichnung `↓ Down` bzw. `↑ Up` an.
+
 ## [0.16.0] - 2026-11-17
 ### Added
 - **Automatischer Fallback auf lokalen Netzwerktraffic (`src/api/worker.py`, `src/api/local_traffic.py`, `src/ui/widget.py`, `src/ui/settings_dlg.py`):**
@@ -256,7 +285,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [0.11.4] - 2026-11-04
 ### Fixed
-- **Echte Upstream-DNS-Erkennung unter Linux (AdGuard / systemd-resolved):** `detect_active_os_dns` liest unter Linux nun primär die echten Uplink-DNS-Server (über `/run/systemd/resolve/resolv.conf` bzw. `resolvectl dns`) aus und überspringt den lokalen `127.0.0.53`-Stub-Cache. Dadurch wird die tatsächliche Latenz zum konfigurierten AdGuard Home Server gemessen (statt der lokalen Loopback-Antwortzeit von 0,3 ms).
+- **Echte Upstream-DNS-Erkennung unter Linux (AdGuard / systemd-resolved):** `detect_active_os_dns` liest unter Linux nun primär die echten Uplink-DNS-Server (über `/run/systemd/resolve/resolv.conf` bzw. `resolvectl dns`) aus und überspringt den lokalen `127.0.0.53`-Stub-Cache. Dadurch wird die tatsächliche Latenz zum konfigurierten Upstream-DNS-Server (z. B. AdGuard Home / Pi-hole) gemessen (statt der lokalen Loopback-Antwortzeit von 0,3 ms).
 
 ## [0.11.3] - 2026-11-04
 ### Fixed

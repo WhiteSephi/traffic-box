@@ -241,6 +241,25 @@ class TestCompactMode(unittest.TestCase):
         self.assertEqual(self.widget.btn_view_graph.height(), 26)
         self.assertEqual(self.widget.minimumWidth(), 260)
 
+    def test_tooltip_escapes_html_injection(self) -> None:
+        """Verify UPnP strings in connection tooltip are HTML-escaped to prevent injection."""
+        sample = TrafficSample(
+            is_connected=True,
+            wan_connected=True,
+            box_name="<img src=x onerror=alert(1)>",
+            connection_status="<b>fake</b>",
+            external_ip="<script>x</script>",
+            error_message="<i>err</i>",
+        )
+        self.widget._update_tooltip(sample, 10.0, 5.0)
+        tip = self.widget.lbl_icon.toolTip()
+        self.assertIn("&lt;img src=x onerror=alert(1)&gt;", tip)
+        self.assertIn("&lt;b&gt;fake&lt;/b&gt;", tip)
+        self.assertIn("&lt;script&gt;x&lt;/script&gt;", tip)
+        self.assertIn("&lt;i&gt;err&lt;/i&gt;", tip)
+        self.assertNotIn("<img", tip)
+        self.assertNotIn("<script>", tip)
+
 
 if __name__ == "__main__":
     unittest.main()

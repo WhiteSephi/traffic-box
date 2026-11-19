@@ -151,6 +151,7 @@ class SplitTrafficGraphWidget(QWidget):
         main_color: QColor,
         guest_color: QColor,
         grid_color: QColor,
+        legend_text: str = "",
     ) -> None:
         """Draw grid, main area curve, optional guest overlay, and scale badge."""
         painter.save()
@@ -283,6 +284,15 @@ class SplitTrafficGraphWidget(QWidget):
         font_pt = max(7, min(14, int(round(7.0 * base_s * max(1.0, self.height() / (150.0 * base_s))))))
         font = QFont("Segoe UI", font_pt)
         painter.setFont(font)
+
+        # Left legend (e.g. "↓ Down" / "↑ Up") analogous to Ping/Jitter
+        if legend_text:
+            fm = QFontMetrics(font)
+            legend_left = rect.left() + 5.0 * base_s
+            legend_top = rect.top() + 2.0 * base_s
+            painter.setPen(main_color)
+            painter.drawText(QPointF(legend_left, legend_top + fm.ascent()), legend_text)
+
         label_color = QColor(self.config.title_color)
         label_color.setAlpha(135)
         painter.setPen(label_color)
@@ -544,22 +554,22 @@ class SplitTrafficGraphWidget(QWidget):
                 up_rect = bottom_rect
                 self._draw_single_graph(
                     painter, top_rect, self._down_history, self._guest_down_history,
-                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color, "↓ Down",
                 )
                 self._draw_single_graph(
                     painter, bottom_rect, self._up_history, self._guest_up_history,
-                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color, "↑ Up",
                 )
             else:
                 up_rect = top_rect
                 down_rect = bottom_rect
                 self._draw_single_graph(
                     painter, top_rect, self._up_history, self._guest_up_history,
-                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color, "↑ Up",
                 )
                 self._draw_single_graph(
                     painter, bottom_rect, self._down_history, self._guest_down_history,
-                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color, "↓ Down",
                 )
         else:
             # 3-graph layout: Traffic (Down/Up) + Ping/Jitter
@@ -577,22 +587,22 @@ class SplitTrafficGraphWidget(QWidget):
                 up_rect = mid_rect
                 self._draw_single_graph(
                     painter, top_rect, self._down_history, self._guest_down_history,
-                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color, "↓ Down",
                 )
                 self._draw_single_graph(
                     painter, mid_rect, self._up_history, self._guest_up_history,
-                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color, "↑ Up",
                 )
             else:
                 up_rect = top_rect
                 down_rect = mid_rect
                 self._draw_single_graph(
                     painter, top_rect, self._up_history, self._guest_up_history,
-                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color,
+                    self._pc_up_history, self._max_up_bps, up_color, guest_up_color, grid_color, "↑ Up",
                 )
                 self._draw_single_graph(
                     painter, mid_rect, self._down_history, self._guest_down_history,
-                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color,
+                    self._pc_down_history, self._max_down_bps, down_color, guest_down_color, grid_color, "↓ Down",
                 )
 
             self._draw_ping_jitter_graph(

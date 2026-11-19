@@ -109,7 +109,7 @@ python -m unittest discover -s tests -v
 │   │   ├── fritz_monitor.py    # Optionaler Fritz!OS-Client für Online-Zähler & Gäste-WLAN
 │   │   ├── net_health.py       # Ping-, Jitter- und aktiver OS-DNS-Latenz-Monitor
 │   │   ├── local_traffic.py    # Lokaler PC-Traffic-Monitor (Windows iphlpapi & Linux /proc/net/dev)
-│   │   └── crypto.py           # Sichere Passwort-Verschlüsselung (Windows DPAPI & PBKDF2)
+│   │   └── crypto.py           # Passwort-Schutz (Windows DPAPI & Linux PBKDF2-HMAC + 0600-Dateirechte)
 │   └── ui/
 │       ├── widget.py           # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
 │       ├── graph_canvas.py     # Custom Qt6-Graph mit Oszilloskop-Hover-HUD & Mehrschicht-Flächen

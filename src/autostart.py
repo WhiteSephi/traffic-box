@@ -2,12 +2,38 @@
 
 from __future__ import annotations
 
+import base64
 import os
 from pathlib import Path
 import sys
+import tempfile
 
 APP_NAME = "TrafficBox"
 DESKTOP_FILENAME = "trafficbox.desktop"
+_DESKTOP_EXEC_SPECIAL_CHARS = set(" \t\"'><~|&;$*?()`") | {"`"} | ({"\\"} if os.sep != "\\" else set())
+
+
+def _escape_desktop_exec_arg(arg: str) -> str:
+    """Escape a single executable path/argument according to the XDG Desktop Entry spec."""
+    cleaned = arg.replace("\r", "").replace("\n", "").replace("%", "%%")
+    if not cleaned:
+        return '""'
+    if any(ch in _DESKTOP_EXEC_SPECIAL_CHARS for ch in cleaned):
+        escaped = cleaned
+        if os.sep != "\\":
+            escaped = escaped.replace("\\", "\\\\")
+        escaped = (
+            escaped.replace('"', '\\"')
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+        )
+        return f'"{escaped}"'
+    return cleaned
+
+
+def _sanitize_desktop_path(path: Path) -> str:
+    """Strip CR/LF characters before embedding a directory path in a .desktop file."""
+    return str(path).replace("\r", "").replace("\n", "")
 
 
 def get_project_root() -> Path:
@@ -29,14 +55,16 @@ def get_windows_autostart_cmd(project_root: Path | None = None) -> str:
         return f'"{sys.executable}"'
     vbs_script = project_root / "start_windows.vbs"
     if vbs_script.is_file():
-        return f'wscript.exe "{vbs_script}"'
+        wscript = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wscript.exe"
+        return f'"{wscript}" "{vbs_script}"'
     python_exe = Path(sys.executable)
     pythonw = python_exe.with_name("pythonw.exe")
     exe_to_use = pythonw if pythonw.is_file() else python_exe
+    b64_root = base64.b64encode(str(project_root).encode("utf-8")).decode("ascii")
     return (
-        f'"{exe_to_use}" -c "import sys, os; '
-        f'sys.path.insert(0, r\'{project_root}\'); '
-        f'os.chdir(r\'{project_root}\'); '
+        f'"{exe_to_use}" -c "import base64, os, sys; '
+        f"p = base64.b64decode('{b64_root}').decode('utf-8'); "
+        f'sys.path.insert(0, p); os.chdir(p); '
         f'from src.main import main; sys.exit(main())"'
     )
 
@@ -47,15 +75,11 @@ def get_linux_autostart_cmd(project_root: Path | None = None) -> str:
         project_root = get_project_root()
     is_frozen = getattr(sys, "frozen", False)
     if is_frozen:
-        exe = str(sys.executable)
-        return f'"{exe}"' if " " in exe else exe
+        return _escape_desktop_exec_arg(str(sys.executable))
     sh_script = project_root / "start_linux.sh"
     if sh_script.is_file():
-        script_str = str(sh_script)
-        return f'"{script_str}"' if " " in script_str else script_str
-    python_exe = str(sys.executable)
-    exe_str = f'"{python_exe}"' if " " in python_exe else python_exe
-    return f"{exe_str} -m src.main"
+        return _escape_desktop_exec_arg(str(sh_script))
+    return f"{_escape_desktop_exec_arg(str(sys.executable))} -m src.main"
 
 
 def is_autostart_enabled() -> bool:
@@ -119,7 +143,7 @@ def set_autostart(enabled: bool) -> bool:
                     "Type=Application\n"
                     "Name=TrafficBox\n"
                     "Comment=Live Traffic Monitor Widget\n"
-                    f"Path={project_root}\n"
+                    f"Path={_sanitize_desktop_path(project_root)}\n"
                     f"Exec={exec_cmd}\n"
                     "Icon=network-workgroup\n"
                     "Terminal=false\n"
@@ -142,6 +166,7 @@ def sync_kwin_position_rule(x: int, y: int) -> bool:
     if sys.platform != "linux":
         return False
 
+    x, y = int(x), int(y)
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     kwinrules = config_home / "kwinrulesrc"
 
@@ -203,10 +228,21 @@ def sync_kwin_position_rule(x: int, y: int) -> bool:
     else:
         content = f"[General]\ncount=1\nrules={rule_name}\nOrder={rule_name}\n\n" + content
 
+    tmp_path: Path | None = None
     try:
         kwinrules.parent.mkdir(parents=True, exist_ok=True)
-        kwinrules.write_text(content.strip() + "\n", encoding="utf-8")
+        fd, tmp_name = tempfile.mkstemp(prefix=".kwinrulesrc_", suffix=".tmp", dir=kwinrules.parent)
+        tmp_path = Path(tmp_name)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content.strip() + "\n")
+        os.replace(tmp_path, kwinrules)
+        tmp_path = None
     except OSError:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         return False
 
     import shutil

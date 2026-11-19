@@ -48,6 +48,14 @@ if sys.platform == "win32":
             ("InMulticastOctets", ctypes.c_uint64),
             ("InBroadcastOctets", ctypes.c_uint64),
             ("OutOctets", ctypes.c_uint64),
+            ("OutUcastPkts", ctypes.c_uint64),
+            ("OutNUcastPkts", ctypes.c_uint64),
+            ("OutDiscards", ctypes.c_uint64),
+            ("OutErrors", ctypes.c_uint64),
+            ("OutUcastOctets", ctypes.c_uint64),
+            ("OutMulticastOctets", ctypes.c_uint64),
+            ("OutBroadcastOctets", ctypes.c_uint64),
+            ("OutQLen", ctypes.c_uint64),
         ]
 
     class _MIB_IF_TABLE2(ctypes.Structure):
@@ -61,6 +69,10 @@ def _read_windows_adapter_bytes() -> tuple[int, int, bool]:
     """Read cumulative in/out octets from active non-loopback network adapters on Windows."""
     try:
         iphlpapi = ctypes.windll.iphlpapi
+        iphlpapi.GetIfTable2.argtypes = [ctypes.POINTER(ctypes.POINTER(_MIB_IF_TABLE2))]
+        iphlpapi.GetIfTable2.restype = wintypes.ULONG
+        iphlpapi.FreeMibTable.argtypes = [ctypes.c_void_p]
+        iphlpapi.FreeMibTable.restype = None
         p_table = ctypes.POINTER(_MIB_IF_TABLE2)()
         ret = iphlpapi.GetIfTable2(ctypes.byref(p_table))
         if ret != 0 or not p_table:

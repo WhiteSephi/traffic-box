@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import socket
 import sys
 import urllib.error
@@ -9,10 +10,39 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 from src.api.models import TrafficSample
+from src.config import is_valid_host
 
 WAN_COMMON_SERVICE = "urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1"
 WAN_IP_SERVICE = "urn:schemas-upnp-org:service:WANIPConnection:1"
 WAN_PPP_SERVICE = "urn:schemas-upnp-org:service:WANPPPConnection:1"
+
+MAX_RESPONSE_BYTES = 1_048_576
+_SAFE_CONTROL_PATH_RE = re.compile(r"^/[A-Za-z0-9._/~%-]+$")
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject HTTP 3xx redirects instead of following them silently."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        raise urllib.error.HTTPError(
+            req.full_url, code, "HTTP redirects are disabled", headers, fp
+        )
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler)
+
+
+def _urlopen_no_redirect(req_or_url: str | urllib.request.Request, timeout: float):
+    """Open an HTTP URL without following 3xx redirects."""
+    return _NO_REDIRECT_OPENER.open(req_or_url, timeout=timeout)
+
+
+def _read_bounded(resp, max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
+    """Read response body up to max_bytes, raising ValueError if exceeded."""
+    data = resp.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError(f"HTTP response exceeds {max_bytes} byte limit")
+    return data
 
 
 def detect_default_gateway() -> str:
@@ -54,7 +84,7 @@ def detect_default_gateway() -> str:
 
 def resolve_fritzbox_host(host: str) -> str:
     """Resolve Fritz!Box host, falling back to default gateway if fritz.box points to a public IP or fails."""
-    clean = host.strip() or "fritz.box"
+    clean = host.strip() if isinstance(host, str) and is_valid_host(host) else "fritz.box"
     if clean.lower() != "fritz.box":
         return clean
 
@@ -81,7 +111,7 @@ class FritzUpnpClient:
     """Queries live WAN throughput and line capacity via Fritz!Box UPnP SOAP."""
 
     def __init__(self, host: str = "fritz.box", port: int = 49000, timeout: float = 1.8) -> None:
-        self.configured_host = host.strip() or "fritz.box"
+        self.configured_host = host.strip() if isinstance(host, str) and is_valid_host(host) else "fritz.box"
         self.host = resolve_fritzbox_host(self.configured_host)
         self.port = port
         self.timeout = timeout
@@ -109,7 +139,7 @@ class FritzUpnpClient:
 
     def update_target(self, host: str, port: int = 49000) -> None:
         """Update target Fritz!Box host/IP and reset discovered URLs if changed."""
-        clean_host = host.strip() or "fritz.box"
+        clean_host = host.strip() if isinstance(host, str) and is_valid_host(host) else "fritz.box"
         resolved = resolve_fritzbox_host(clean_host)
         if clean_host != self.configured_host or resolved != self.host or port != self.port:
             self.configured_host = clean_host
@@ -121,7 +151,7 @@ class FritzUpnpClient:
             self._box_udn = ""
             self._tick_counter = 0
 
-    def _discover_endpoints(self) -> None:
+    def _discover_endpoints(self) -> bool:
         """Discover UPnP control URLs from /igddesc.xml with sensible AVM defaults."""
         self._common_control_url = "/igdupnp/control/WANCommonIFC1"
         self._wan_conn_control_url = "/igdupnp/control/WANIPConn1"
@@ -130,8 +160,8 @@ class FritzUpnpClient:
         url = f"http://{self.host}:{self.port}/igddesc.xml"
         try:
             req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                xml_bytes = resp.read()
+            with _urlopen_no_redirect(req, timeout=self.timeout) as resp:
+                xml_bytes = _read_bounded(resp)
             root = ET.fromstring(xml_bytes)
             for elem in root.iter():
                 tag = elem.tag.split("}", 1)[-1]
@@ -152,8 +182,12 @@ class FritzUpnpClient:
                         ctrl_url = child.text.strip()
                 if not ctrl_url:
                     continue
+                if "://" in ctrl_url or ".." in ctrl_url or ctrl_url.startswith("//"):
+                    continue
                 if not ctrl_url.startswith("/"):
                     ctrl_url = "/" + ctrl_url
+                if not _SAFE_CONTROL_PATH_RE.match(ctrl_url):
+                    continue
                 if "WANCommonInterfaceConfig:1" in svc_type:
                     self._common_control_url = ctrl_url
                 elif "WANIPConnection:1" in svc_type:
@@ -162,9 +196,10 @@ class FritzUpnpClient:
                 elif "WANPPPConnection:1" in svc_type and self._wan_conn_control_url is None:
                     self._wan_conn_control_url = ctrl_url
                     self._wan_conn_service = WAN_PPP_SERVICE
-        except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError):
+            return True
+        except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError):
             # Fallback paths will be tried directly during SOAP call
-            pass
+            return False
 
     @property
     def box_name(self) -> str:
@@ -178,6 +213,14 @@ class FritzUpnpClient:
 
     def _soap_call(self, control_path: str, service_urn: str, action: str) -> dict[str, str]:
         """Execute a UPnP SOAP action and parse the resulting XML tags into a dict."""
+        if (
+            not control_path
+            or ".." in control_path
+            or control_path.startswith("//")
+            or not _SAFE_CONTROL_PATH_RE.match(control_path)
+        ):
+            raise ValueError(f"Unsafe UPnP control path: {control_path!r}")
+
         envelope = (
             '<?xml version="1.0" encoding="utf-8"?>'
             '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
@@ -192,8 +235,8 @@ class FritzUpnpClient:
         }
         url = f"http://{self.host}:{self.port}{control_path}"
         req = urllib.request.Request(url, data=envelope, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            raw_xml = resp.read()
+        with _urlopen_no_redirect(req, timeout=self.timeout) as resp:
+            raw_xml = _read_bounded(resp)
 
         root = ET.fromstring(raw_xml)
         result: dict[str, str] = {}
@@ -223,7 +266,7 @@ class FritzUpnpClient:
                 res = self._soap_call(path, WAN_COMMON_SERVICE, action)
                 self._common_control_url = path
                 return res
-            except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError) as exc:
+            except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError) as exc:
                 last_exc = exc
         if last_exc is not None:
             raise last_exc
@@ -294,7 +337,7 @@ class FritzUpnpClient:
                     else:
                         self._max_down_bps = 0.0
                         self._max_up_bps = 0.0
-                except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError):
+                except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError):
                     pass
 
                 if self._wan_conn_control_url:
@@ -304,7 +347,7 @@ class FritzUpnpClient:
                         )
                         self._conn_status = status_info.get("NewConnectionStatus", "Connected")
                         self._uptime_sec = int(status_info.get("NewUptime", "0") or 0)
-                    except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError):
+                    except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError):
                         pass
                     try:
                         ip_info = self._soap_call(
@@ -315,7 +358,7 @@ class FritzUpnpClient:
                         ext_ip = ip_info.get("NewExternalIPAddress", "")
                         if ext_ip:
                             self._external_ip = ext_ip
-                    except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError):
+                    except (urllib.error.URLError, ET.ParseError, TimeoutError, OSError, ValueError):
                         pass
 
             self._tick_counter += 1

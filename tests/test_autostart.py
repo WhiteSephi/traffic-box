@@ -1,5 +1,7 @@
 """Unit tests for autostart command generation and platform integrations."""
 
+import base64
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -123,6 +125,29 @@ class TestAutostart(unittest.TestCase):
                 self.assertIn("[OtherRule]", content)
                 self.assertIn("[TrafficBox-Position]", content)
                 self.assertIn("position=999,888", content)
+
+    def test_windows_fallback_handles_quotes_safely(self):
+        fake_root = Path(r"C:\User's Dir\Traffic;Box")
+        with patch.object(sys, "frozen", False, create=True), patch.object(
+            Path, "is_file", lambda p: False
+        ), patch.object(sys, "executable", r"C:\fake\python.exe"):
+            cmd = get_windows_autostart_cmd(fake_root)
+            self.assertNotIn("User's Dir", cmd)
+            match = re.search(r"b64decode\('([A-Za-z0-9+/=]+)'\)", cmd)
+            self.assertIsNotNone(match)
+            decoded = base64.b64decode(match.group(1)).decode("utf-8")
+            self.assertEqual(decoded, str(fake_root))
+
+    def test_linux_desktop_exec_escapes_special_chars(self):
+        fake_root = Path('/opt/my "quoted" $dir/100%app')
+        with patch.object(sys, "frozen", False, create=True), patch.object(
+            Path, "is_file", lambda p: str(p).endswith("start_linux.sh")
+        ):
+            cmd = get_linux_autostart_cmd(fake_root)
+            self.assertTrue(cmd.startswith('"') and cmd.endswith('"'))
+            self.assertIn(r'\"quoted\"', cmd)
+            self.assertIn(r"\$dir", cmd)
+            self.assertIn("100%%app", cmd)
 
 
 if __name__ == "__main__":

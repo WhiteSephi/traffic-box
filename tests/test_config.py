@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from src.config import AppConfig, load_dotenv_file
+from src.config import AppConfig, load_dotenv_file, read_dotenv_file
 
 
 class TestConfig(unittest.TestCase):
@@ -200,6 +202,57 @@ class TestConfig(unittest.TestCase):
                 self.assertAlmostEqual(loaded.ui_scale, 1.5)
             finally:
                 AppConfig.config_file_path = original_fn  # type: ignore[assignment]
+
+    def test_invalid_host_ping_and_colors_sanitized(self) -> None:
+        """Verify invalid hosts, ping endpoints, and hex colors are safely reset by sanitize()."""
+        cfg = AppConfig(
+            fritzbox_host="http://evil.invalid/path@1.2.3.4",
+            ping_endpoint="-c 1 1.1.1.1",
+            download_color="red; background: url(http://evil.invalid)",
+            background_color="#ZZZ",
+        )
+        cfg.sanitize()
+        self.assertEqual(cfg.fritzbox_host, "fritz.box")
+        self.assertEqual(cfg.ping_endpoint, "1.1.1.1")
+        self.assertEqual(cfg.download_color, "#FFEA00")
+        self.assertEqual(cfg.background_color, "#1C2428")
+
+    def test_dotenv_password_not_exposed_in_os_environ(self) -> None:
+        """Verify AppConfig.load() reads .env secrets without leaking them into os.environ."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            env_file = tmp_root / ".env"
+            env_file.write_text(
+                "FRITZBOX_HOST=192.168.178.1\nFRITZBOX_PASSWORD=super_secret_env_pwd\n",
+                encoding="utf-8",
+            )
+            cfg_file = tmp_root / "config.json"
+
+            clean_env = {k: v for k, v in os.environ.items() if not k.startswith("FRITZBOX_")}
+            original_fn = AppConfig.config_file_path
+            try:
+                AppConfig.config_file_path = classmethod(lambda cls: cfg_file)  # type: ignore[assignment]
+                with patch.dict(os.environ, clean_env, clear=True), patch(
+                    "src.config.read_dotenv_file", side_effect=lambda: read_dotenv_file(env_file)
+                ):
+                    loaded = AppConfig.load()
+                    self.assertEqual(loaded.fritzbox_host, "192.168.178.1")
+                    self.assertEqual(loaded.fritz_password, "super_secret_env_pwd")
+                    self.assertTrue(loaded.enable_guest_monitor)
+                    self.assertNotIn("FRITZBOX_PASSWORD", os.environ)
+            finally:
+                AppConfig.config_file_path = original_fn  # type: ignore[assignment]
+
+    def test_enable_local_fallback_sanitized(self) -> None:
+        """Verify string/int values for enable_local_fallback are coerced to bool."""
+        cfg = AppConfig()
+        cfg.enable_local_fallback = "false"  # type: ignore[assignment]
+        cfg.sanitize()
+        self.assertIs(cfg.enable_local_fallback, False)
+
+        cfg.enable_local_fallback = 1  # type: ignore[assignment]
+        cfg.sanitize()
+        self.assertIs(cfg.enable_local_fallback, True)
 
 
 if __name__ == "__main__":

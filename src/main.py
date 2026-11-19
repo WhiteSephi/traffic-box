@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     config = AppConfig.load()
     if args.host:
         config.fritzbox_host = args.host.strip()
+        config.sanitize()
 
     widget = TrafficBox(config)
     widget.show()

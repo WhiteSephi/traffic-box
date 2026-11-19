@@ -94,6 +94,30 @@ class TestNetHealth(unittest.TestCase):
             self.assertEqual(p3, 15.0)
             self.assertEqual(j3, 4.4)
 
+    def test_ping_rejects_flag_injection_host(self) -> None:
+        """Verify measure_ping rejects hosts starting with '-' or containing shell/URL chars."""
+        with patch("src.api.net_health.subprocess.run") as mock_subproc, patch(
+            "src.api.net_health._measure_ping_windows_icmp"
+        ) as mock_win, patch("src.api.net_health._measure_ping_linux_icmp") as mock_lin:
+            for bad in ("-i 0.1 1.1.1.1", "--help", "1.1.1.1;whoami", "evil.invalid/path"):
+                self.assertIsNone(measure_ping(bad))
+            mock_subproc.assert_not_called()
+            mock_win.assert_not_called()
+            mock_lin.assert_not_called()
+
+    def test_linux_ping_fallback_uses_double_dash(self) -> None:
+        """Verify Linux CLI ping fallback passes '--' before target_host."""
+        mock_res = MagicMock(returncode=0, stdout=b"64 bytes from 1.1.1.1: icmp_seq=1 ttl=57 time=9.5 ms\n")
+        with (
+            patch("src.api.net_health.sys.platform", "linux"),
+            patch("src.api.net_health._measure_ping_linux_icmp", return_value=None),
+            patch("src.api.net_health.subprocess.run", return_value=mock_res) as mock_subproc,
+        ):
+            res = measure_ping("1.1.1.1")
+            self.assertEqual(res, 9.5)
+            cmd = mock_subproc.call_args[0][0]
+            self.assertEqual(cmd, ["ping", "-c", "1", "-W", "1", "--", "1.1.1.1"])
+
 
 if __name__ == "__main__":
     unittest.main()

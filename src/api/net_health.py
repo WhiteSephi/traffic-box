@@ -11,6 +11,8 @@ import sys
 import time
 from typing import Tuple
 
+from src.config import is_valid_host
+
 _SHUTTING_DOWN: bool = False
 
 if sys.platform == "win32":
@@ -73,6 +75,8 @@ def _detect_windows_dns_iphlpapi() -> str:
         return ""
     try:
         iphlpapi = ctypes.windll.iphlpapi
+        iphlpapi.GetNetworkParams.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.ULONG)]
+        iphlpapi.GetNetworkParams.restype = wintypes.DWORD
         size = wintypes.ULONG(ctypes.sizeof(_FIXED_INFO))
         buf = ctypes.create_string_buffer(size.value)
         ret = iphlpapi.GetNetworkParams(buf, ctypes.byref(size))
@@ -183,9 +187,9 @@ def measure_dns_latency(dns_server: str, domain: str = "cloudflare.com", timeout
     if not dns_server or _SHUTTING_DOWN:
         return None
     try:
-        # Build minimal standard DNS query for A record
-        # Header: ID=0xbeef, flags=0x0100 (standard query, recursion desired), QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
-        header = b"\xbe\xef\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+        # Build minimal standard DNS query for A record with randomized 16-bit TxID
+        tx_id = os.urandom(2)
+        header = tx_id + b"\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
         qname = b""
         for label in domain.split("."):
             encoded = label.encode("latin1")
@@ -200,8 +204,10 @@ def measure_dns_latency(dns_server: str, domain: str = "cloudflare.com", timeout
         t0 = time.perf_counter()
         try:
             sock.sendto(packet, (dns_server, 53))
-            _reply, _ = sock.recvfrom(512)
+            reply, addr = sock.recvfrom(512)
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            if len(reply) < 2 or reply[:2] != tx_id or addr[0] != dns_server:
+                return None
             return max(0.1, round(elapsed_ms, 2))
         finally:
             sock.close()
@@ -329,7 +335,7 @@ def _measure_ping_tcp_fallback(target_host: str, timeout_ms: int = 800) -> float
 
 def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
     """Measure round-trip ping time to target host (in-process ICMP or TCP fallback)."""
-    if not target_host or _SHUTTING_DOWN:
+    if not is_valid_host(target_host) or _SHUTTING_DOWN:
         return None
 
     if sys.platform == "win32":
@@ -349,7 +355,7 @@ def measure_ping(target_host: str, timeout_ms: int = 800) -> float | None:
     if not _SHUTTING_DOWN:
         try:
             timeout_sec = max(1, timeout_ms // 1000)
-            cmd = ["ping", "-c", "1", "-W", str(timeout_sec), target_host]
+            cmd = ["ping", "-c", "1", "-W", str(timeout_sec), "--", target_host]
             t0 = time.perf_counter()
             res = subprocess.run(
                 cmd,

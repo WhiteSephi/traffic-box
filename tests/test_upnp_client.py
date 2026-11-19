@@ -69,7 +69,7 @@ class TestUpnpClient(unittest.TestCase):
         mock_resp.read.return_value = mock_xml
         mock_resp.__enter__.return_value = mock_resp
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("src.api.upnp_client._urlopen_no_redirect", return_value=mock_resp):
             client._discover_endpoints()
             self.assertEqual(client.box_name, "FRITZ!Box 7590")
             self.assertEqual(client.box_udn, "uuid:12345678-0000-0000-0000-001122334455")
@@ -169,10 +169,67 @@ class TestUpnpClient(unittest.TestCase):
         resp.read.return_value = mock_soap_xml
         resp.__enter__.return_value = resp
 
-        with patch("urllib.request.urlopen", return_value=resp):
+        with patch("src.api.upnp_client._urlopen_no_redirect", return_value=resp):
             data = client._soap_call("/ctrl", "urn:srv", "GetStatusInfo")
             self.assertEqual(data.get("NewConnectionStatus"), "Connected")
             self.assertEqual(data.get("NewUptime"), "7200")
+
+    def test_discover_endpoints_returns_false_on_error(self) -> None:
+        """Verify _discover_endpoints returns False when the router is unreachable."""
+        import urllib.error
+        from unittest.mock import patch
+
+        client = FritzUpnpClient()
+        with patch("src.api.upnp_client._urlopen_no_redirect", side_effect=urllib.error.URLError("timeout")):
+            self.assertFalse(client._discover_endpoints())
+
+    def test_malicious_control_url_ignored(self) -> None:
+        """Verify unsafe controlURL values in /igddesc.xml are ignored and unsafe _soap_call paths raise."""
+        from unittest.mock import MagicMock, patch
+
+        malicious_xml = b"""<?xml version="1.0"?>
+        <root xmlns="urn:schemas-upnp-org:device-1-0">
+            <device>
+                <friendlyName>FRITZ!Box 7590</friendlyName>
+                <UDN>uuid:12345678-0000-0000-0000-001122334455</UDN>
+                <serviceList>
+                    <service>
+                        <serviceType>urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1</serviceType>
+                        <controlURL>http://evil.invalid/steal</controlURL>
+                    </service>
+                    <service>
+                        <serviceType>urn:schemas-upnp-org:service:WANIPConnection:1</serviceType>
+                        <controlURL>//evil.invalid/wan</controlURL>
+                    </service>
+                </serviceList>
+            </device>
+        </root>"""
+
+        client = FritzUpnpClient()
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = malicious_xml
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("src.api.upnp_client._urlopen_no_redirect", return_value=mock_resp):
+            self.assertTrue(client._discover_endpoints())
+            self.assertEqual(client._common_control_url, "/igdupnp/control/WANCommonIFC1")
+            self.assertEqual(client._wan_conn_control_url, "/igdupnp/control/WANIPConn1")
+
+        with self.assertRaises(ValueError):
+            client._soap_call("/../etc/passwd", "urn:srv", "GetStatusInfo")
+        with self.assertRaises(ValueError):
+            client._soap_call("//evil.invalid/path", "urn:srv", "GetStatusInfo")
+
+    def test_invalid_host_rejected(self) -> None:
+        """Verify hosts with URL control chars or flags fall back safely to fritz.box."""
+        from unittest.mock import patch
+        from src.api.upnp_client import resolve_fritzbox_host
+
+        with patch("src.api.upnp_client.detect_default_gateway", return_value="192.168.178.1"):
+            client = FritzUpnpClient(host="evil.invalid/path@1.2.3.4")
+            self.assertEqual(client.configured_host, "fritz.box")
+            resolved = resolve_fritzbox_host("bad host;rm -rf")
+            self.assertIn(resolved, ("fritz.box", "192.168.178.1"))
 
 
 if __name__ == "__main__":

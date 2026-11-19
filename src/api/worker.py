@@ -46,6 +46,10 @@ class PollingWorker(QObject):
         """Immediately mark worker as stopped to abort pending/future polls during OS shutdown."""
         self._stopped = True
         set_shutting_down(True)
+        try:
+            self.guest_client.logout(timeout=0.4)
+        except Exception:
+            pass
 
     @Slot()
     def poll_once(self) -> None:
@@ -77,28 +81,32 @@ class PollingWorker(QObject):
             if self._stopped:
                 return
 
-            # Guard against foreign Fritz!Box login attempts (roaming / multi-box protection)
+            # Guard against foreign Fritz!Box login attempts (roaming / multi-box protection, fail-closed)
             is_foreign = False
-            if sample.box_udn and self.config.bound_box_udn:
-                if sample.box_udn.lower() != self.config.bound_box_udn.lower():
-                    is_foreign = True
-            elif not self.config.bound_box_udn and sample.box_udn and self.config.fritz_password:
-                # Auto-bind initial box if credentials exist but bound_box_udn was not yet stored
-                self.config.bound_box_udn = sample.box_udn
-                self.config.bound_box_name = sample.box_name
-                self.config.save()
+            if sample.box_reachable:
+                if self.config.bound_box_udn:
+                    if not sample.box_udn or sample.box_udn.lower() != self.config.bound_box_udn.lower():
+                        is_foreign = True
+                elif sample.box_udn and self.config.fritz_password:
+                    # Auto-bind initial box if credentials exist but bound_box_udn was not yet stored
+                    self.config.bound_box_udn = sample.box_udn
+                    self.config.bound_box_name = sample.box_name
+                    self.config.save()
 
             sample.is_foreign_box = is_foreign
+            has_verified_box = (not self.config.bound_box_udn) or bool(sample.box_udn)
 
             if (
-                sample.is_connected
+                sample.box_reachable
+                and sample.is_connected
                 and self.config.enable_guest_monitor
                 and self.config.fritz_password
                 and not is_foreign
+                and has_verified_box
                 and not self._stopped
             ):
                 self.guest_client.update_credentials(
-                    self.config.fritzbox_host,
+                    self.upnp.host,
                     self.config.fritz_username,
                     self.config.fritz_password,
                 )
@@ -190,8 +198,9 @@ class PollingWorker(QObject):
         self._counter_tick = 0
         self._last_upnp_probe_ts = 0.0
         self._box_unreachable = False
+        self.upnp.update_target(self.config.fritzbox_host, self.config.upnp_port)
         self.guest_client.update_credentials(
-            self.config.fritzbox_host,
+            self.upnp.host,
             self.config.fritz_username,
             self.config.fritz_password,
         )

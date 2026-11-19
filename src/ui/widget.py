@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import sys
 
 from PySide6.QtCore import (
@@ -950,11 +951,13 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                 f"Seit Widget-Start: ↓ {format_bytes(sample.session_bytes_received)} • ↑ {format_bytes(sample.session_bytes_sent)}",
             ]
         else:
-            box_title = sample.box_name or f"Fritz!Box ({self.config.fritzbox_host})"
+            box_title = html.escape(sample.box_name or f"Fritz!Box ({self.config.fritzbox_host})")
+            conn_status = html.escape(sample.connection_status)
+            ext_ip = html.escape(sample.external_ip)
             lines = [
                 f"<b>{box_title}</b>",
-                f"Status: <b>{sample.connection_status}</b> • Verbunden seit: {format_uptime(sample.uptime_seconds)}",
-                f"Externe IP: <code>{sample.external_ip}</code>",
+                f"Status: <b>{conn_status}</b> • Verbunden seit: {format_uptime(sample.uptime_seconds)}",
+                f"Externe IP: <code>{ext_ip}</code>",
                 f"Leitungskapazität: ↓ {max_down_mbps:.1f} Mbit/s • ↑ {max_up_mbps:.1f} Mbit/s".replace(
                     ".", ","
                 ),
@@ -970,7 +973,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             )
 
         if sample.error_message:
-            lines.append(f"<span style='color:#FF5252;'>Fehler: {sample.error_message}</span>")
+            lines.append(f"<span style='color:#FF5252;'>Fehler: {html.escape(sample.error_message)}</span>")
 
         tip_html = "<br>".join(lines)
         self.lbl_icon.setToolTip(tip_html)

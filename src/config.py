@@ -3,12 +3,40 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
+import ipaddress
 import json
 import os
 from pathlib import Path
+import re
 import sys
+import tempfile
 
 from src.api.crypto import decrypt_secret, encrypt_secret
+
+_HOSTNAME_RE = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?$"
+)
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def is_valid_host(value: object) -> bool:
+    """Return True if value is a safe IPv4 address or hostname without URL/CLI control chars."""
+    if not isinstance(value, str):
+        return False
+    s = value.strip()
+    if not s or len(s) > 253 or s.startswith("-"):
+        return False
+    if any(ord(ch) < 32 or ch.isspace() or ch in "@/\\?#:;'\"" for ch in s):
+        return False
+    try:
+        ipaddress.IPv4Address(s)
+        return True
+    except ipaddress.AddressValueError:
+        pass
+    if all(part.isdigit() for part in s.rstrip(".").split(".")):
+        return False
+    return bool(_HOSTNAME_RE.match(s))
 
 
 def _log_warn(msg: str) -> None:
@@ -20,11 +48,12 @@ def _log_warn(msg: str) -> None:
             pass
 
 
-def load_dotenv_file(env_path: Path | None = None) -> None:
-    """Load key-value pairs from a local .env file without external dependencies."""
+def read_dotenv_file(env_path: Path | None = None) -> dict[str, str]:
+    """Read key-value pairs from a local .env file without mutating os.environ."""
     target = env_path or Path.cwd() / ".env"
+    parsed: dict[str, str] = {}
     if not target.is_file():
-        return
+        return parsed
     try:
         for raw_line in target.read_text(encoding="utf-8").splitlines():
             line = raw_line.strip()
@@ -33,10 +62,18 @@ def load_dotenv_file(env_path: Path | None = None) -> None:
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip("'").strip('"')
-            if key and key not in os.environ:
-                os.environ[key] = value
+            if key and key not in parsed:
+                parsed[key] = value
     except OSError as exc:
         _log_warn(f"[WARN] Konnte .env nicht lesen: {exc}")
+    return parsed
+
+
+def load_dotenv_file(env_path: Path | None = None) -> None:
+    """Load key-value pairs from a local .env file without external dependencies."""
+    for key, value in read_dotenv_file(env_path).items():
+        if key not in os.environ:
+            os.environ[key] = value
 
 
 def get_config_dir() -> Path:
@@ -56,6 +93,11 @@ def get_config_dir() -> Path:
     cfg_dir = base / "trafficbox"
     try:
         cfg_dir.mkdir(parents=True, exist_ok=True)
+        if sys.platform != "win32":
+            try:
+                os.chmod(cfg_dir, 0o700)
+            except OSError:
+                pass
         return cfg_dir
     except OSError:
         local_dir.mkdir(parents=True, exist_ok=True)
@@ -147,16 +189,30 @@ class AppConfig:
 
     def sanitize(self) -> None:
         """Validate, coerce types and clamp ranges for all configuration attributes."""
-        # Strings with fallbacks
-        if not isinstance(self.fritzbox_host, str) or not self.fritzbox_host.strip():
-            self.fritzbox_host = "fritz.box"
-        else:
+        # Strings with strict host validation fallbacks
+        if is_valid_host(self.fritzbox_host):
             self.fritzbox_host = self.fritzbox_host.strip()
-
-        if not isinstance(self.ping_endpoint, str) or not self.ping_endpoint.strip():
-            self.ping_endpoint = "1.1.1.1"
         else:
+            self.fritzbox_host = "fritz.box"
+
+        if is_valid_host(self.ping_endpoint):
             self.ping_endpoint = self.ping_endpoint.strip()
+        else:
+            self.ping_endpoint = "1.1.1.1"
+
+        # Validate hex colors (prevents stylesheet injection via tampered config.json)
+        defaults = AppConfig()
+        color_fields = (
+            "download_color", "upload_color", "guest_download_color", "guest_upload_color",
+            "ping_color", "jitter_color", "background_color", "border_color",
+            "grid_color", "title_color",
+        )
+        for c_field in color_fields:
+            c_val = getattr(self, c_field, "")
+            if not isinstance(c_val, str) or not _HEX_COLOR_RE.match(c_val.strip()):
+                setattr(self, c_field, getattr(defaults, c_field))
+            else:
+                setattr(self, c_field, c_val.strip().upper())
 
         # Enums
         if self.scale_mode not in ("sqrt", "dynamic", "fixed"):
@@ -201,11 +257,12 @@ class AppConfig:
 
         # Booleans: ensure true boolean values
         bool_fields = (
-            "enable_guest_monitor", "enable_local_traffic_monitor", "show_local_traffic_in_graph",
-            "show_local_traffic_in_header", "autostart", "always_on_top", "locked_pos", "snap_to_edges",
-            "compact_mode", "graph_only_mode", "switch_up_down", "show_as_bits", "show_peak_rate",
-            "show_guest_rate_labels", "show_session_totals", "show_connection_tooltip",
-            "auto_link_scale", "enable_ping_graph", "show_wan_status_pill", "enable_dns_monitor",
+            "enable_guest_monitor", "enable_local_fallback", "enable_local_traffic_monitor",
+            "show_local_traffic_in_graph", "show_local_traffic_in_header", "autostart",
+            "always_on_top", "locked_pos", "snap_to_edges", "compact_mode", "graph_only_mode",
+            "switch_up_down", "show_as_bits", "show_peak_rate", "show_guest_rate_labels",
+            "show_session_totals", "show_connection_tooltip", "auto_link_scale",
+            "enable_ping_graph", "show_wan_status_pill", "enable_dns_monitor",
         )
         for b_field in bool_fields:
             val = getattr(self, b_field, False)
@@ -225,7 +282,7 @@ class AppConfig:
     @classmethod
     def load(cls) -> AppConfig:
         """Load configuration from disk and apply environment variable overrides."""
-        load_dotenv_file()
+        dotenv_vals = read_dotenv_file()
         cfg = cls()
         path = cls.config_file_path()
         if path.is_file():
@@ -245,32 +302,51 @@ class AppConfig:
             except (OSError, json.JSONDecodeError) as exc:
                 _log_warn(f"[WARN] Konnte Konfiguration nicht laden ({path}): {exc}")
 
-        # Environment variable overrides (.env)
-        if os.environ.get("FRITZBOX_HOST"):
-            cfg.fritzbox_host = os.environ["FRITZBOX_HOST"].strip()
-        if os.environ.get("FRITZBOX_UPNP_PORT"):
+        # Environment variable overrides (.env kept isolated from os.environ)
+        env_host = os.environ.get("FRITZBOX_HOST") or dotenv_vals.get("FRITZBOX_HOST")
+        if env_host:
+            cfg.fritzbox_host = env_host.strip()
+        env_port = os.environ.get("FRITZBOX_UPNP_PORT") or dotenv_vals.get("FRITZBOX_UPNP_PORT")
+        if env_port:
             try:
-                cfg.upnp_port = int(os.environ["FRITZBOX_UPNP_PORT"])
+                cfg.upnp_port = int(env_port)
             except ValueError:
                 pass
-        if os.environ.get("FRITZBOX_USERNAME") and not cfg.fritz_username:
-            cfg.fritz_username = os.environ["FRITZBOX_USERNAME"].strip()
-        if os.environ.get("FRITZBOX_PASSWORD") and not cfg.fritz_password:
-            cfg.fritz_password = os.environ["FRITZBOX_PASSWORD"]
+        env_user = os.environ.get("FRITZBOX_USERNAME") or dotenv_vals.get("FRITZBOX_USERNAME")
+        if env_user and not cfg.fritz_username:
+            cfg.fritz_username = env_user.strip()
+        env_pass = os.environ.get("FRITZBOX_PASSWORD") or dotenv_vals.get("FRITZBOX_PASSWORD")
+        if env_pass and not cfg.fritz_password:
+            cfg.fritz_password = env_pass
             cfg.enable_guest_monitor = True
 
         cfg.sanitize()
         return cfg
 
     def save(self, target_path: Path | None = None) -> None:
-        """Save current configuration to disk with encrypted credentials."""
+        """Save current configuration atomically to disk with encrypted credentials and 0600 perms."""
         path = target_path or self.config_file_path()
+        tmp_path: Path | None = None
         try:
             data = asdict(self)
             if data.get("fritz_password"):
                 data["fritz_password"] = encrypt_secret(self.fritz_password)
-            path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            payload_text = json.dumps(data, indent=2, ensure_ascii=False)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(prefix=".config_", suffix=".tmp", dir=path.parent)
+            tmp_path = Path(tmp_name)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload_text)
+            if sys.platform != "win32":
+                os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, path)
+            tmp_path = None
         except OSError as exc:
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
             _log_warn(f"[ERROR] Konnte Konfiguration nicht speichern ({path}): {exc}")
 
     def reset_defaults(self) -> None:

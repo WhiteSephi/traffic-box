@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import sys
 from unittest.mock import mock_open, patch
 import unittest
 
@@ -56,6 +58,14 @@ class TestLocalTraffic(unittest.TestCase):
         monitor.reset_session_counters()
         self.assertEqual(monitor.session_bytes_received, 0)
         self.assertEqual(monitor.session_bytes_sent, 0)
+
+    def test_windows_mib_if_row2_struct_size(self) -> None:
+        """Verify _MIB_IF_ROW2 matches Windows x64 MIB_IF_ROW2 struct size (1352 bytes)."""
+        if sys.platform != "win32":
+            return
+        from src.api.local_traffic import _MIB_IF_ROW2
+
+        self.assertEqual(ctypes.sizeof(_MIB_IF_ROW2), 1352)
 
 
 if __name__ == "__main__":

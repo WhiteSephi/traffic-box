@@ -217,6 +217,7 @@ class SettingsDialog(QDialog):
         self.txt_pass.setPlaceholderText("Fritz!Box Passwort")
 
         self.lbl_bound_box = QLabel("")
+        self.lbl_bound_box.setTextFormat(Qt.TextFormat.PlainText)
         self.lbl_bound_box.setWordWrap(True)
         self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
@@ -224,6 +225,7 @@ class SettingsDialog(QDialog):
         self.btn_test_conn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_test_conn.clicked.connect(self._on_test_connection)
         self.lbl_test_result = QLabel("")
+        self.lbl_test_result.setTextFormat(Qt.TextFormat.PlainText)
         self.lbl_test_result.setWordWrap(True)
         self.lbl_test_result.setVisible(False)
 
@@ -663,7 +665,7 @@ class SettingsDialog(QDialog):
         lbl_cfg_val.setStyleSheet("font-size: 8.5pt;")
 
         lbl_notes = QLabel(
-            "Open Source (MIT) • 100 % lokal ohne Telemetrie • "
+            "Open Source (MIT) • Keine Telemetrie (Ping-/DNS-Checks optional) • "
             "<span style='color: #8E9297;'>Kein Produkt der FRITZ! GmbH (ehem. AVM).</span>"
         )
         lbl_notes.setStyleSheet("font-size: 8.5pt;")
@@ -736,8 +738,7 @@ class SettingsDialog(QDialog):
             # 1. Test basic UPnP reachability and discover box identity
             upnp_client = FritzUpnpClient(host=host, port=port, timeout=2.5)
             try:
-                upnp_client._discover_endpoints()
-                upnp_ok = True
+                upnp_ok = bool(upnp_client._discover_endpoints())
             except Exception:
                 upnp_ok = False
 
@@ -752,15 +753,20 @@ class SettingsDialog(QDialog):
                 box_name = upnp_client.box_name or "FRITZ!Box"
                 self.lbl_bound_box.setText(f"Erkannt: {box_name} (ID: {short_id})")
 
-            # 2. Test Fritz!OS Login if enabled
+            # 2. Test Fritz!OS Login if enabled (using resolved local gateway host)
             if self.chk_guest.isChecked():
                 if not pwd:
                     self.lbl_test_result.setText("⚠ Bitte ein Passwort eingeben, um den Login zu testen.")
                     self.lbl_test_result.setStyleSheet("color: #FFAB00; font-weight: bold; font-size: 8.5pt;")
                     return
 
-                client = FritzGuestMonitorClient(host=host, username=user, password=pwd, timeout=4.0)
-                ok, msg, _block_time = client.test_login()
+                client = FritzGuestMonitorClient(
+                    host=upnp_client.host, username=user, password=pwd, timeout=4.0
+                )
+                try:
+                    ok, msg, _block_time = client.test_login()
+                finally:
+                    client.logout(timeout=0.5)
                 if ok:
                     if upnp_client.box_udn:
                         self.config.bound_box_udn = upnp_client.box_udn
@@ -923,6 +929,7 @@ class SettingsDialog(QDialog):
             self.config.bound_box_udn = ""
             self.config.bound_box_name = ""
 
+        self.config.sanitize()
         self.config.save()
         self.on_apply()
 

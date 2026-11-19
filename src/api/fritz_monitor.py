@@ -11,6 +11,15 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 from src.api.models import OnlineCounterStats, PeriodCounter
+from src.api.upnp_client import (
+    MAX_RESPONSE_BYTES,
+    _NoRedirectHandler,
+    _read_bounded,
+    _urlopen_no_redirect,
+)
+from src.config import is_valid_host
+
+MAX_PBKDF2_ITERATIONS = 100_000
 
 
 class FritzGuestMonitorClient:
@@ -22,11 +31,13 @@ class FritzGuestMonitorClient:
         username: str = "",
         password: str = "",
         timeout: float = 3.5,
+        allow_legacy_md5: bool = False,
     ) -> None:
-        self.host = host.strip() or "fritz.box"
+        self.host = host.strip() if isinstance(host, str) and is_valid_host(host) else "fritz.box"
         self.username = username.strip()
         self.password = password
         self.timeout = timeout
+        self.allow_legacy_md5 = allow_legacy_md5
         self._sid: str = "0000000000000000"
         self.last_error: str = ""
         self.last_block_time: int = 0
@@ -35,7 +46,7 @@ class FritzGuestMonitorClient:
 
     def update_credentials(self, host: str, username: str, password: str) -> None:
         """Update host or credentials and invalidate cached SID if changed."""
-        clean_host = host.strip() or "fritz.box"
+        clean_host = host.strip() if isinstance(host, str) and is_valid_host(host) else "fritz.box"
         clean_user = username.strip()
         if (
             clean_host != self.host
@@ -62,10 +73,18 @@ class FritzGuestMonitorClient:
         parts = challenge.split("$")
         if len(parts) < 5:
             return ""
-        iter1 = int(parts[1])
-        salt1 = bytes.fromhex(parts[2])
-        iter2 = int(parts[3])
-        salt2 = bytes.fromhex(parts[4])
+        try:
+            iter1 = int(parts[1])
+            salt1 = bytes.fromhex(parts[2])
+            iter2 = int(parts[3])
+            salt2 = bytes.fromhex(parts[4])
+        except ValueError:
+            return ""
+
+        if not (1 <= iter1 <= MAX_PBKDF2_ITERATIONS and 1 <= iter2 <= MAX_PBKDF2_ITERATIONS):
+            return ""
+        if not (1 <= len(salt1) <= 64 and 1 <= len(salt2) <= 64):
+            return ""
 
         hash1 = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt1, iter1)
         hash2 = hashlib.pbkdf2_hmac("sha256", hash1, salt2, iter2)
@@ -95,8 +114,8 @@ class FritzGuestMonitorClient:
 
         url = f"http://{self.host}/login_sid.lua?version=2"
         try:
-            with urllib.request.urlopen(url, timeout=self.timeout) as resp:
-                xml_bytes = resp.read()
+            with _urlopen_no_redirect(url, timeout=self.timeout) as resp:
+                xml_bytes = _read_bounded(resp)
             root = ET.fromstring(xml_bytes)
             sid = (root.findtext("SID") or "").strip()
             if sid and sid != "0000000000000000":
@@ -130,16 +149,26 @@ class FritzGuestMonitorClient:
 
             if challenge.startswith("2$"):
                 response_str = self._solve_pbkdf2_challenge(challenge, self.password)
-            else:
+                if not response_str:
+                    self.last_error = "Ungültige PBKDF2-Challenge von FRITZ!Box"
+                    self._next_attempt_time = time.monotonic() + 30.0
+                    return False
+            elif self.allow_legacy_md5:
                 response_str = self._solve_md5_challenge(challenge, self.password)
+            else:
+                self.last_error = (
+                    "Unsicheres MD5-Login blockiert (Fritz!OS >= 7.24 mit PBKDF2 erforderlich)"
+                )
+                self._next_attempt_time = time.monotonic() + 30.0
+                return False
 
             form_data = urllib.parse.urlencode(
                 {"username": user, "response": response_str}
             ).encode("utf-8")
             post_timeout = max(self.timeout, float(block_time + 4))
             req = urllib.request.Request(url, data=form_data, method="POST")
-            with urllib.request.urlopen(req, timeout=post_timeout) as resp2:
-                xml_bytes2 = resp2.read()
+            with _urlopen_no_redirect(req, timeout=post_timeout) as resp2:
+                xml_bytes2 = _read_bounded(resp2)
             root2 = ET.fromstring(xml_bytes2)
             sid2 = (root2.findtext("SID") or "").strip()
             block_time2 = int(root2.findtext("BlockTime") or "0")
@@ -234,10 +263,10 @@ class FritzGuestMonitorClient:
 
         try:
             req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                raw_json = resp.read().decode("utf-8", errors="replace")
+            with _urlopen_no_redirect(req, timeout=self.timeout) as resp:
+                raw_json = _read_bounded(resp).decode("utf-8", errors="replace")
             data = json.loads(raw_json)
-        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError):
+        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError, ValueError):
             self._sid = "0000000000000000"
             return stats
 
@@ -288,10 +317,10 @@ class FritzGuestMonitorClient:
 
         try:
             req = urllib.request.Request(url, data=payload, method="POST")
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                raw_json = resp.read().decode("utf-8", errors="replace")
+            with _urlopen_no_redirect(req, timeout=self.timeout) as resp:
+                raw_json = _read_bounded(resp).decode("utf-8", errors="replace")
             data = json.loads(raw_json)
-        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError):
+        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError, ValueError):
             self._sid = "0000000000000000"
             return (0.0, 0.0, False)
 
@@ -320,3 +349,19 @@ class FritzGuestMonitorClient:
         )
 
         return (max(0.0, ds_guest), max(0.0, us_guest), True)
+
+    def logout(self, timeout: float = 0.5) -> None:
+        """Explicitly invalidate the active Fritz!OS session ID if present."""
+        sid = self._sid
+        if not sid or sid == "0000000000000000":
+            return
+        url = f"http://{self.host}/login_sid.lua?version=2"
+        payload = urllib.parse.urlencode({"sid": sid, "logout": "1"}).encode("utf-8")
+        try:
+            req = urllib.request.Request(url, data=payload, method="POST")
+            with _urlopen_no_redirect(req, timeout=timeout):
+                pass
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            pass
+        finally:
+            self._sid = "0000000000000000"
