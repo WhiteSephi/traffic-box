@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.18.3] - 2026-11-19
+### Fixed
+- **„Über“-Tab bei schmalem Einstellungsfenster (`src/ui/settings_dlg.py`):** Die 4 Quick-Action-Buttons sind nun als 2×2-Raster (`QGridLayout`) angeordnet und alle Info-Labels nutzen `setWordWrap(True)` (inkl. sauberem Umbruch des rechtlichen Hinweises), sodass nichts mehr rechts abgeschnitten wird.
+
 ## [0.18.2] - 2026-11-19
 ### Changed
 - **Aufgeräumte Einstellungen mit Erklär-Tooltips (`src/ui/settings_dlg.py`):** Lange Klammerzusätze in allen Einstellungs-Tabs gekürzt und durchgängig prägnante deutsche Tooltips für alle Optionen ergänzt.

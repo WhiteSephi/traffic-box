@@ -707,6 +707,7 @@ class SettingsDialog(QDialog):
         lbl_tagline = QLabel(
             "Schlankes Live-Desktop-Widget für Router-Traffic (UPnP), PC-Anteil, Ping, Jitter & DNS."
         )
+        lbl_tagline.setWordWrap(True)
         lbl_tagline.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
         title_col.addLayout(name_badge_row)
@@ -714,9 +715,9 @@ class SettingsDialog(QDialog):
         top_row.addLayout(title_col, 1)
         hero_vlayout.addLayout(top_row)
 
-        # Quick Action Buttons
-        links_row = QHBoxLayout()
-        links_row.setSpacing(6)
+        # Quick Action Buttons (2x2 grid prevents horizontal clipping on narrow windows)
+        links_grid = QGridLayout()
+        links_grid.setSpacing(6)
 
         self.btn_about_github = QPushButton("🌐 GitHub")
         self.btn_about_github.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -746,16 +747,17 @@ class SettingsDialog(QDialog):
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_config_dir())))
         )
 
-        links_row.addWidget(self.btn_about_github)
-        links_row.addWidget(self.btn_about_releases)
-        links_row.addWidget(self.btn_about_issues)
-        links_row.addWidget(self.btn_about_config_dir)
-        hero_vlayout.addLayout(links_row)
+        links_grid.addWidget(self.btn_about_github, 0, 0)
+        links_grid.addWidget(self.btn_about_releases, 0, 1)
+        links_grid.addWidget(self.btn_about_issues, 1, 0)
+        links_grid.addWidget(self.btn_about_config_dir, 1, 1)
+        hero_vlayout.addLayout(links_grid)
         about_layout.addWidget(hero_group)
 
         # 2. Compact System & Legal Info Group
         info_group = QGroupBox("System-Diagnose && Rechtliches")
         info_form = QFormLayout(info_group)
+        info_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         info_form.setContentsMargins(12, 8, 12, 8)
         info_form.setVerticalSpacing(5)
 
@@ -769,16 +771,20 @@ class SettingsDialog(QDialog):
             f"{platform.system()} {platform.release()} ({platform.machine()}) • "
             f"Python {platform.python_version()} • Qt {qVersion()} • {build_mode}"
         )
+        lbl_sys_val.setWordWrap(True)
         lbl_sys_val.setStyleSheet("font-size: 8.5pt;")
 
         lbl_cfg_val = QLabel(storage_mode)
+        lbl_cfg_val.setWordWrap(True)
         lbl_cfg_val.setToolTip(f"Pfad: {cfg_dir}")
         lbl_cfg_val.setStyleSheet("font-size: 8.5pt;")
 
         lbl_notes = QLabel(
-            "Open Source (MIT) • Keine Telemetrie (Ping-/DNS-/Canary-Checks optional) • "
+            "Open Source (MIT) • Keine Telemetrie (Ping-/DNS-/Canary-Checks optional)<br>"
             "<span style='color: #8E9297;'>Kein Produkt der FRITZ! GmbH (ehem. AVM).</span>"
         )
+        lbl_notes.setWordWrap(True)
+        lbl_notes.setTextFormat(Qt.TextFormat.RichText)
         lbl_notes.setStyleSheet("font-size: 8.5pt;")
 
         info_form.addRow("Laufzeit:", lbl_sys_val)
