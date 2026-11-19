@@ -418,11 +418,28 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             f"QProgressBar::chunk {{ background-color: {up_col}; border-radius: 2px; }}"
         )
 
+        bg_col = QColor(self.config.background_color)
+        bg_lum = (
+            0.299 * bg_col.red() + 0.587 * bg_col.green() + 0.114 * bg_col.blue()
+            if bg_col.isValid()
+            else 30.0
+        )
+        if bg_lum > 140.0:
+            self.setStyleSheet(
+                "QToolTip { background-color: #F8FAFC; color: #1E293B; "
+                "border: 1px solid #CBD5E1; border-radius: 6px; padding: 6px 8px; }"
+            )
+        else:
+            self.setStyleSheet(
+                "QToolTip { background-color: #141A20; color: #E2E8F0; "
+                "border: 1px solid #384450; border-radius: 6px; padding: 6px 8px; }"
+            )
+
         footer_css = (
-            f"color: {self.config.title_color}; "
+            f"QLabel {{ color: {self.config.title_color}; "
             "background-color: rgba(255, 255, 255, 12); "
             "border: 1px solid rgba(255, 255, 255, 24); "
-            "border-radius: 9px; padding: 1px 7px;"
+            "border-radius: 9px; padding: 1px 7px; }}"
         )
         self.lbl_footer.setStyleSheet(footer_css)
         self.lbl_footer.setVisible(self.config.show_session_totals)
@@ -596,9 +613,9 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         pad_h = max(4, int(round(7.0 * base_scale)))
         bold_css = " font-weight: bold;" if is_bold else ""
         return (
-            f"color: {text_col}; background-color: {bg_col}; "
+            f"QLabel {{ color: {text_col}; background-color: {bg_col}; "
             f"border: 1px solid {border_col}; border-radius: {radius}px; "
-            f"padding: {pad_v}px {pad_h}px;{bold_css}"
+            f"padding: {pad_v}px {pad_h}px;{bold_css} }}"
         )
 
     def _update_dynamic_scaling(self) -> None:
@@ -1151,6 +1168,14 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                 f"Seit Verbindung: ↓ {format_bytes(sample.total_bytes_received)} • ↑ {format_bytes(sample.total_bytes_sent)}"
             )
 
+        if sample.error_message:
+            lines.append(f"<span style='color:#FF5252;'>Fehler: {html.escape(sample.error_message)}</span>")
+
+        router_tip_html = "<br>".join(lines)
+        self.lbl_icon.setToolTip(router_tip_html)
+        self.lbl_title.setToolTip(router_tip_html)
+        self.setToolTip("")
+
         if self.config.enable_internet_health and sample.health.status != HealthStatus.UNKNOWN:
             h = sample.health
             status_col = self._get_status_palette(h.status, sample.is_connected)[0]
@@ -1163,59 +1188,72 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                 HealthStatus.LAN_ERROR: "LAN-Problem",
             }
             s_name = status_names.get(h.status, "Unbekannt")
-            lines.append("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.16);'>")
-            lines.append(
-                f"<b>Internet-Qualität:</b> <span style='color:{status_col};'><b>{html.escape(s_name)}</b></span>"
-            )
-            if h.reason:
-                lines.append(f"Diagnose: {html.escape(h.reason)}")
-
-            gw_lbl = html.escape(h.gateway_ip or "-")
-            lan_rtt = f"{h.lan_ping_ms:.1f} ms".replace(".", ",") if h.lan_ping_ms is not None else "n/a"
-            lan_loss = f" • Verlust: {h.lan_loss_pct:.0f}%" if h.lan_loss_pct > 0 else ""
-            lines.append(f"LAN/Router ({gw_lbl}): {lan_rtt}{lan_loss}")
-
-            v4_ok, v4_tot = h.ipv4_quorum
-            if v4_tot > 0:
-                v4_rtt = f" ({h.ipv4_ms:.0f} ms)" if (h.ipv4_ok and h.ipv4_ms is not None) else ""
-                v4_txt = f"IPv4 {v4_ok}/{v4_tot}{v4_rtt}" if h.ipv4_ok else f"IPv4 ✕ 0/{v4_tot}"
-            else:
-                v4_txt = "IPv4 n/a"
-
-            v6_ok, v6_tot = h.ipv6_quorum
-            if v6_tot > 0:
-                v6_rtt = f" ({h.ipv6_ms:.0f} ms)" if (h.ipv6_ok and h.ipv6_ms is not None) else ""
-                v6_txt = f"IPv6 {v6_ok}/{v6_tot}{v6_rtt}" if h.ipv6_ok else f"IPv6 ✕ 0/{v6_tot}"
-            else:
-                v6_txt = "IPv6 n/a (nur IPv4)"
-            lines.append(f"HTTPS 204: {html.escape(v4_txt)} • {html.escape(v6_txt)}")
-
-            if h.dns_ok is not None:
-                d_ip = html.escape(h.dns_ip or "-")
-                if h.dns_ok and h.dns_ms is not None:
-                    d_ms = f"{h.dns_ms:.1f} ms".replace(".", ",")
-                    lines.append(f"Uncached-DNS ({d_ip}): {d_ms}")
-                else:
-                    d_err = html.escape(_format_dns_error(h.dns_error))
-                    lines.append(f"Uncached-DNS ({d_ip}): Fehler ({d_err})")
-
-            med_s = f"{h.wan_median_ms:.1f}".replace(".", ",") if h.wan_median_ms is not None else "-"
-            p95_s = f"{h.wan_p95_ms:.1f}".replace(".", ",") if h.wan_p95_ms is not None else "-"
-            jit_s = f"{h.wan_jitter_ms:.1f}".replace(".", ",")
-            loss_s = f"{h.wan_loss_pct:.1f}%".replace(".", ",")
-            base_s = (
-                f" (Basis: {h.baseline_rtt_ms:.0f} ms)"
-                if h.baseline_ready and h.baseline_rtt_ms is not None
+            sat_badge = (
+                " <span style='color:#94A3B8;'>(Leitung ausgelastet)</span>"
+                if (h.is_line_saturated and h.status == HealthStatus.DEGRADED)
                 else ""
             )
-            sat_s = " • Leitung ausgelastet" if h.is_line_saturated else ""
-            lines.append(f"Qualität (60s): Med {med_s} • p95 {p95_s} ms • Jitter {jit_s} ms • Loss {loss_s}{base_s}{sat_s}")
+            health_lines = [
+                f"<b>Internet:</b> <span style='color:{status_col};'><b>{html.escape(s_name)}</b></span>{sat_badge}"
+            ]
 
-        if sample.error_message:
-            lines.append(f"<span style='color:#FF5252;'>Fehler: {html.escape(sample.error_message)}</span>")
+            if h.status != HealthStatus.STABLE and h.reason:
+                reason_clean = (
+                    h.reason.replace(" (Leitung ausgelastet)", "")
+                    if (h.is_line_saturated and h.status == HealthStatus.DEGRADED)
+                    else h.reason
+                )
+                if reason_clean:
+                    health_lines.append(html.escape(reason_clean))
 
-        tip_html = "<br>".join(lines)
-        self.lbl_icon.setToolTip(tip_html)
-        self.lbl_title.setToolTip(tip_html)
-        self.lbl_wan_pill.setToolTip(tip_html)
-        self.setToolTip("")
+            if h.status == HealthStatus.LAN_ERROR:
+                gw_lbl = html.escape(h.gateway_ip or "-")
+                lan_state = (
+                    f"{h.lan_ping_ms:.1f} ms".replace(".", ",")
+                    if h.lan_ping_ms is not None
+                    else "nicht erreichbar"
+                )
+                if h.lan_loss_pct > 0:
+                    lan_state += f" (Verlust {h.lan_loss_pct:.0f} %)"
+                health_lines.append(f"LAN ({gw_lbl}): {html.escape(lan_state)}")
+            elif h.status == HealthStatus.DNS_ERROR:
+                d_ip = html.escape(h.dns_ip or "-")
+                d_err = html.escape(_format_dns_error(h.dns_error))
+                v4_ok, v4_tot = h.ipv4_quorum
+                v4_txt = f"IPv4 {v4_ok}/{v4_tot}" if v4_tot > 0 else "IPv4 n/a"
+                health_lines.append(f"DNS ({d_ip}): {d_err} • {html.escape(v4_txt)}")
+            else:
+                lan_rtt = (
+                    f"{h.lan_ping_ms:.1f} ms".replace(".", ",")
+                    if h.lan_ping_ms is not None
+                    else "n/a"
+                )
+                v4_ok, v4_tot = h.ipv4_quorum
+                if v4_tot > 0:
+                    v4_rtt = f" ({h.ipv4_ms:.0f} ms)" if (h.ipv4_ok and h.ipv4_ms is not None) else ""
+                    v4_txt = f"IPv4 {v4_ok}/{v4_tot}{v4_rtt}" if h.ipv4_ok else f"IPv4 ✕ 0/{v4_tot}"
+                else:
+                    v4_txt = "IPv4 n/a"
+
+                v6_ok, v6_tot = h.ipv6_quorum
+                if v6_tot > 0:
+                    v6_rtt = f" ({h.ipv6_ms:.0f} ms)" if (h.ipv6_ok and h.ipv6_ms is not None) else ""
+                    v6_txt = f"IPv6 {v6_ok}/{v6_tot}{v6_rtt}" if h.ipv6_ok else f"IPv6 ✕ 0/{v6_tot}"
+                else:
+                    v6_txt = "IPv6 n/a"
+                health_lines.append(f"LAN: {lan_rtt} • {html.escape(v4_txt)} • {html.escape(v6_txt)}")
+
+            if h.wan_p95_ms is not None or h.wan_loss_pct > 0:
+                p95_s = f"{h.wan_p95_ms:.0f}" if h.wan_p95_ms is not None else "-"
+                jit_s = f"{h.wan_jitter_ms:.1f}".replace(".", ",")
+                loss_s = f"{h.wan_loss_pct:.0f} %"
+                base_s = (
+                    f" (Basis {h.baseline_rtt_ms:.0f})"
+                    if (h.baseline_ready and h.baseline_rtt_ms is not None)
+                    else ""
+                )
+                health_lines.append(f"Ping (60s): p95 {p95_s} ms{base_s} • Jitter {jit_s} ms • Loss {loss_s}")
+
+            self.lbl_wan_pill.setToolTip("<br>".join(health_lines))
+        else:
+            self.lbl_wan_pill.setToolTip(router_tip_html)

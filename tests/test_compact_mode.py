@@ -354,28 +354,78 @@ class TestCompactMode(unittest.TestCase):
         self.assertEqual(self.widget.lbl_dns_pill.text(), "✕ DNS: SERVFAIL")
         self.assertIn("#FF7043", self.widget.lbl_dns_pill.styleSheet())
 
-        # 5. Tooltip HTML escaping for health fields
-        s_xss = TrafficSample(
+        # 5. Tooltip scoping, separation (header vs pill), and HTML escaping
+        self.assertIn("QToolTip {", self.widget.styleSheet())
+        self.assertTrue(self.widget.lbl_wan_pill.styleSheet().startswith("QLabel {"))
+
+        s_degraded = TrafficSample(
+            is_connected=True,
+            wan_connected=True,
+            box_name="FRITZ!Box 7590",
+            health=InternetHealthSnapshot(
+                status=HealthStatus.DEGRADED,
+                short_tag="Hoher Ping",
+                reason="Hohe Latenz, Hoher Jitter (Leitung ausgelastet)",
+                gateway_ip="192.168.178.1",
+                lan_ping_ms=2.2,
+                ipv4_ok=True,
+                ipv4_quorum=(2, 2),
+                ipv4_ms=24.0,
+                ipv6_ok=True,
+                ipv6_quorum=(2, 2),
+                ipv6_ms=22.0,
+                wan_p95_ms=70.0,
+                wan_jitter_ms=23.1,
+                wan_loss_pct=0.0,
+                baseline_rtt_ms=13.0,
+                baseline_ready=True,
+                is_line_saturated=True,
+            ),
+        )
+        self.widget._update_tooltip(s_degraded, 84.0, 25.0)
+        hdr_tip = self.widget.lbl_icon.toolTip()
+        pill_tip = self.widget.lbl_wan_pill.toolTip()
+        self.assertIn("FRITZ!Box 7590", hdr_tip)
+        self.assertNotIn("<b>Internet:</b>", hdr_tip)
+        self.assertIn("<b>Internet:</b>", pill_tip)
+        self.assertIn("(Leitung ausgelastet)", pill_tip)
+        self.assertNotIn("FRITZ!Box 7590", pill_tip)
+        self.assertNotIn("<hr", pill_tip)
+        self.assertLessEqual(len(pill_tip.split("<br>")), 4)
+
+        s_xss_dns = TrafficSample(
             is_connected=True,
             wan_connected=True,
             health=InternetHealthSnapshot(
                 status=HealthStatus.DNS_ERROR,
                 short_tag="DNS-Störung",
                 reason="<script>alert(1)</script>",
-                gateway_ip="<img src=x>",
                 dns_ip="<b>dns</b>",
                 dns_ok=False,
                 dns_error="<i>err</i>",
             ),
         )
-        self.widget._update_tooltip(s_xss, 5.0, 2.0)
-        tip = self.widget.lbl_wan_pill.toolTip()
-        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", tip)
-        self.assertIn("&lt;img src=x&gt;", tip)
-        self.assertIn("&lt;b&gt;dns&lt;/b&gt;", tip)
-        self.assertIn("&lt;i&gt;err&lt;/i&gt;", tip)
-        self.assertNotIn("<script>", tip)
-        self.assertNotIn("<img", tip)
+        self.widget._update_tooltip(s_xss_dns, 5.0, 2.0)
+        tip_dns = self.widget.lbl_wan_pill.toolTip()
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", tip_dns)
+        self.assertIn("&lt;b&gt;dns&lt;/b&gt;", tip_dns)
+        self.assertIn("&lt;i&gt;err&lt;/i&gt;", tip_dns)
+        self.assertNotIn("<script>", tip_dns)
+
+        s_xss_lan = TrafficSample(
+            is_connected=False,
+            wan_connected=False,
+            health=InternetHealthSnapshot(
+                status=HealthStatus.LAN_ERROR,
+                short_tag="LAN-Problem",
+                reason="Router tot",
+                gateway_ip="<img src=x>",
+            ),
+        )
+        self.widget._update_tooltip(s_xss_lan, 0.0, 0.0)
+        tip_lan = self.widget.lbl_wan_pill.toolTip()
+        self.assertIn("&lt;img src=x&gt;", tip_lan)
+        self.assertNotIn("<img", tip_lan)
 
 
 if __name__ == "__main__":

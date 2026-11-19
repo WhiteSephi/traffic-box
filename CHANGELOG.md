@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.17.1] - 2026-11-19
+### Changed
+- **Kompaktere Diagnose-Tooltips & klare Trennung (`src/ui/widget.py`, `src/api/internet_health.py`):**
+  - Header (`lbl_icon` / `lbl_title`) zeigt nun wieder ausschließlich den kompakten FRITZ!Box-/Router-Tooltip, während die Status-Pille im Footer (`lbl_wan_pill`) einen eigenen, auf 3–4 Zeilen verdichteten Internet-Diagnose-Tooltip anzeigt.
+  - Redundante Wiederholungen in `DEGRADED`-Gründen (z. B. doppelte `Leitung ausgelastet`-Zusätze und doppelte Latenz-/Jitter-Werte) entfernt.
+
+### Fixed
+- **Tooltip-Styling & Kontrast (`src/ui/widget.py`):** CSS für Status-Pillen (`_get_pill_style`, `lbl_footer`) auf `QLabel` eingeschränkt und explizites `QToolTip`-Theme-Styling ergänzt, damit Tooltips über Status-Pillen keine Pillen-Hintergrundfarben mehr erben.
+
 ## [0.17.0] - 2026-11-19
 ### Added
 - **Mehrstufige Internet-Qualitäts- & Erreichbarkeits-Diagnose (`src/api/internet_health.py`, `src/api/net_health.py`):**

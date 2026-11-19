@@ -514,39 +514,42 @@ class HealthEvaluator:
         # 4. Degraded Quality
         tags: list[str] = []
         reasons: list[str] = []
+        has_latency_or_jitter = False
 
         if ipv6_checked and ipv4_total > 0 and ipv6_total > 0:
             if ipv4_alive is False and ipv6_alive is True:
                 tags.append("Nur IPv6")
-                reasons.append("IPv4 gestört (nur IPv6 erreichbar)")
+                reasons.append("IPv4 gestört (nur IPv6)")
             elif ipv4_alive is True and ipv6_alive is False:
                 tags.append("Nur IPv4")
-                reasons.append("IPv6 gestört (nur IPv4 erreichbar)")
+                reasons.append("IPv6 gestört (nur IPv4)")
 
         if wan_samples >= 10 and wan_loss_count >= self.WAN_LOSS_DEGRADED_MIN_DROPS and wan_loss_pct <= self.WAN_LOSS_OFFLINE_PCT:
             tags.append(f"Verlust {wan_loss_pct:.0f}%")
-            reasons.append(f"Paketverlust {wan_loss_pct:.1f} %")
+            reasons.append(f"Paketverlust {wan_loss_pct:.0f} %")
 
         if dns_enabled and dns_ok is True and dns_ms is not None and dns_ms > self.DNS_WARN_MS:
             tags.append("DNS langsam")
-            reasons.append(f"Uncached-DNS langsam ({dns_ms:.0f} ms)")
+            reasons.append(f"DNS langsam ({dns_ms:.0f} ms)")
 
-        sat_suffix = " • Leitung ausgelastet" if is_line_saturated else ""
         if baseline_ready and p95_thresh is not None and wan_p95_ms is not None and wan_p95_ms > p95_thresh:
             tags.append("Hoher Ping")
-            base_str = f"{baseline_rtt_ms:.0f} ms" if baseline_rtt_ms is not None else "-"
-            reasons.append(f"Hohe Latenz (p95: {wan_p95_ms:.0f} ms, Basis: {base_str}{sat_suffix})")
+            reasons.append("Hohe Latenz")
+            has_latency_or_jitter = True
 
         if baseline_ready and jitter_thresh is not None and wan_jitter_ms > jitter_thresh:
             tags.append("Hoher Jitter")
-            base_j_str = f"{baseline_jitter_ms:.1f} ms" if baseline_jitter_ms is not None else "-"
-            reasons.append(f"Hoher Jitter ({wan_jitter_ms:.1f} ms, Basis: {base_j_str}{sat_suffix})")
+            reasons.append("Hoher Jitter")
+            has_latency_or_jitter = True
 
         if tags:
+            reason_str = ", ".join(reasons)
+            if is_line_saturated and has_latency_or_jitter:
+                reason_str += " (Leitung ausgelastet)"
             return (
                 HealthStatus.DEGRADED,
                 tags[0],
-                f"Qualität reduziert: {', '.join(reasons)}",
+                reason_str,
                 False,
             )
 
