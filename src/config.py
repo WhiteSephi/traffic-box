@@ -154,6 +154,10 @@ class AppConfig:
     settings_pos_y: int = -1
     settings_width: int = 680
     settings_height: int = 540
+    health_pos_x: int = -1
+    health_pos_y: int = -1
+    health_width: int = 540
+    health_height: int = 520
     ui_scale_percent: int = 100  # 70..300 %
 
     @property
@@ -246,6 +250,10 @@ class AppConfig:
         self.settings_pos_y = _safe_int(self.settings_pos_y, -1, -10000, 10000)
         self.settings_width = _safe_int(self.settings_width, 680, 500, 3840)
         self.settings_height = _safe_int(self.settings_height, 540, 400, 2160)
+        self.health_pos_x = _safe_int(self.health_pos_x, -1, -10000, 10000)
+        self.health_pos_y = _safe_int(self.health_pos_y, -1, -10000, 10000)
+        self.health_width = _safe_int(self.health_width, 540, 420, 3840)
+        self.health_height = _safe_int(self.health_height, 520, 360, 2160)
         self.ui_scale_percent = _safe_int(self.ui_scale_percent, 100, 70, 300)
         self.ui_scale_percent = int(round(self.ui_scale_percent / 5.0)) * 5
         self.history_seconds = _safe_int(self.history_seconds, 60, 10, 600)

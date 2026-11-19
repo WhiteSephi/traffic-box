@@ -6,9 +6,10 @@ from datetime import datetime
 import html
 from typing import Callable
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QHideEvent, QMouseEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFormLayout,
     QFrame,
@@ -249,14 +250,61 @@ class InternetHealthDialog(QDialog):
         self.setWindowTitle("TrafficBox – Internet-Diagnose & Status")
         self.setWindowIcon(create_router_icon(True))
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        self.resize(540, 520)
         self.setMinimumSize(480, 420)
 
         self._apply_dialog_stylesheet()
         self._build_ui()
+        self._restore_geometry()
 
         if 0 <= initial_tab < self.tabs.count():
             self.tabs.setCurrentIndex(initial_tab)
+
+    def _restore_geometry(self) -> None:
+        """Restore window position and size from config if visible on current screens."""
+        cfg_w = max(480, self.config.health_width)
+        cfg_h = max(420, self.config.health_height)
+        self.resize(cfg_w, cfg_h)
+
+        if self.config.health_pos_x != -1 or self.config.health_pos_y != -1:
+            target_pt = QPoint(self.config.health_pos_x, self.config.health_pos_y)
+            target_rect = QRect(target_pt, QSize(cfg_w, cfg_h))
+            for screen in QApplication.screens():
+                if screen.availableGeometry().intersects(target_rect):
+                    self.move(target_pt)
+                    return
+
+        primary = QApplication.primaryScreen()
+        if primary:
+            avail = primary.availableGeometry()
+            x = avail.x() + max(0, (avail.width() - cfg_w) // 2)
+            y = avail.y() + max(0, (avail.height() - cfg_h) // 2)
+            self.move(x, y)
+
+    def _save_geometry_to_config(self) -> None:
+        """Store current dialog position and size in config."""
+        self.config.health_pos_x = self.x()
+        self.config.health_pos_y = self.y()
+        self.config.health_width = self.width()
+        self.config.health_height = self.height()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._save_geometry_to_config()
+        self.config.save()
+        super().closeEvent(event)
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        self._save_geometry_to_config()
+        super().hideEvent(event)
+
+    def accept(self) -> None:
+        self._save_geometry_to_config()
+        self.config.save()
+        super().accept()
+
+    def reject(self) -> None:
+        self._save_geometry_to_config()
+        self.config.save()
+        super().reject()
 
     def _apply_dialog_stylesheet(self) -> None:
         self.setStyleSheet(

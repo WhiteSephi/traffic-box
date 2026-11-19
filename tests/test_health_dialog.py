@@ -189,9 +189,30 @@ class TestInternetHealthDialogAndPill(unittest.TestCase):
 
             dlg.btn_settings.click()
             settings_cb.assert_called_once()
+
+            # Geometry persistence on move/resize/close
+            dlg.move(220, 180)
+            dlg.resize(600, 560)
+            dlg.close()
+            self.assertEqual(self.config.health_pos_x, 220)
+            self.assertEqual(self.config.health_pos_y, 180)
+            self.assertEqual(self.config.health_width, 600)
+            self.assertEqual(self.config.health_height, 560)
+            self.config.save.assert_called()
         finally:
             dlg.close()
             dlg.deleteLater()
+
+        # Re-opening restores saved position and size
+        dlg2 = InternetHealthDialog(self.config)
+        try:
+            self.assertEqual(dlg2.x(), 220)
+            self.assertEqual(dlg2.y(), 180)
+            self.assertEqual(dlg2.width(), 600)
+            self.assertEqual(dlg2.height(), 560)
+        finally:
+            dlg2.close()
+            dlg2.deleteLater()
 
     def test_clickable_pill_opens_health_dialog_and_context_menu_entry(self) -> None:
         widget = TrafficBox(self.config)
