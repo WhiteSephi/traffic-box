@@ -140,14 +140,19 @@ class SettingsDialog(QDialog):
         sys_form.setContentsMargins(10, 10, 10, 10)
         sys_form.setVerticalSpacing(6)
 
-        self.chk_autostart = QCheckBox("Autostart mit dem Betriebssystem aktivieren")
+        self.chk_autostart = QCheckBox("Mit dem Betriebssystem starten")
+        self.chk_autostart.setToolTip(
+            "Startet TrafficBox automatisch nach der Anmeldung (Windows-Registry bzw. Linux-XDG-Autostart)."
+        )
         self.spin_delay = QSpinBox()
         self.spin_delay.setRange(0, 120)
         self.spin_delay.setSuffix(" Sek.")
-        self.spin_delay.setToolTip("Wartezeit nach dem Systemstart vor dem ersten Verbindungsversuch")
+        self.spin_delay.setToolTip(
+            "Wartezeit nach dem Systemstart vor der ersten Router-Abfrage (hilfreich, falls WLAN/Netzwerk erst verbindet)."
+        )
 
         sys_form.addRow(self.chk_autostart)
-        sys_form.addRow("Startverzögerung beim Booten:", self.spin_delay)
+        sys_form.addRow("Startverzögerung:", self.spin_delay)
         gen_layout.addWidget(sys_group)
 
         # Fenster & Position
@@ -156,9 +161,16 @@ class SettingsDialog(QDialog):
         win_form.setContentsMargins(10, 10, 10, 10)
         win_form.setVerticalSpacing(6)
 
-        self.chk_always_on_top = QCheckBox("Immer im Vordergrund halten")
-        self.chk_locked_pos = QCheckBox("Position auf dem Desktop sperren")
-        self.chk_snap_edges = QCheckBox("Magnetisches Einrasten an Bildschirmrändern")
+        self.chk_always_on_top = QCheckBox("Immer im Vordergrund")
+        self.chk_always_on_top.setToolTip("Hält das Widget dauerhaft über normalen Anwendungsfenstern sichtbar.")
+        self.chk_locked_pos = QCheckBox("Position sperren")
+        self.chk_locked_pos.setToolTip(
+            "Verhindert versehentliches Verschieben und blendet den Größen-Anfasser (Resize-Grip) aus."
+        )
+        self.chk_snap_edges = QCheckBox("An Bildschirmrändern einrasten")
+        self.chk_snap_edges.setToolTip(
+            "Zieht das Widget beim Verschieben magnetisch an die Kanten des aktuellen Bildschirms."
+        )
 
         win_form.addRow(self.chk_always_on_top)
         win_form.addRow(self.chk_locked_pos)
@@ -184,11 +196,18 @@ class SettingsDialog(QDialog):
 
         self.txt_host = QLineEdit()
         self.txt_host.setPlaceholderText("z. B. fritz.box oder 192.168.178.1")
+        self.txt_host.setToolTip(
+            "Hostname oder IP-Adresse der FRITZ!Box (z. B. fritz.box oder 192.168.178.1)."
+        )
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
+        self.spin_port.setToolTip(
+            "UPnP-SOAP-Port der FRITZ!Box für Live-Raten und Verbindungsstatus (Standard: 49000)."
+        )
         self.spin_refresh = QSpinBox()
         self.spin_refresh.setRange(1, 60)
         self.spin_refresh.setSuffix(" Sek.")
+        self.spin_refresh.setToolTip("Abfrageintervall für Live-Traffic und Ping (Standard: 1 Sekunde).")
 
         conn_form.addRow("Fritz!Box Name/IP:", self.txt_host)
 
@@ -209,12 +228,21 @@ class SettingsDialog(QDialog):
         login_form.setVerticalSpacing(6)
 
         self.chk_guest = QCheckBox("Fritz!OS Login aktivieren")
+        self.chk_guest.setToolTip(
+            "Ermöglicht das Auslesen der Online-Zähler (Heute/Woche/Monat) und der Gäste-WLAN-Auslastung."
+        )
         self.chk_guest.toggled.connect(self._on_guest_toggled)
         self.txt_user = QLineEdit()
         self.txt_user.setPlaceholderText("Optional (leer lassen für Standard-Benutzer)")
+        self.txt_user.setToolTip(
+            "Optionaler FRITZ!Box-Benutzername (leer lassen, wenn nur ein allgemeines Gerätepasswort genutzt wird)."
+        )
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_pass.setPlaceholderText("Fritz!Box Passwort")
+        self.txt_pass.setToolTip(
+            "FRITZ!Box-Passwort; wird lokal geschützt gespeichert (Windows DPAPI bzw. verschlüsselt mit 0600-Rechten)."
+        )
 
         self.lbl_bound_box = QLabel("")
         self.lbl_bound_box.setTextFormat(Qt.TextFormat.PlainText)
@@ -223,6 +251,9 @@ class SettingsDialog(QDialog):
 
         self.btn_test_conn = QPushButton(" Verbindung && Login testen")
         self.btn_test_conn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_test_conn.setToolTip(
+            "Prüft UPnP-Erreichbarkeit, Heim-Router-Bindung (UDN) und – falls aktiviert – den Fritz!OS-Login."
+        )
         self.btn_test_conn.clicked.connect(self._on_test_connection)
         self.lbl_test_result = QLabel("")
         self.lbl_test_result.setTextFormat(Qt.TextFormat.PlainText)
@@ -279,11 +310,17 @@ class SettingsDialog(QDialog):
         self.slider_ui_scale.setPageStep(5)
         self.slider_ui_scale.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.slider_ui_scale.setTickInterval(5)
+        self.slider_ui_scale.setToolTip(
+            "Skaliert Schriftgrößen, Buttons, Pillen und Mindestmaße des Widgets (70 % bis 300 % in 5 %-Schritten)."
+        )
 
         self.spin_ui_scale = QSpinBox()
         self.spin_ui_scale.setRange(70, 300)
         self.spin_ui_scale.setSingleStep(5)
         self.spin_ui_scale.setSuffix("%")
+        self.spin_ui_scale.setToolTip(
+            "Skaliert Schriftgrößen, Buttons, Pillen und Mindestmaße des Widgets (70 % bis 300 % in 5 %-Schritten)."
+        )
 
         self.slider_ui_scale.valueChanged.connect(
             lambda val: self.spin_ui_scale.setValue(val * 5)
@@ -294,6 +331,7 @@ class SettingsDialog(QDialog):
 
         btn_scale_100 = QPushButton("100% (Standard)")
         btn_scale_100.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_scale_100.setToolTip("Setzt die UI-Skalierung auf 100 % zurück.")
         btn_scale_100.clicked.connect(lambda: self.spin_ui_scale.setValue(100))
 
         scale_row.addWidget(self.slider_ui_scale, 1)
@@ -305,6 +343,7 @@ class SettingsDialog(QDialog):
         opacity_row = QHBoxLayout()
         self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
         self.slider_opacity.setRange(25, 100)
+        self.slider_opacity.setToolTip("Regelt die Hintergrund-Transparenz des Widgets (25 % bis 100 %).")
         self.lbl_opacity_val = QLabel("85%")
         self.slider_opacity.valueChanged.connect(
             lambda v: self.lbl_opacity_val.setText(f"{v}%")
@@ -328,19 +367,18 @@ class SettingsDialog(QDialog):
         scale_form.setVerticalSpacing(6)
 
         self.cmb_scale_mode = QComboBox()
-        self.cmb_scale_mode.addItem(
-            "Wurzel-Skala (Smart: kleine Raten sichtbar + bis 100% Leitung)", "sqrt"
-        )
-        self.cmb_scale_mode.addItem(
-            "Dynamisch (Skaliert auf aktuellen Peak, %-Balken zeigt echte Last)",
-            "dynamic",
-        )
-        self.cmb_scale_mode.addItem(
-            "Fix auf Leitungskapazität (Original-Verhalten)", "fixed"
+        self.cmb_scale_mode.addItem("Wurzel-Skala (Smart)", "sqrt")
+        self.cmb_scale_mode.addItem("Dynamisch (Auto-Peak)", "dynamic")
+        self.cmb_scale_mode.addItem("Fix auf Leitungskapazität", "fixed")
+        self.cmb_scale_mode.setToolTip(
+            "Wurzel-Skala: macht kleine und große Raten gleichzeitig sichtbar.\n"
+            "Dynamisch: skaliert auf den aktuellen Peak im Zeitfenster.\n"
+            "Fix: 100 % Graphhöhe entspricht der Leitungskapazität."
         )
 
-        self.chk_auto_link = QCheckBox(
-            "Maximale Bandbreite automatisch per UPnP von Fritz!Box lesen"
+        self.chk_auto_link = QCheckBox("Leitungskapazität automatisch per UPnP lesen")
+        self.chk_auto_link.setToolTip(
+            "Liest die maximale Down-/Upload-Bandbreite direkt von der FRITZ!Box aus (bei Lokal-Fallback wird dynamisch skaliert)."
         )
         self.chk_auto_link.toggled.connect(self._on_auto_link_toggled)
 
@@ -348,11 +386,17 @@ class SettingsDialog(QDialog):
         self.spin_max_down.setRange(1.0, 10000.0)
         self.spin_max_down.setDecimals(1)
         self.spin_max_down.setSuffix(" Mbit/s")
+        self.spin_max_down.setToolTip(
+            "Manuelle Download-Kapazität für Auslastungsbalken und Fix-Skalierung (bei Auto-Erkennung deaktiviert)."
+        )
 
         self.spin_max_up = QDoubleSpinBox()
         self.spin_max_up.setRange(0.5, 10000.0)
         self.spin_max_up.setDecimals(1)
         self.spin_max_up.setSuffix(" Mbit/s")
+        self.spin_max_up.setToolTip(
+            "Manuelle Upload-Kapazität für Auslastungsbalken und Fix-Skalierung (bei Auto-Erkennung deaktiviert)."
+        )
 
         scale_form.addRow("Skalierungs-Modus:", self.cmb_scale_mode)
         scale_form.addRow(self.chk_auto_link)
@@ -366,13 +410,22 @@ class SettingsDialog(QDialog):
         rates_grid.setContentsMargins(10, 10, 10, 10)
         rates_grid.setVerticalSpacing(6)
 
-        self.chk_compact = QCheckBox("Kompakt-Modus (Graph ausblenden)")
-        self.chk_graph_only = QCheckBox("Nur-Graph-Modus (obere Zahlen ausblenden)")
+        self.chk_compact = QCheckBox("Kompakt-Modus")
+        self.chk_compact.setToolTip("Blendet den Graphen aus und zeigt nur die Live-Raten sowie Statuspillen an.")
+        self.chk_graph_only = QCheckBox("Nur-Graph-Modus")
+        self.chk_graph_only.setToolTip("Blendet die oberen Raten-Zahlen aus und maximiert die Fläche für den Live-Graph.")
         self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
-        self.chk_show_bits = QCheckBox("Als Bit/s anzeigen (Mbit/s statt MB/s)")
-        self.chk_show_peak = QCheckBox("Peak-Rate anzeigen (z. B. Peak 60s)")
-        self.chk_show_guest_meta = QCheckBox("Gäste-WLAN-Rate unter Raten anzeigen")
-        self.chk_session_totals = QCheckBox("Online- / Session-Zähler im Footer:")
+        self.chk_switch_up_down.setToolTip("Legt die Reihenfolge der beiden Traffic-Graphen fest (aus = Upload oben).")
+        self.chk_show_bits = QCheckBox("Als Bit/s anzeigen")
+        self.chk_show_bits.setToolTip("Zeigt Geschwindigkeiten in kbit/s bzw. Mbit/s statt in kB/s bzw. MB/s an.")
+        self.chk_show_peak = QCheckBox("Peak-Rate anzeigen")
+        self.chk_show_peak.setToolTip("Zeigt unter den Live-Raten zusätzlich den höchsten Wert im sichtbaren Zeitfenster an.")
+        self.chk_show_guest_meta = QCheckBox("Gäste-WLAN-Rate anzeigen")
+        self.chk_show_guest_meta.setToolTip(
+            "Zeigt den aktuellen Gäste-WLAN-Anteil direkt unter den Haupt-Raten an (benötigt Fritz!OS Login)."
+        )
+        self.chk_session_totals = QCheckBox("Footer-Zähler:")
+        self.chk_session_totals.setToolTip("Blendet den ausgewählten Datenvolumen-Zähler unten im Footer ein.")
 
         self.chk_compact.toggled.connect(
             lambda chk: self.chk_graph_only.setChecked(False) if chk else None
@@ -382,6 +435,9 @@ class SettingsDialog(QDialog):
         )
 
         self.cmb_footer_mode = QComboBox()
+        self.cmb_footer_mode.setToolTip(
+            "Zeitraum für den Volumen-Zähler im Footer („Seit Widget-Start“ funktioniert auch ohne Fritz!OS Login)."
+        )
         self.cmb_footer_mode.addItem("Heute (Fritz!Box Online-Zähler)", "today")
         self.cmb_footer_mode.addItem("Gestern (Fritz!Box Online-Zähler)", "yesterday")
         self.cmb_footer_mode.addItem("Aktuelle Woche (Fritz!Box Online-Zähler)", "week")
@@ -417,12 +473,22 @@ class SettingsDialog(QDialog):
         pc_group = QGroupBox("Lokales Gerät (Eigener PC-Traffic Anteil)")
         pc_layout = QVBoxLayout(pc_group)
         pc_layout.setContentsMargins(10, 10, 10, 10)
-        self.chk_local_fallback = QCheckBox(
-            "Lokalen Netzwerktraffic als Fallback anzeigen (wenn keine FRITZ!Box erreichbar ist)"
+        self.chk_local_fallback = QCheckBox("Lokalen Traffic als Fallback nutzen")
+        self.chk_local_fallback.setToolTip(
+            "Misst automatisch den lokalen Netzwerkadapter des PCs, wenn keine FRITZ!Box erreichbar ist (z. B. unterwegs)."
         )
-        self.chk_local_pc = QCheckBox("Eigenen PC-Traffic überwachen (Anteil am Internet-Traffic)")
-        self.chk_pc_in_graph = QCheckBox("Eigenen Anteil im Graphen einfärben (abgedunkelte Nuance)")
-        self.chk_pc_in_header = QCheckBox("Eigene Rate als Text unter den Haupt-Raten anzeigen")
+        self.chk_local_pc = QCheckBox("Eigenen PC-Traffic überwachen")
+        self.chk_local_pc.setToolTip(
+            "Ermittelt den Anteil dieses PCs am gesamten Router-Traffic (Windows iphlpapi / Linux /proc/net/dev)."
+        )
+        self.chk_pc_in_graph = QCheckBox("Anteil im Graphen einfärben")
+        self.chk_pc_in_graph.setToolTip(
+            "Zeichnet den Traffic dieses PCs als abgedunkelte Fläche innerhalb des Gesamt-Graphen ein."
+        )
+        self.chk_pc_in_header = QCheckBox("Eigene Rate im Header anzeigen")
+        self.chk_pc_in_header.setToolTip(
+            "Zeigt die aktuelle Rate dieses PCs als zusätzliche Textzeile unter den Haupt-Raten an."
+        )
         self.chk_local_pc.toggled.connect(self._on_local_pc_toggled)
 
         pc_layout.addWidget(self.chk_local_fallback)
@@ -441,16 +507,29 @@ class SettingsDialog(QDialog):
         diag_form.setContentsMargins(10, 10, 10, 10)
         diag_form.setVerticalSpacing(6)
 
-        self.chk_ping_graph = QCheckBox("Ping- && Jitter-Graph unterhalb von Down/Up anzeigen")
+        self.chk_ping_graph = QCheckBox("Ping- && Jitter-Graph anzeigen")
+        self.chk_ping_graph.setToolTip(
+            "Zeichnet unterhalb der Traffic-Graphen eine Echtzeit-Kurve für Latenz, Jitter und Paketverlust."
+        )
         self.cmb_ping_endpoint = QComboBox()
         self.cmb_ping_endpoint.setEditable(True)
         self.cmb_ping_endpoint.addItems(["1.1.1.1", "8.8.8.8", "9.9.9.9", "heise.de", "google.com"])
+        self.cmb_ping_endpoint.setToolTip(
+            "Ziel-IP oder Hostname für die sekündliche ICMP-/TCP-Latenzmessung (Standard: 1.1.1.1)."
+        )
 
-        self.chk_wan_pill = QCheckBox("Internet- / WAN-Statuspille im Footer anzeigen")
-        self.chk_dns_pill = QCheckBox("Aktiven System-DNS-Server überwachen (Antwortzeit in ms)")
+        self.chk_wan_pill = QCheckBox("Statuspille im Footer anzeigen")
+        self.chk_wan_pill.setToolTip(
+            "Zeigt den Verbindungs- und Qualitätsstatus links im Footer an (Klick öffnet Diagnose-Details & Tipps)."
+        )
+        self.chk_dns_pill = QCheckBox("System-DNS überwachen")
+        self.chk_dns_pill.setToolTip(
+            "Misst die Antwortzeit des aktiven System-DNS (z. B. AdGuard Home / Router) und zeigt sie rechts im Footer an."
+        )
 
-        self.chk_internet_health = QCheckBox(
-            "Aktive Internet-Erreichbarkeit prüfen (HTTPS-204, Zombie-WAN & Qualität)"
+        self.chk_internet_health = QCheckBox("Aktive Internet-Erreichbarkeit prüfen")
+        self.chk_internet_health.setToolTip(
+            "Prüft Dual-Stack-HTTPS (204), Gateway-Ping und Qualität gegen eine Ruhe-Basis – erkennt u. a. Zombie-WAN und DNS-Störungen."
         )
         self.chk_internet_health.toggled.connect(self._on_internet_health_toggled)
 
@@ -458,16 +537,21 @@ class SettingsDialog(QDialog):
         self.cmb_health_ip_mode.addItem("Automatisch (IPv4 + IPv6 falls verfügbar)", "auto")
         self.cmb_health_ip_mode.addItem("Nur IPv4 prüfen", "ipv4_only")
         self.cmb_health_ip_mode.addItem("Dual-Stack erzwingen (IPv4 & IPv6)", "dual_stack")
+        self.cmb_health_ip_mode.setToolTip(
+            "Automatisch: prüft IPv4 und zusätzlich IPv6, falls eine globale IPv6-Route existiert.\n"
+            "Nur IPv4 / Dual-Stack: erzwingt die jeweilige Prüfung."
+        )
 
         self.spin_health_interval = QSpinBox()
         self.spin_health_interval.setRange(10, 120)
         self.spin_health_interval.setSuffix(" Sek.")
         self.spin_health_interval.setToolTip(
-            "Prüfintervall für HTTPS-204 & Uncached-DNS im Normalbetrieb (bei Störung automatisch 5s-Burst)"
+            "Prüfintervall für HTTPS-204 & Uncached-DNS im Normalbetrieb (schaltet bei Störungen automatisch auf 5s-Burst)."
         )
 
-        self.chk_health_uncached_dns = QCheckBox(
-            "Uncached-DNS per Nonce nutzen (umgeht AdGuard-Cache & schont Query-Log)"
+        self.chk_health_uncached_dns = QCheckBox("Uncached-DNS (Nonce) nutzen")
+        self.chk_health_uncached_dns.setToolTip(
+            "Fragt eindeutige Zufalls-Subdomains im Prüfintervall statt jede Sekunde ab – umgeht AdGuard-Cache und reduziert DNS-Queries um ~97 %."
         )
 
         diag_form.addRow("", self.chk_ping_graph)
@@ -497,8 +581,10 @@ class SettingsDialog(QDialog):
         theme_layout.setContentsMargins(10, 8, 10, 8)
         self.cmb_theme = QComboBox()
         self.cmb_theme.addItems(list(THEMES.keys()))
+        self.cmb_theme.setToolTip("Vordefinierte Farbpaletten für Graphen, Hintergrund und Rahmen.")
         btn_apply_theme = QPushButton("Theme anwenden")
         btn_apply_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_apply_theme.setToolTip("Übernimmt die ausgewählte Vorlage in alle Farbfelder.")
         btn_apply_theme.clicked.connect(self._apply_selected_theme)
 
         theme_layout.addWidget(QLabel("Vorlage:"))

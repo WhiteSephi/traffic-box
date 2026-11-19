@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.18.2] - 2026-11-19
+### Changed
+- **Aufgeräumte Einstellungen mit Erklär-Tooltips (`src/ui/settings_dlg.py`):** Lange Klammerzusätze in allen Einstellungs-Tabs gekürzt und durchgängig prägnante deutsche Tooltips für alle Optionen ergänzt.
+
 ## [0.18.1] - 2026-11-19
 ### Added
 - **Position & Größe des Diagnose-Fensters speichern (`src/config.py`, `src/ui/health_dialog.py`):** `InternetHealthDialog` speichert seine Desktop-Position und Fenstergröße (`health_pos_x`, `health_pos_y`, `health_width`, `health_height`) automatisch beim Schließen und stellt sie beim nächsten Öffnen (inkl. Multi-Monitor-Schutz) wieder her.
