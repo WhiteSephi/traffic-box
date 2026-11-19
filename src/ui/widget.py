@@ -1252,7 +1252,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                     if (h.baseline_ready and h.baseline_rtt_ms is not None)
                     else ""
                 )
-                health_lines.append(f"Ping (60s): p95 {p95_s} ms{base_s} • Jitter {jit_s} ms • Loss {loss_s}")
+                health_lines.append(f"Ping (15s): p85 {p95_s} ms{base_s} • Jitter {jit_s} ms • Loss {loss_s}")
 
             self.lbl_wan_pill.setToolTip("<br>".join(health_lines))
         else:

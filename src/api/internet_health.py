@@ -74,9 +74,13 @@ class SlidingWindowTracker:
         """Return True if at least one successful ping exists in the window."""
         return any(v is not None for v in self._samples)
 
-    def stats(self) -> tuple[int, int, float, float | None, float | None, float, int]:
-        """Return (total, losses, loss_pct, median_ms, p95_ms, jitter_ms, consecutive_losses)."""
-        total = len(self._samples)
+    @staticmethod
+    def _compute_stats(
+        samples: list[float | None],
+        percentile: float,
+    ) -> tuple[int, int, float, float | None, float | None, float, int]:
+        """Compute (total, losses, loss_pct, median_ms, pct_ms, jitter_ms, consecutive_losses)."""
+        total = len(samples)
         if total == 0:
             return 0, 0, 0.0, None, None, 0.0, 0
 
@@ -85,7 +89,7 @@ class SlidingWindowTracker:
         diffs: list[float] = []
         prev_valid: float | None = None
 
-        for item in self._samples:
+        for item in samples:
             if item is None:
                 losses += 1
                 prev_valid = None
@@ -96,7 +100,7 @@ class SlidingWindowTracker:
                 prev_valid = item
 
         consecutive_losses = 0
-        for item in reversed(self._samples):
+        for item in reversed(samples):
             if item is None:
                 consecutive_losses += 1
             else:
@@ -114,8 +118,8 @@ class SlidingWindowTracker:
         else:
             median_ms = (sorted_v[mid - 1] + sorted_v[mid]) / 2.0
 
-        p95_idx = min(n - 1, max(0, int(math.ceil(0.95 * n)) - 1))
-        p95_ms = sorted_v[p95_idx]
+        pct_idx = min(n - 1, max(0, int(math.ceil(percentile * n)) - 1))
+        pct_ms = sorted_v[pct_idx]
         jitter_ms = (sum(diffs) / len(diffs)) if diffs else 0.0
 
         return (
@@ -123,10 +127,20 @@ class SlidingWindowTracker:
             losses,
             round(loss_pct, 1),
             round(median_ms, 2),
-            round(p95_ms, 2),
+            round(pct_ms, 2),
             round(jitter_ms, 2),
             consecutive_losses,
         )
+
+    def stats(self) -> tuple[int, int, float, float | None, float | None, float, int]:
+        """Return full-window (total, losses, loss_pct, median_ms, p95_ms, jitter_ms, consecutive_losses)."""
+        return self._compute_stats(list(self._samples), 0.95)
+
+    def recent_stats(self, count: int = 15) -> tuple[int, int, float, float | None, float | None, float]:
+        """Return recent-window (total, losses, loss_pct, median_ms, p85_ms, jitter_ms)."""
+        recent = list(self._samples)[-max(1, int(count)) :]
+        total, losses, loss_pct, med_ms, p85_ms, jit_ms, _ = self._compute_stats(recent, 0.85)
+        return total, losses, loss_pct, med_ms, p85_ms, jit_ms
 
     def clear(self) -> None:
         """Clear all recorded samples."""
@@ -953,6 +967,17 @@ class InternetHealthMonitor:
     def _build_snapshot_locked(self, *, advance_hysteresis: bool) -> InternetHealthSnapshot:
         """Assemble snapshot from current state; caller must hold self._lock."""
         wan_total, wan_losses, wan_loss_pct, wan_med, wan_p95, wan_jit, _ = self._wan_window.stats()
+        rec_total, rec_losses, _rec_loss_pct, _rec_med, rec_p85, rec_jit = self._wan_window.recent_stats(15)
+
+        eval_p95 = rec_p85 if rec_p85 is not None else wan_p95
+        eval_jit = rec_jit if rec_total > 0 else wan_jit
+        if rec_total >= 15 and rec_losses == 0:
+            eval_losses = 0
+            eval_loss_pct = 0.0
+        else:
+            eval_losses = wan_losses
+            eval_loss_pct = wan_loss_pct
+
         if self._gateway_ip and self._lan_window.has_any_success():
             _, _, lan_loss_pct, _, _, _, lan_consec = self._lan_window.stats()
         else:
@@ -986,11 +1011,11 @@ class InternetHealthMonitor:
             dns_rcode=self._dns_rcode,
             dns_error=self._dns_error,
             wan_samples=wan_total,
-            wan_loss_count=wan_losses,
-            wan_loss_pct=wan_loss_pct,
+            wan_loss_count=eval_losses,
+            wan_loss_pct=eval_loss_pct,
             wan_median_ms=wan_med,
-            wan_p95_ms=wan_p95,
-            wan_jitter_ms=wan_jit,
+            wan_p95_ms=eval_p95,
+            wan_jitter_ms=eval_jit,
             baseline_rtt_ms=self._baseline.baseline_rtt_ms,
             baseline_jitter_ms=self._baseline.baseline_jitter_ms,
             baseline_ready=self._baseline.is_ready,

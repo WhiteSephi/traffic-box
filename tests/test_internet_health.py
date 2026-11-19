@@ -335,6 +335,56 @@ class TestInternetHealthStates(unittest.TestCase):
         self.assertEqual(samples[0].dns_ms, 24.0)
         self.assertFalse(samples[0].ping_lost)
 
+    def test_fast_recovery_after_download_spike(self) -> None:
+        """After load spikes end, 13 clean pings must allow quick return to STABLE (~15-20s)."""
+        mon = self._make_monitor()
+        mon.run_probe_cycle()
+
+        # 1. Learn clean idle baseline (~12 ms)
+        for _ in range(15):
+            mon._wan_window.record(12.0)
+            mon._baseline.update(12.0, 0.8, is_healthy=True, line_utilization=0.05)
+        self.assertTrue(mon._baseline.is_ready)
+
+        # 2. Inject 10 download latency spikes (75 ms) -> 2 cycles -> DEGRADED
+        mon._line_utilization = 0.85
+        for _ in range(10):
+            mon._wan_window.record(75.0)
+        mon.run_probe_cycle()
+        snap_deg = mon.run_probe_cycle()
+        self.assertEqual(snap_deg.status, HealthStatus.DEGRADED)
+
+        # 3. Line returns to idle with 13 clean pings (old spikes remain inside 60-sample window)
+        mon._line_utilization = 0.05
+        for _ in range(13):
+            mon._wan_window.record(13.0)
+
+        # Two burst cycles confirm recovery immediately instead of waiting 60-120s
+        mon.run_probe_cycle()
+        snap_rec = mon.run_probe_cycle()
+        self.assertEqual(snap_rec.status, HealthStatus.STABLE)
+
+    def test_stray_single_or_double_ping_spike_no_false_alarm(self) -> None:
+        """One or two stray high pings inside the 15s window do not trigger DEGRADED."""
+        mon = self._make_monitor()
+        mon.run_probe_cycle()
+
+        for _ in range(15):
+            mon._wan_window.record(12.0)
+            mon._baseline.update(12.0, 0.5, is_healthy=True, line_utilization=0.05)
+        self.assertTrue(mon._baseline.is_ready)
+
+        # Replace with 13 clean pings + 2 stray 80 ms spikes (p85 stays at 12 ms)
+        mon._wan_window.clear()
+        for _ in range(13):
+            mon._wan_window.record(12.0)
+        mon._wan_window.record(80.0)
+        mon._wan_window.record(80.0)
+
+        mon.run_probe_cycle()
+        snap = mon.run_probe_cycle()
+        self.assertEqual(snap.status, HealthStatus.STABLE)
+
 
 if __name__ == "__main__":
     unittest.main()
