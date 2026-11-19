@@ -254,6 +254,32 @@ class TestConfig(unittest.TestCase):
         cfg.sanitize()
         self.assertIs(cfg.enable_local_fallback, True)
 
+    def test_internet_health_config_defaults_and_sanitize(self) -> None:
+        """Verify defaults and sanitize clamping/validation for internet health fields."""
+        defaults = AppConfig()
+        self.assertTrue(defaults.enable_internet_health)
+        self.assertEqual(defaults.health_probe_interval_sec, 30)
+        self.assertEqual(defaults.health_ip_mode, "auto")
+        self.assertTrue(defaults.health_uncached_dns)
+
+        cfg = AppConfig(
+            enable_internet_health="false",  # type: ignore[arg-type]
+            health_probe_interval_sec=5,
+            health_ip_mode="invalid_mode",
+            health_uncached_dns=0,  # type: ignore[arg-type]
+        )
+        cfg.sanitize()
+        self.assertIs(cfg.enable_internet_health, False)
+        self.assertEqual(cfg.health_probe_interval_sec, 10)
+        self.assertEqual(cfg.health_ip_mode, "auto")
+        self.assertIs(cfg.health_uncached_dns, False)
+
+        cfg.health_probe_interval_sec = 999
+        cfg.health_ip_mode = "dual_stack"
+        cfg.sanitize()
+        self.assertEqual(cfg.health_probe_interval_sec, 120)
+        self.assertEqual(cfg.health_ip_mode, "dual_stack")
+
 
 if __name__ == "__main__":
     unittest.main()

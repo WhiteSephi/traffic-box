@@ -7,7 +7,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPolygonF, QPixmap
 from PySide6.QtWidgets import QWidget
 
 
-def create_router_icon(is_connected: bool = True) -> QIcon:
+def create_router_icon(is_connected: bool = True, status_color: str | None = None) -> QIcon:
     """Create a crisp programmatic router & arrows icon for tray and header."""
     pix = QPixmap(64, 64)
     pix.fill(Qt.GlobalColor.transparent)
@@ -22,7 +22,9 @@ def create_router_icon(is_connected: bool = True) -> QIcon:
     painter.drawRoundedRect(body_rect, 6, 6)
 
     # Status LEDs
-    led_color = QColor("#00E676") if is_connected else QColor("#FF5252")
+    led_color = QColor(status_color) if status_color else (
+        QColor("#00E676") if is_connected else QColor("#FF5252")
+    )
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(led_color)
     painter.drawEllipse(QPointF(20, 44), 3.5, 3.5)

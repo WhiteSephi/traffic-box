@@ -2,18 +2,55 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import ipaddress
 import os
 import re
+import secrets
 import socket
+import ssl
 import struct
 import subprocess
 import sys
+import threading
 import time
 from typing import Tuple
 
 from src.config import is_valid_host
 
 _SHUTTING_DOWN: bool = False
+_SSL_CONTEXT: ssl.SSLContext | None = None
+_SSL_CONTEXT_LOCK = threading.Lock()
+
+
+def _get_default_ssl_context() -> ssl.SSLContext:
+    """Return a cached SSLContext loaded with OS trust roots."""
+    global _SSL_CONTEXT
+    with _SSL_CONTEXT_LOCK:
+        if _SSL_CONTEXT is None:
+            _SSL_CONTEXT = ssl.create_default_context()
+        return _SSL_CONTEXT
+
+
+@dataclass(frozen=True)
+class DnsQueryResult:
+    """Structured result of a direct RFC 1035 UDP DNS query."""
+
+    ok: bool
+    latency_ms: float | None = None
+    rcode: int | None = None
+    answers: tuple[str, ...] = ()
+    error: str = ""
+
+
+@dataclass(frozen=True)
+class HttpsCanaryResult:
+    """Structured result of a single fresh-connection HTTPS canary check."""
+
+    ok: bool
+    latency_ms: float | None = None
+    status_code: int | None = None
+    error: str = ""
 
 if sys.platform == "win32":
     import ctypes
@@ -100,6 +137,11 @@ def detect_active_os_dns() -> str:
         return ""
 
     if sys.platform == "win32":
+        # Prefer active system DNS from Win32 iphlpapi before enumerating registry interfaces
+        active_ip = _detect_windows_dns_iphlpapi()
+        if active_ip:
+            return active_ip
+
         try:
             import winreg
 
@@ -127,8 +169,7 @@ def detect_active_os_dns() -> str:
         except Exception:
             pass
 
-        # In-process fallback via Win32 iphlpapi.GetNetworkParams (avoids spawning ipconfig.exe)
-        return _detect_windows_dns_iphlpapi()
+        return ""
 
     else:
         # Linux / Unix: check systemd-resolved uplink resolv.conf first, then resolvectl, then /etc/resolv.conf
@@ -182,37 +223,286 @@ def detect_active_os_dns() -> str:
     return ""
 
 
-def measure_dns_latency(dns_server: str, domain: str = "cloudflare.com", timeout_sec: float = 0.8) -> float | None:
-    """Measure round-trip time to DNS server via minimal RFC 1035 UDP query."""
-    if not dns_server or _SHUTTING_DOWN:
-        return None
-    try:
-        # Build minimal standard DNS query for A record with randomized 16-bit TxID
-        tx_id = os.urandom(2)
-        header = tx_id + b"\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
-        qname = b""
-        for label in domain.split("."):
-            encoded = label.encode("latin1")
-            qname += bytes([len(encoded)]) + encoded
-        qname += b"\x00"  # End of domain name
-        # QTYPE=1 (A), QCLASS=1 (IN)
-        question = qname + b"\x00\x01\x00\x01"
-        packet = header + question
+def _skip_dns_name(packet: bytes, offset: int) -> int:
+    """Advance offset past a DNS QNAME/RRNAME (supports compression pointers), or -1 on error."""
+    pkt_len = len(packet)
+    steps = 0
+    while offset < pkt_len and steps < 128:
+        steps += 1
+        length = packet[offset]
+        if length == 0:
+            return offset + 1
+        tag_type = length & 0xC0
+        if tag_type == 0xC0:
+            return offset + 2 if (offset + 1) < pkt_len else -1
+        if tag_type != 0:
+            return -1
+        next_off = offset + 1 + length
+        if next_off > pkt_len:
+            return -1
+        offset = next_off
+    return -1
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+def _parse_dns_response(reply: bytes, expected_tx_id: bytes) -> tuple[bool, int | None, tuple[str, ...]]:
+    """Validate DNS UDP reply header and extract RCODE plus IPv4 A record answers."""
+    if len(reply) < 12 or reply[:2] != expected_tx_id:
+        return False, None, ()
+
+    flags, qdcount, ancount = struct.unpack("!HHH", reply[2:8])
+    if ((flags >> 15) & 1) != 1:  # QR must be 1 (response)
+        return False, None, ()
+
+    rcode = flags & 0x0F
+    if rcode != 0 or ancount == 0:
+        return True, rcode, ()
+
+    offset = 12
+    for _ in range(min(qdcount, 16)):
+        offset = _skip_dns_name(reply, offset)
+        if offset < 0 or (offset + 4) > len(reply):
+            return True, rcode, ()
+        offset += 4  # QTYPE + QCLASS
+
+    answers: list[str] = []
+    for _ in range(min(ancount, 32)):
+        offset = _skip_dns_name(reply, offset)
+        if offset < 0 or (offset + 10) > len(reply):
+            break
+        rtype, rclass, _ttl, rdlength = struct.unpack("!HHIH", reply[offset : offset + 10])
+        offset += 10
+        if (offset + rdlength) > len(reply):
+            break
+        if rtype == 1 and rclass == 1 and rdlength == 4:
+            answers.append(socket.inet_ntoa(reply[offset : offset + 4]))
+        offset += rdlength
+
+    return True, rcode, tuple(answers)
+
+
+def measure_dns_query(
+    dns_server: str,
+    domain: str = "cloudflare.com",
+    timeout_sec: float = 1.5,
+    accept_nxdomain: bool = False,
+    reject_private_answers: bool = False,
+) -> DnsQueryResult:
+    """Execute a direct RFC 1035 UDP DNS query and validate RCODE and answer records."""
+    if not dns_server or not domain or _SHUTTING_DOWN:
+        return DnsQueryResult(ok=False, error="invalid_target")
+
+    clean_domain = domain.strip().strip(".")
+    if not clean_domain or len(clean_domain) > 253:
+        return DnsQueryResult(ok=False, error="invalid_target")
+
+    qname = b""
+    for label in clean_domain.split("."):
+        encoded = label.encode("ascii", errors="strict") if label.isascii() else label.encode("idna")
+        if not encoded or len(encoded) > 63:
+            return DnsQueryResult(ok=False, error="invalid_target")
+        qname += bytes([len(encoded)]) + encoded
+    qname += b"\x00"
+
+    tx_id = os.urandom(2)
+    header = tx_id + b"\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+    packet = header + qname + b"\x00\x01\x00\x01"
+
+    family = socket.AF_INET6 if ":" in dns_server else socket.AF_INET
+    sock = None
+    try:
+        sock = socket.socket(family, socket.SOCK_DGRAM)
         sock.settimeout(timeout_sec)
         t0 = time.perf_counter()
-        try:
-            sock.sendto(packet, (dns_server, 53))
-            reply, addr = sock.recvfrom(512)
-            elapsed_ms = (time.perf_counter() - t0) * 1000.0
-            if len(reply) < 2 or reply[:2] != tx_id or addr[0] != dns_server:
-                return None
-            return max(0.1, round(elapsed_ms, 2))
-        finally:
-            sock.close()
+        sock.sendto(packet, (dns_server, 53))
+        reply, addr = sock.recvfrom(1024)
+        elapsed_ms = max(0.1, round((time.perf_counter() - t0) * 1000.0, 2))
+        if addr[0].split("%")[0] != dns_server.split("%")[0]:
+            return DnsQueryResult(ok=False, latency_ms=elapsed_ms, error="invalid_reply")
+
+        valid, rcode, answers = _parse_dns_response(reply, tx_id)
+        if not valid or rcode is None:
+            return DnsQueryResult(ok=False, latency_ms=elapsed_ms, error="invalid_reply")
+
+        if rcode == 0:
+            if reject_private_answers and answers:
+                for ip_str in answers:
+                    try:
+                        if not ipaddress.IPv4Address(ip_str).is_global:
+                            return DnsQueryResult(
+                                ok=False,
+                                latency_ms=elapsed_ms,
+                                rcode=rcode,
+                                answers=answers,
+                                error="hijacked",
+                            )
+                    except ipaddress.AddressValueError:
+                        return DnsQueryResult(
+                            ok=False,
+                            latency_ms=elapsed_ms,
+                            rcode=rcode,
+                            answers=answers,
+                            error="hijacked",
+                        )
+            return DnsQueryResult(ok=True, latency_ms=elapsed_ms, rcode=rcode, answers=answers)
+
+        if rcode == 3:
+            return DnsQueryResult(
+                ok=accept_nxdomain,
+                latency_ms=elapsed_ms,
+                rcode=rcode,
+                answers=answers,
+                error="" if accept_nxdomain else "nxdomain",
+            )
+
+        rcode_err = {1: "formerr", 2: "servfail", 5: "refused"}.get(rcode, f"rcode_{rcode}")
+        return DnsQueryResult(
+            ok=False,
+            latency_ms=elapsed_ms,
+            rcode=rcode,
+            answers=answers,
+            error=rcode_err,
+        )
+    except (TimeoutError, socket.timeout):
+        return DnsQueryResult(ok=False, error="timeout")
     except Exception:
-        return None
+        return DnsQueryResult(ok=False, error="socket_error")
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def measure_uncached_dns(
+    dns_server: str,
+    base_domain: str = "tbcheck.cloudflare.com",
+    timeout_sec: float = 1.8,
+) -> DnsQueryResult:
+    """Query a unique nonce subdomain to bypass local AdGuard / optimistic DNS caches."""
+    nonce = secrets.token_hex(3)
+    domain = f"tb-{nonce}.{base_domain}"
+    return measure_dns_query(
+        dns_server,
+        domain=domain,
+        timeout_sec=timeout_sec,
+        accept_nxdomain=True,
+        reject_private_answers=True,
+    )
+
+
+def measure_dns_latency(dns_server: str, domain: str = "cloudflare.com", timeout_sec: float = 0.8) -> float | None:
+    """Measure round-trip time to DNS server via minimal RFC 1035 UDP query."""
+    res = measure_dns_query(
+        dns_server,
+        domain=domain,
+        timeout_sec=timeout_sec,
+        accept_nxdomain=False,
+        reject_private_answers=False,
+    )
+    return res.latency_ms if res.ok else None
+
+
+def has_global_ipv6() -> bool:
+    """Check packet-free whether the host has a globally routable IPv6 address."""
+    if _SHUTTING_DOWN:
+        return False
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        sock.connect(("2606:4700:4700::1111", 443))
+        local_ip = sock.getsockname()[0].split("%")[0]
+        return ipaddress.IPv6Address(local_ip).is_global
+    except (OSError, ValueError):
+        return False
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def measure_https_canary(
+    connect_ip: str,
+    server_hostname: str,
+    path: str = "/generate_204",
+    family: int = socket.AF_INET,
+    expected_statuses: tuple[int, ...] = (204,),
+    timeout_sec: float = 2.0,
+) -> HttpsCanaryResult:
+    """Run a fresh non-keepalive HTTPS GET canary probe against a specific IPv4/IPv6 endpoint."""
+    if not connect_ip or not server_hostname or _SHUTTING_DOWN:
+        return HttpsCanaryResult(ok=False, error="invalid_target")
+
+    req_path = path if path.startswith("/") else f"/{path}"
+    raw_sock = None
+    tls_sock = None
+    try:
+        raw_sock = socket.socket(family, socket.SOCK_STREAM)
+        raw_sock.settimeout(timeout_sec)
+        t0 = time.perf_counter()
+        raw_sock.connect((connect_ip, 443))
+        ctx = _get_default_ssl_context()
+        tls_sock = ctx.wrap_socket(raw_sock, server_hostname=server_hostname)
+        raw_sock = None  # Owned by tls_sock now
+
+        request_bytes = (
+            f"GET {req_path} HTTP/1.1\r\n"
+            f"Host: {server_hostname}\r\n"
+            "User-Agent: TrafficBox\r\n"
+            "Connection: close\r\n"
+            "Cache-Control: no-cache\r\n"
+            "\r\n"
+        ).encode("ascii")
+        tls_sock.sendall(request_bytes)
+
+        buf = b""
+        while b"\n" not in buf and len(buf) < 2048:
+            chunk = tls_sock.recv(1024)
+            if not chunk:
+                break
+            buf += chunk
+
+        elapsed_ms = max(0.1, round((time.perf_counter() - t0) * 1000.0, 2))
+        first_line = buf.split(b"\n", 1)[0].strip()
+        match = re.match(rb"^HTTP/\d\.\d\s+(\d{3})", first_line)
+        if not match:
+            return HttpsCanaryResult(ok=False, latency_ms=elapsed_ms, error="bad_status")
+
+        status_code = int(match.group(1))
+        if status_code in expected_statuses:
+            return HttpsCanaryResult(ok=True, latency_ms=elapsed_ms, status_code=status_code)
+        if 300 <= status_code < 400:
+            return HttpsCanaryResult(
+                ok=False,
+                latency_ms=elapsed_ms,
+                status_code=status_code,
+                error="captive_portal",
+            )
+        return HttpsCanaryResult(
+            ok=False,
+            latency_ms=elapsed_ms,
+            status_code=status_code,
+            error=f"http_{status_code}",
+        )
+    except ssl.SSLError:
+        return HttpsCanaryResult(ok=False, error="tls_error")
+    except (TimeoutError, socket.timeout):
+        return HttpsCanaryResult(ok=False, error="timeout")
+    except OSError:
+        return HttpsCanaryResult(ok=False, error="connect_error")
+    finally:
+        if tls_sock is not None:
+            try:
+                tls_sock.close()
+            except OSError:
+                pass
+        if raw_sock is not None:
+            try:
+                raw_sock.close()
+            except OSError:
+                pass
 
 
 def parse_ping_output(out_text: str) -> float | None:

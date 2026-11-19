@@ -107,7 +107,8 @@ python -m unittest discover -s tests -v
 │   │   ├── worker.py           # Hintergrund-Thread & Polling-Orchestrierung (QObject)
 │   │   ├── upnp_client.py      # Passwortfreier UPnP-SOAP-Client (Port 49000)
 │   │   ├── fritz_monitor.py    # Optionaler Fritz!OS-Client für Online-Zähler & Gäste-WLAN
-│   │   ├── net_health.py       # Ping-, Jitter- und aktiver OS-DNS-Latenz-Monitor
+│   │   ├── internet_health.py  # Mehrstufige Internet-Qualitäts-, Dual-Stack- & Zombie-WAN-Diagnose
+│   │   ├── net_health.py       # Ping-, Jitter-, Uncached-DNS- & HTTPS-204-Canary-Probes
 │   │   ├── local_traffic.py    # Lokaler PC-Traffic-Monitor (Windows iphlpapi & Linux /proc/net/dev)
 │   │   └── crypto.py           # Passwort-Schutz (Windows DPAPI & Linux PBKDF2-HMAC + 0600-Dateirechte)
 │   └── ui/
@@ -122,8 +123,9 @@ python -m unittest discover -s tests -v
 │   ├── test_config.py          # Konfiguration, Standardwerte & .env-Parser
 │   ├── test_crypto.py          # Ver-/Entschlüsselung & Windows DPAPI Roundtrip
 │   ├── test_formatters.py      # Raten-, Datenvolumen- & Uptime-Formatierung
+│   ├── test_internet_health.py # 5-Stufen-Statuslogik, Quorum, Hysterese, Baseline & Zombie-WAN
 │   ├── test_local_traffic.py   # Linux /proc/net/dev-Parsing & lokale Ratenberechnung
-│   ├── test_net_health.py      # Ping-Regex (Windows/Linux) & Jitter-Berechnung
+│   ├── test_net_health.py      # Ping-Regex, ICMP, DNS-RCODE/Hijack & HTTPS-204-Canaries
 │   ├── test_upnp_client.py     # UPnP-Session-Tracking, UDN-Erkennung & 32-Bit-Überlaufschutz
 │   └── test_worker_foreign_box.py # Schutz vor Fehl-Logins auf fremden FRITZ!Boxen (Roaming)
 ├── requirements.txt            # Python-Abhängigkeiten (PySide6)

@@ -3,6 +3,56 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class HealthStatus(str, Enum):
+    """Five-level connectivity & quality classification (plus initial UNKNOWN state)."""
+
+    UNKNOWN = "unknown"
+    STABLE = "stable"
+    DEGRADED = "degraded"
+    DNS_ERROR = "dns_error"
+    OFFLINE = "offline"
+    ZOMBIE_WAN = "zombie_wan"
+    LAN_ERROR = "lan_error"
+
+
+@dataclass(frozen=True)
+class InternetHealthSnapshot:
+    """Thread-safe point-in-time summary of multi-stage internet health diagnostics."""
+
+    status: HealthStatus = HealthStatus.UNKNOWN
+    reason: str = ""
+    short_tag: str = ""
+    gateway_ip: str = ""
+    lan_ping_ms: float | None = None
+    lan_loss_pct: float = 0.0
+    lan_ok: bool = True
+    ipv4_ok: bool | None = None
+    ipv4_quorum: tuple[int, int] = (0, 0)
+    ipv4_ms: float | None = None
+    ipv6_available: bool = False
+    ipv6_ok: bool | None = None
+    ipv6_quorum: tuple[int, int] = (0, 0)
+    ipv6_ms: float | None = None
+    captive_portal_detected: bool = False
+    dns_ip: str = ""
+    dns_ok: bool | None = None
+    dns_ms: float | None = None
+    dns_rcode: int | None = None
+    dns_error: str = ""
+    wan_loss_pct: float = 0.0
+    wan_median_ms: float | None = None
+    wan_p95_ms: float | None = None
+    wan_jitter_ms: float = 0.0
+    baseline_rtt_ms: float | None = None
+    baseline_jitter_ms: float | None = None
+    baseline_ready: bool = False
+    is_line_saturated: bool = False
+    in_burst_mode: bool = False
+    probe_count: int = 0
+    last_probe_ts: float = 0.0
 
 
 @dataclass
@@ -66,3 +116,5 @@ class TrafficSample:
     box_udn: str = ""
     is_foreign_box: bool = False
     error_message: str = ""
+    ping_lost: bool = False
+    health: InternetHealthSnapshot = field(default_factory=InternetHealthSnapshot)

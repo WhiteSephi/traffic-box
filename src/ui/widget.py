@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.api.internet_health import HealthStatus, _format_dns_error
 from src.api.models import OnlineCounterStats, PeriodCounter, TrafficSample
 from src.api.net_health import set_shutting_down
 from src.api.worker import PollingWorker
@@ -83,6 +84,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         self._was_counters: bool = self.config.active_view == "counters"
         self._user_is_moving: bool = False
         self._last_drag_pos: QPoint | None = None
+        self._last_icon_led_color: str = ""
 
         self._save_pos_timer = QTimer(self)
         self._save_pos_timer.setSingleShot(True)
@@ -510,6 +512,82 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             self.tray_icon.setContextMenu(self._build_context_menu())
         self.update()
 
+    def _get_status_palette(self, status: HealthStatus, is_connected: bool = True) -> tuple[str, str, str, str]:
+        """Return theme- and contrast-aware (text_hex, bg_rgba, border_rgba, led_hex) for health pills."""
+        bg_col = QColor(self.config.background_color)
+        bg_lum = (
+            0.299 * bg_col.red() + 0.587 * bg_col.green() + 0.114 * bg_col.blue()
+            if bg_col.isValid()
+            else 30.0
+        )
+        is_light_bg = bg_lum > 140.0
+
+        down_q = QColor(self.config.download_color)
+        guest_q = QColor(self.config.guest_download_color)
+        is_monochrome = (
+            down_q.isValid()
+            and down_q.hsvSaturation() < 45
+            and guest_q.isValid()
+            and guest_q.hsvSaturation() < 45
+        )
+
+        if status == HealthStatus.STABLE:
+            if is_monochrome:
+                if is_light_bg:
+                    return (
+                        self.config.title_color,
+                        "rgba(0, 0, 0, 0.08)",
+                        "rgba(0, 0, 0, 0.25)",
+                        "#1B7F46",
+                    )
+                return (
+                    self.config.title_color,
+                    "rgba(255, 255, 255, 0.08)",
+                    "rgba(255, 255, 255, 0.25)",
+                    "#00E676",
+                )
+            if is_light_bg:
+                return ("#1B7F46", "rgba(27, 127, 70, 0.14)", "rgba(27, 127, 70, 0.42)", "#1B7F46")
+            return ("#00E676", "rgba(0, 230, 118, 0.12)", "rgba(0, 230, 118, 0.38)", "#00E676")
+
+        if status == HealthStatus.DEGRADED:
+            if is_light_bg:
+                return ("#B26A00", "rgba(178, 106, 0, 0.14)", "rgba(178, 106, 0, 0.42)", "#B26A00")
+            return ("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)", "#FFAB00")
+
+        if status == HealthStatus.DNS_ERROR:
+            if is_light_bg:
+                return ("#C84316", "rgba(200, 67, 22, 0.14)", "rgba(200, 67, 22, 0.42)", "#C84316")
+            return ("#FF7043", "rgba(255, 112, 67, 0.16)", "rgba(255, 112, 67, 0.45)", "#FF7043")
+
+        if status in (HealthStatus.OFFLINE, HealthStatus.ZOMBIE_WAN):
+            if is_light_bg:
+                return ("#C62828", "rgba(198, 40, 40, 0.14)", "rgba(198, 40, 40, 0.42)", "#C62828")
+            return ("#FF5252", "rgba(255, 82, 82, 0.16)", "rgba(255, 82, 82, 0.45)", "#FF5252")
+
+        if status == HealthStatus.LAN_ERROR:
+            if is_light_bg:
+                return ("#6A1B9A", "rgba(106, 27, 154, 0.14)", "rgba(106, 27, 154, 0.42)", "#6A1B9A")
+            return ("#BB86FC", "rgba(187, 134, 252, 0.16)", "rgba(187, 134, 252, 0.45)", "#BB86FC")
+
+        # UNKNOWN / Neutral
+        led = ("#1B7F46" if is_light_bg else "#00E676") if is_connected else ("#C62828" if is_light_bg else "#FF5252")
+        if is_light_bg:
+            return (self.config.title_color, "rgba(0, 0, 0, 0.06)", "rgba(0, 0, 0, 0.20)", led)
+        return (self.config.title_color, "rgba(255, 255, 255, 0.07)", "rgba(255, 255, 255, 0.22)", led)
+
+    def _effective_status_led_color(self, sample: TrafficSample | None) -> str:
+        """Resolve the router icon status LED hex color from health state or link flags."""
+        if sample is None:
+            return self._get_status_palette(HealthStatus.STABLE, True)[3]
+        if self.config.enable_internet_health and sample.health.status != HealthStatus.UNKNOWN:
+            return self._get_status_palette(sample.health.status, sample.is_connected)[3]
+        if sample.is_local_fallback or not sample.physical_link_up or not sample.wan_connected:
+            return self._get_status_palette(HealthStatus.DEGRADED, sample.is_connected)[3]
+        if not sample.box_reachable:
+            return self._get_status_palette(HealthStatus.OFFLINE, False)[3]
+        return self._get_status_palette(HealthStatus.STABLE, True)[3]
+
     def _get_pill_style(self, text_col: str, bg_col: str, border_col: str, is_bold: bool = True) -> str:
         """Return responsive stylesheet for footer status pills (WAN/DNS) scaled to HiDPI."""
         base_scale = self.config.ui_scale
@@ -536,7 +614,10 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         # 0. Header Bar Elements (Icon, Title, Buttons)
         hdr_icon_sz = max(14, int(round(18.0 * base_scale)))
         is_conn = self._last_sample.is_connected if self._last_sample else True
-        self.lbl_icon.setPixmap(create_router_icon(is_conn).pixmap(QSize(hdr_icon_sz, hdr_icon_sz)))
+        led_col = self._effective_status_led_color(self._last_sample)
+        self.lbl_icon.setPixmap(
+            create_router_icon(is_conn, status_color=led_col).pixmap(QSize(hdr_icon_sz, hdr_icon_sz))
+        )
         title_pt = max(8, int(round(10.0 * base_scale)))
         self.lbl_title.setFont(QFont("Segoe UI", title_pt, QFont.Weight.Bold))
         is_counters = self.config.active_view == "counters"
@@ -732,7 +813,13 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         """Update labels, utilization bars, graph, and tooltips with a fresh TrafficSample."""
         self._last_sample = sample
         hdr_icon_sz = max(14, int(round(18.0 * self.config.ui_scale)))
-        self.lbl_icon.setPixmap(create_router_icon(sample.is_connected).pixmap(QSize(hdr_icon_sz, hdr_icon_sz)))
+        led_col = self._effective_status_led_color(sample)
+        router_icon = create_router_icon(sample.is_connected, status_color=led_col)
+        self.lbl_icon.setPixmap(router_icon.pixmap(QSize(hdr_icon_sz, hdr_icon_sz)))
+        if led_col != self._last_icon_led_color and hasattr(self, "tray_icon"):
+            self._last_icon_led_color = led_col
+            self.tray_icon.setIcon(router_icon)
+            self.setWindowIcon(router_icon)
 
         self.graph_widget.push_sample(
             sample.download_bps if sample.is_connected else 0.0,
@@ -746,6 +833,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             pc_down_bps=sample.local_pc_download_bps if (sample.is_connected and not sample.is_local_fallback) else 0.0,
             pc_up_bps=sample.local_pc_upload_bps if (sample.is_connected and not sample.is_local_fallback) else 0.0,
             is_local_fallback=sample.is_local_fallback,
+            ping_lost=sample.ping_lost,
         )
 
         # Rolling peak across the visible graph window (auto-resets as spikes scroll out)
@@ -817,57 +905,140 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         self._update_tooltip(sample, down_pct, up_pct)
 
     def _update_wan_status_pill(self, sample: TrafficSample) -> None:
-        """Update text, colors and tooltip of the WAN status pill with HiDPI styling."""
+        """Update text, colors and tooltip of the WAN/Internet health status pill with HiDPI styling."""
+        if self.config.enable_internet_health and sample.health.status != HealthStatus.UNKNOWN:
+            st = sample.health.status
+            txt_col, bg_col, border_col, _ = self._get_status_palette(st, sample.is_connected)
+            if st == HealthStatus.STABLE:
+                label = "⚡ Lokal • OK" if sample.is_local_fallback else "✓ Stabil"
+            elif st == HealthStatus.DEGRADED:
+                wide = self.width() >= int(round(360.0 * self.config.ui_scale))
+                tag = sample.health.short_tag
+                label = f"⚠ {tag}" if (wide and tag) else "⚠ Eingeschränkt"
+            elif st == HealthStatus.DNS_ERROR:
+                label = "⚠ DNS-Störung"
+            elif st == HealthStatus.ZOMBIE_WAN:
+                label = "✕ Zombie-WAN"
+            elif st == HealthStatus.OFFLINE:
+                if sample.box_reachable and not sample.is_local_fallback and not sample.physical_link_up:
+                    label = "⚠ Kein Sync"
+                elif sample.box_reachable and not sample.is_local_fallback and not sample.wan_connected:
+                    label = "⚠ Kein Internet"
+                elif sample.health.captive_portal_detected:
+                    label = "⚠ Captive Portal"
+                else:
+                    label = "✕ Offline"
+            else:  # LAN_ERROR
+                if not sample.box_reachable and not sample.is_local_fallback and not sample.health.gateway_ip:
+                    label = "✕ Box Offline"
+                else:
+                    label = "✕ LAN-Problem"
+
+            self.lbl_wan_pill.setText(label)
+            self.lbl_wan_pill.setStyleSheet(self._get_pill_style(txt_col, bg_col, border_col))
+            return
+
         if sample.is_local_fallback:
+            pal = self._get_status_palette(HealthStatus.DEGRADED, True)
             self.lbl_wan_pill.setText("⚡ Lokal (ohne Box)")
-            self.lbl_wan_pill.setStyleSheet(
-                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
-            )
+            self.lbl_wan_pill.setStyleSheet(self._get_pill_style(pal[0], pal[1], pal[2]))
         elif not sample.box_reachable:
+            pal = self._get_status_palette(HealthStatus.OFFLINE, False)
             self.lbl_wan_pill.setText("✕ Box Offline")
-            self.lbl_wan_pill.setStyleSheet(
-                self._get_pill_style("#FF5252", "rgba(255, 82, 82, 0.16)", "rgba(255, 82, 82, 0.45)")
-            )
+            self.lbl_wan_pill.setStyleSheet(self._get_pill_style(pal[0], pal[1], pal[2]))
         elif not sample.physical_link_up:
+            pal = self._get_status_palette(HealthStatus.DEGRADED, False)
             self.lbl_wan_pill.setText("⚠ Kein Sync")
-            self.lbl_wan_pill.setStyleSheet(
-                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
-            )
+            self.lbl_wan_pill.setStyleSheet(self._get_pill_style(pal[0], pal[1], pal[2]))
         elif not sample.wan_connected:
+            pal = self._get_status_palette(HealthStatus.DEGRADED, False)
             self.lbl_wan_pill.setText("⚠ Kein Internet")
-            self.lbl_wan_pill.setStyleSheet(
-                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
-            )
+            self.lbl_wan_pill.setStyleSheet(self._get_pill_style(pal[0], pal[1], pal[2]))
         else:
+            pal = self._get_status_palette(HealthStatus.STABLE, True)
             self.lbl_wan_pill.setText("✓ WAN OK")
-            self.lbl_wan_pill.setStyleSheet(
-                self._get_pill_style("#00E5FF", "rgba(0, 229, 255, 0.10)", "rgba(0, 229, 255, 0.35)")
-            )
+            self.lbl_wan_pill.setStyleSheet(self._get_pill_style(pal[0], pal[1], pal[2]))
 
     def _update_dns_pill(self, sample: TrafficSample) -> None:
         """Update text, colors and tooltip of the DNS status pill with dynamic IP threshold and HiDPI styling."""
-        if sample.dns_ms is not None:
-            # Dynamic threshold: 270px without middle counter, 420px with middle counter scaled to UI factor
-            has_footer = self.config.show_session_totals
-            has_wan = self.config.show_wan_status_pill
-            base_w = 420 if has_footer else (270 if has_wan else 200)
-            min_w = int(round(base_w * self.config.ui_scale))
+        has_footer = self.config.show_session_totals
+        has_wan = self.config.show_wan_status_pill
+        base_w = 420 if has_footer else (270 if has_wan else 200)
+        min_w = int(round(base_w * self.config.ui_scale))
 
+        stable_pal = self._get_status_palette(HealthStatus.STABLE, True)
+        warn_pal = self._get_status_palette(HealthStatus.DEGRADED, True)
+        err_pal = self._get_status_palette(HealthStatus.DNS_ERROR, True)
+
+        if (
+            self.config.enable_internet_health
+            and self.config.health_uncached_dns
+            and sample.health.dns_ok is not None
+        ):
+            h = sample.health
+            dns_ip_label = (
+                f"({h.dns_ip}): "
+                if (self.width() >= min_w and h.dns_ip)
+                else ": "
+            )
+            if h.dns_ok is False:
+                err_short = _format_dns_error(h.dns_error)
+                if h.dns_error == "no_dns_server" or not h.dns_ip:
+                    self.lbl_dns_pill.setText("✕ DNS: n/a")
+                    self.lbl_dns_pill.setToolTip("Kein aktiver DNS-Server erkannt")
+                else:
+                    self.lbl_dns_pill.setText(f"✕ DNS: {err_short}")
+                    https_note = (
+                        "\nInternet per IP erreichbar → Lokaler DNS/AdGuard prüfen!"
+                        if (h.ipv4_ok or h.ipv6_ok)
+                        else ""
+                    )
+                    self.lbl_dns_pill.setToolTip(
+                        f"Aktiver OS-DNS (Uncached): {h.dns_ip}\nStatus: {err_short}{https_note}"
+                    )
+                self.lbl_dns_pill.setStyleSheet(
+                    self._get_pill_style(err_pal[0], err_pal[1], err_pal[2])
+                )
+                return
+
+            if h.dns_ms is not None:
+                ms_str = f"{h.dns_ms:.1f} ms".replace(".", ",")
+                if h.dns_ms > 200.0:
+                    self.lbl_dns_pill.setText(f"⚠ DNS{dns_ip_label}{ms_str}")
+                    self.lbl_dns_pill.setStyleSheet(
+                        self._get_pill_style(err_pal[0], err_pal[1], err_pal[2])
+                    )
+                elif h.dns_ms > 100.0:
+                    self.lbl_dns_pill.setText(f"⚠ DNS{dns_ip_label}{ms_str}")
+                    self.lbl_dns_pill.setStyleSheet(
+                        self._get_pill_style(warn_pal[0], warn_pal[1], warn_pal[2])
+                    )
+                else:
+                    self.lbl_dns_pill.setText(f"✓ DNS{dns_ip_label}{ms_str}")
+                    self.lbl_dns_pill.setStyleSheet(
+                        self._get_pill_style(stable_pal[0], stable_pal[1], stable_pal[2])
+                    )
+                self.lbl_dns_pill.setToolTip(
+                    f"Aktiver OS-DNS: {h.dns_ip}\nUncached-Antwortzeit: {ms_str} (Cache umgangen)"
+                )
+                return
+
+        if sample.dns_ms is not None:
             dns_ip_label = (
                 f"({sample.active_dns_ip}): "
                 if (self.width() >= min_w and sample.active_dns_ip)
                 else ": "
             )
             ms_str = f"{sample.dns_ms:.1f} ms".replace(".", ",")
-            if sample.dns_ms > 80.0:
+            if sample.dns_ms > 100.0:
                 self.lbl_dns_pill.setText(f"⚠ DNS{dns_ip_label}{ms_str}")
                 self.lbl_dns_pill.setStyleSheet(
-                    self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
+                    self._get_pill_style(warn_pal[0], warn_pal[1], warn_pal[2])
                 )
             else:
                 self.lbl_dns_pill.setText(f"✓ DNS{dns_ip_label}{ms_str}")
                 self.lbl_dns_pill.setStyleSheet(
-                    self._get_pill_style("#00E5FF", "rgba(0, 229, 255, 0.10)", "rgba(0, 229, 255, 0.35)")
+                    self._get_pill_style(stable_pal[0], stable_pal[1], stable_pal[2])
                 )
             if sample.active_dns_ip:
                 self.lbl_dns_pill.setToolTip(f"Aktiver OS-DNS: {sample.active_dns_ip}\nAntwortzeit: {ms_str}")
@@ -875,7 +1046,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             self.lbl_dns_pill.setText("⚠ DNS: Timeout")
             self.lbl_dns_pill.setToolTip(f"Aktiver OS-DNS: {sample.active_dns_ip} (Keine Antwort)")
             self.lbl_dns_pill.setStyleSheet(
-                self._get_pill_style("#FFAB00", "rgba(255, 171, 0, 0.16)", "rgba(255, 171, 0, 0.45)")
+                self._get_pill_style(warn_pal[0], warn_pal[1], warn_pal[2])
             )
         else:
             self.lbl_dns_pill.setText("✕ DNS: n/a")
@@ -928,6 +1099,14 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             f"↓ Down: {down_str} ({down_pct:.1f}%)\n"
             f"↑ Up: {up_str} ({up_pct:.1f}%)"
         ).replace(".", ",")
+        if self.config.enable_internet_health and sample.health.status != HealthStatus.UNKNOWN:
+            h = sample.health
+            if h.status == HealthStatus.STABLE:
+                tray_tip += "\nStatus: Stabil"
+            elif h.reason:
+                tray_tip += f"\nStatus: {h.short_tag} – {h.reason}"
+            else:
+                tray_tip += f"\nStatus: {h.short_tag}"
         self.tray_icon.setToolTip(tray_tip)
 
         if not self.config.show_connection_tooltip:
@@ -971,6 +1150,66 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             lines.append(
                 f"Seit Verbindung: ↓ {format_bytes(sample.total_bytes_received)} • ↑ {format_bytes(sample.total_bytes_sent)}"
             )
+
+        if self.config.enable_internet_health and sample.health.status != HealthStatus.UNKNOWN:
+            h = sample.health
+            status_col = self._get_status_palette(h.status, sample.is_connected)[0]
+            status_names = {
+                HealthStatus.STABLE: "Stabil",
+                HealthStatus.DEGRADED: "Eingeschränkt",
+                HealthStatus.DNS_ERROR: "DNS-Störung",
+                HealthStatus.ZOMBIE_WAN: "Zombie-WAN",
+                HealthStatus.OFFLINE: "Offline",
+                HealthStatus.LAN_ERROR: "LAN-Problem",
+            }
+            s_name = status_names.get(h.status, "Unbekannt")
+            lines.append("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.16);'>")
+            lines.append(
+                f"<b>Internet-Qualität:</b> <span style='color:{status_col};'><b>{html.escape(s_name)}</b></span>"
+            )
+            if h.reason:
+                lines.append(f"Diagnose: {html.escape(h.reason)}")
+
+            gw_lbl = html.escape(h.gateway_ip or "-")
+            lan_rtt = f"{h.lan_ping_ms:.1f} ms".replace(".", ",") if h.lan_ping_ms is not None else "n/a"
+            lan_loss = f" • Verlust: {h.lan_loss_pct:.0f}%" if h.lan_loss_pct > 0 else ""
+            lines.append(f"LAN/Router ({gw_lbl}): {lan_rtt}{lan_loss}")
+
+            v4_ok, v4_tot = h.ipv4_quorum
+            if v4_tot > 0:
+                v4_rtt = f" ({h.ipv4_ms:.0f} ms)" if (h.ipv4_ok and h.ipv4_ms is not None) else ""
+                v4_txt = f"IPv4 {v4_ok}/{v4_tot}{v4_rtt}" if h.ipv4_ok else f"IPv4 ✕ 0/{v4_tot}"
+            else:
+                v4_txt = "IPv4 n/a"
+
+            v6_ok, v6_tot = h.ipv6_quorum
+            if v6_tot > 0:
+                v6_rtt = f" ({h.ipv6_ms:.0f} ms)" if (h.ipv6_ok and h.ipv6_ms is not None) else ""
+                v6_txt = f"IPv6 {v6_ok}/{v6_tot}{v6_rtt}" if h.ipv6_ok else f"IPv6 ✕ 0/{v6_tot}"
+            else:
+                v6_txt = "IPv6 n/a (nur IPv4)"
+            lines.append(f"HTTPS 204: {html.escape(v4_txt)} • {html.escape(v6_txt)}")
+
+            if h.dns_ok is not None:
+                d_ip = html.escape(h.dns_ip or "-")
+                if h.dns_ok and h.dns_ms is not None:
+                    d_ms = f"{h.dns_ms:.1f} ms".replace(".", ",")
+                    lines.append(f"Uncached-DNS ({d_ip}): {d_ms}")
+                else:
+                    d_err = html.escape(_format_dns_error(h.dns_error))
+                    lines.append(f"Uncached-DNS ({d_ip}): Fehler ({d_err})")
+
+            med_s = f"{h.wan_median_ms:.1f}".replace(".", ",") if h.wan_median_ms is not None else "-"
+            p95_s = f"{h.wan_p95_ms:.1f}".replace(".", ",") if h.wan_p95_ms is not None else "-"
+            jit_s = f"{h.wan_jitter_ms:.1f}".replace(".", ",")
+            loss_s = f"{h.wan_loss_pct:.1f}%".replace(".", ",")
+            base_s = (
+                f" (Basis: {h.baseline_rtt_ms:.0f} ms)"
+                if h.baseline_ready and h.baseline_rtt_ms is not None
+                else ""
+            )
+            sat_s = " • Leitung ausgelastet" if h.is_line_saturated else ""
+            lines.append(f"Qualität (60s): Med {med_s} • p95 {p95_s} ms • Jitter {jit_s} ms • Loss {loss_s}{base_s}{sat_s}")
 
         if sample.error_message:
             lines.append(f"<span style='color:#FF5252;'>Fehler: {html.escape(sample.error_message)}</span>")

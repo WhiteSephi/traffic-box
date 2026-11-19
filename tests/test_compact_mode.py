@@ -10,7 +10,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from src.api.models import TrafficSample
+from src.api.models import HealthStatus, InternetHealthSnapshot, TrafficSample
+from src.api.net_health import set_shutting_down
 from src.config import AppConfig
 from src.ui.widget import TrafficBox
 
@@ -31,6 +32,7 @@ class TestCompactMode(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.widget._stop_background_tasks(save_state=False)
+        set_shutting_down(False)
         self.widget.deleteLater()
 
     def test_compact_mode_height_calculation(self) -> None:
@@ -259,6 +261,121 @@ class TestCompactMode(unittest.TestCase):
         self.assertIn("&lt;i&gt;err&lt;/i&gt;", tip)
         self.assertNotIn("<img", tip)
         self.assertNotIn("<script>", tip)
+
+    def test_health_pills_themes_and_tooltip_escaping(self) -> None:
+        """Verify 5-state health pills, monochrome/light theme awareness, DNS thresholds, and HTML escaping."""
+        # 1. Standard theme: STABLE -> green
+        s_stable = TrafficSample(
+            is_connected=True,
+            wan_connected=True,
+            health=InternetHealthSnapshot(
+                status=HealthStatus.STABLE,
+                short_tag="Stabil",
+                reason="Alles normal",
+                gateway_ip="192.168.178.1",
+                lan_ping_ms=0.7,
+                ipv4_ok=True,
+                ipv4_quorum=(2, 2),
+                ipv4_ms=19.0,
+                dns_ip="192.168.178.2",
+                dns_ok=True,
+                dns_ms=18.5,
+                wan_median_ms=14.0,
+                wan_p95_ms=17.0,
+                wan_jitter_ms=1.1,
+            ),
+        )
+        self.widget._update_wan_status_pill(s_stable)
+        self.widget._update_dns_pill(s_stable)
+        self.assertEqual(self.widget.lbl_wan_pill.text(), "✓ Stabil")
+        self.assertIn("#00E676", self.widget.lbl_wan_pill.styleSheet())
+        self.assertIn("✓ DNS", self.widget.lbl_dns_pill.text())
+        self.assertIn("#00E676", self.widget.lbl_dns_pill.styleSheet())
+
+        # Local fallback STABLE
+        s_fallback = TrafficSample(
+            is_connected=True,
+            box_reachable=False,
+            is_local_fallback=True,
+            health=InternetHealthSnapshot(status=HealthStatus.STABLE, short_tag="Stabil"),
+        )
+        self.widget._update_wan_status_pill(s_fallback)
+        self.assertEqual(self.widget.lbl_wan_pill.text(), "⚡ Lokal • OK")
+
+        # 2. Monochrome theme: calm neutral STABLE pill instead of bright neon green
+        self.widget.config.download_color = "#FFFFFF"
+        self.widget.config.guest_download_color = "#B0BEC5"
+        self.widget.config.title_color = "#ECEFF1"
+        self.widget._update_wan_status_pill(s_stable)
+        self.assertIn("#ECEFF1", self.widget.lbl_wan_pill.styleSheet())
+        self.assertNotIn("#00E676", self.widget.lbl_wan_pill.styleSheet())
+
+        # Light custom background uses high-contrast dark green
+        self.widget.config.download_color = "#FFEA00"
+        self.widget.config.guest_download_color = "#00E676"
+        self.widget.config.background_color = "#F5F5F5"
+        self.widget._update_wan_status_pill(s_stable)
+        self.assertIn("#1B7F46", self.widget.lbl_wan_pill.styleSheet())
+        self.widget.config.background_color = "#1C2428"
+
+        # 3. Error & Degraded states
+        for status, expected_text, expected_color in [
+            (HealthStatus.ZOMBIE_WAN, "✕ Zombie-WAN", "#FF5252"),
+            (HealthStatus.DNS_ERROR, "⚠ DNS-Störung", "#FF7043"),
+            (HealthStatus.LAN_ERROR, "✕ LAN-Problem", "#BB86FC"),
+            (HealthStatus.DEGRADED, "⚠ Nur IPv4", "#FFAB00"),
+        ]:
+            s = TrafficSample(
+                is_connected=True,
+                wan_connected=True,
+                health=InternetHealthSnapshot(
+                    status=status,
+                    short_tag="Nur IPv4" if status == HealthStatus.DEGRADED else "Tag",
+                    gateway_ip="192.168.178.1",
+                ),
+            )
+            self.widget.resize(460, 300)
+            self.widget._update_wan_status_pill(s)
+            self.assertEqual(self.widget.lbl_wan_pill.text(), expected_text)
+            self.assertIn(expected_color, self.widget.lbl_wan_pill.styleSheet())
+
+        # 4. DNS Pill transition (150ms -> warning, failure -> DNS_ERROR)
+        s_dns_slow = TrafficSample(
+            health=InternetHealthSnapshot(status=HealthStatus.STABLE, dns_ip="192.168.178.2", dns_ok=True, dns_ms=150.0)
+        )
+        self.widget._update_dns_pill(s_dns_slow)
+        self.assertIn("⚠ DNS", self.widget.lbl_dns_pill.text())
+        self.assertIn("#FFAB00", self.widget.lbl_dns_pill.styleSheet())
+
+        s_dns_fail = TrafficSample(
+            health=InternetHealthSnapshot(status=HealthStatus.DNS_ERROR, dns_ip="192.168.178.2", dns_ok=False, dns_error="servfail")
+        )
+        self.widget._update_dns_pill(s_dns_fail)
+        self.assertEqual(self.widget.lbl_dns_pill.text(), "✕ DNS: SERVFAIL")
+        self.assertIn("#FF7043", self.widget.lbl_dns_pill.styleSheet())
+
+        # 5. Tooltip HTML escaping for health fields
+        s_xss = TrafficSample(
+            is_connected=True,
+            wan_connected=True,
+            health=InternetHealthSnapshot(
+                status=HealthStatus.DNS_ERROR,
+                short_tag="DNS-Störung",
+                reason="<script>alert(1)</script>",
+                gateway_ip="<img src=x>",
+                dns_ip="<b>dns</b>",
+                dns_ok=False,
+                dns_error="<i>err</i>",
+            ),
+        )
+        self.widget._update_tooltip(s_xss, 5.0, 2.0)
+        tip = self.widget.lbl_wan_pill.toolTip()
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", tip)
+        self.assertIn("&lt;img src=x&gt;", tip)
+        self.assertIn("&lt;b&gt;dns&lt;/b&gt;", tip)
+        self.assertIn("&lt;i&gt;err&lt;/i&gt;", tip)
+        self.assertNotIn("<script>", tip)
+        self.assertNotIn("<img", tip)
 
 
 if __name__ == "__main__":

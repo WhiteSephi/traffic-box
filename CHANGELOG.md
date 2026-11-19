@@ -4,6 +4,23 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.17.0] - 2026-11-19
+### Added
+- **Mehrstufige Internet-Qualitäts- & Erreichbarkeits-Diagnose (`src/api/internet_health.py`, `src/api/net_health.py`):**
+  - **End-to-End-Prüfung mit Quorum & Hysterese:** Prüft zusätzlich zum Router-Status die lokale Gateway-Referenz, zwei unabhängige Dual-Stack-HTTPS-`204`-Canaries (`cp.cloudflare.com` & `connectivitycheck.gstatic.com`, jeweils frische TLS-Verbindung ohne Keep-Alive/Redirects, mit RAM-IP-Cache und Kaltstart-Direkt-IP-Fallback) sowie Uncached-DNS.
+  - **5-Stufen-Statusmodell mit „Zombie-WAN“-Erkennung (`src/api/models.py`, `src/ui/widget.py`):** Unterscheidet klar zwischen **Stabil**, **Eingeschränkt** (z. B. IPv4-/IPv6-Teilausfall, 2–20 % Verlust, Latenz-/Jitter-Abweichung oder langsamer DNS), **DNS-Störung** (HTTPS per IP ok, aber lokaler DNS/AdGuard gestört), **Offline / Zombie-WAN** (Router meldet „Verbunden“, aber Internetverkehr hängt) und **LAN-Problem** (Heimnetz/Router gestört).
+  - **Sliding Window & Idle-Baseline:** Berechnet über 60 Sekunden Paketverlust %, Median, p95-Latenz und Jitter gegen eine automatisch im Leerlauf (`< 40 %` Auslastung) gelernte Baseline inkl. Untergrenzen und Bufferbloat-Hinweis bei ausgelasteter Leitung (`>= 75 %`).
+  - **Theme-bewusste UI, Tray-LED & Ping-Verlustmarker (`src/ui/widget.py`, `src/ui/tray.py`, `src/ui/graph_canvas.py`):** Status-Pille im Footer (Grün `#00E676` bei „Stabil“ mit ruhiger Anpassung für monochrome/helle Themes), farbige Status-LED am Router- & Tray-Icon, kompakter Diagnose-Abschnitt im HTML-Tooltip sowie sichtbare Lücken + rote Verlustmarker bei Ping-Timeouts im Graphen.
+  - **Konfiguration & Einstellungen (`src/config.py`, `src/ui/settings_dlg.py`):** Neue Optionen unter `Netzwerk → Internet-Diagnose & Erreichbarkeit` (Aktivierung, IP-Protokollmodus `Auto / Nur IPv4 / Dual-Stack`, Normal-Intervall `10–120 s` mit automatischem `5 s`-Verifikations-Burst bei Störung, Uncached-DNS-Schalter).
+- **Automatisierte Tests (`tests/test_internet_health.py`):** Umfangreiche Offline-Testsuite für alle 5 Statusstufen, Quorum, Hysterese, Sliding-Window/Baseline, IPv6-Auto-Erkennung, IP-Cache/Kaltstart-Fallback, RCODE-/Hijack-Prüfung und Theme-/Tooltip-Tests (`119` Tests gesamt).
+
+### Changed
+- **Uncached-DNS statt 1-Sekunden-Cache-Polling (`src/api/net_health.py`, `src/api/worker.py`):** Bei aktiver Internet-Diagnose entfällt das sekündliche Abfragen einer statischen Domain; stattdessen werden im 30s-Intervall (bzw. 5s-Burst) eindeutige Nonce-Subdomains abgefragt und RCODE (`NXDOMAIN`/`NOERROR` vs. `SERVFAIL`/`REFUSED`) sowie Private-IP-Umleitungen (`0.0.0.0`/RFC1918) geprüft. Das reduziert die DNS-Last um ~97 % und umgeht lokale DNS-Caches (z. B. AdGuard Optimistic Cache).
+- **Windows-DNS-Erkennung (`src/api/net_health.py`):** `detect_active_os_dns()` bevorzugt unter Windows nun direkt `iphlpapi.GetNetworkParams` vor der Registry-Adapter-Schleife, um zuverlässig den aktiven System-DNS zu treffen.
+
+### Fixed
+- **Ping-Aussetzer im Graphen (`src/ui/graph_canvas.py`):** Verlorene Pings werden im Ping-/Jitter-Graphen nicht mehr irreführend als `0 ms` gezeichnet, sondern unterbrechen die Kurve mit Verlust-Marker und Anzeige von `Loss: X%` bzw. `✕ Timeout` im Hover-HUD.
+
 ## [0.16.3] - 2026-11-19
 ### Security
 - **Heim-Router-Bindung & DNS-Fallback gehärtet (`src/api/worker.py`, `src/ui/settings_dlg.py`):**

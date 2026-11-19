@@ -46,6 +46,7 @@ class SplitTrafficGraphWidget(QWidget):
         self._pc_down_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
         self._pc_up_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
         self._ping_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
+        self._ping_loss_history: deque[bool] = deque([False] * max_len, maxlen=max_len)
         self._jitter_history: deque[float] = deque([0.0] * max_len, maxlen=max_len)
 
         self._max_down_bps: float = (self.config.manual_download_mbps * 1_000_000.0) / 8.0
@@ -85,6 +86,7 @@ class SplitTrafficGraphWidget(QWidget):
         pc_down_bps: float = 0.0,
         pc_up_bps: float = 0.0,
         is_local_fallback: bool = False,
+        ping_lost: bool = False,
     ) -> None:
         """Append a new sample to the time series and trigger a repaint."""
         self._is_local_fallback = is_local_fallback
@@ -97,6 +99,7 @@ class SplitTrafficGraphWidget(QWidget):
             self._pc_down_history = deque(self._pc_down_history, maxlen=target_len)
             self._pc_up_history = deque(self._pc_up_history, maxlen=target_len)
             self._ping_history = deque(self._ping_history, maxlen=target_len)
+            self._ping_loss_history = deque(self._ping_loss_history, maxlen=target_len)
             self._jitter_history = deque(self._jitter_history, maxlen=target_len)
 
         self._down_history.append(max(0.0, down_bps))
@@ -105,7 +108,8 @@ class SplitTrafficGraphWidget(QWidget):
         self._guest_up_history.append(max(0.0, min(up_bps, guest_up_bps)))
         self._pc_down_history.append(max(0.0, min(down_bps, pc_down_bps)))
         self._pc_up_history.append(max(0.0, min(up_bps, pc_up_bps)))
-        self._ping_history.append(max(0.0, ping_ms) if ping_ms is not None else 0.0)
+        self._ping_history.append(max(0.0, ping_ms) if (ping_ms is not None and not ping_lost) else 0.0)
+        self._ping_loss_history.append(bool(ping_lost))
         self._jitter_history.append(max(0.0, jitter_ms))
 
         if self.config.auto_link_scale and link_max_down_bps > 0:
@@ -335,7 +339,10 @@ class SplitTrafficGraphWidget(QWidget):
         painter.drawRect(rect.adjusted(0.5, 0.5, -0.5, -0.5))
 
         # Dynamic scale for ping/jitter (min ceiling 20ms or max ping * 1.25)
-        active_pings = [v for v in ping_series if v > 0]
+        active_pings = [
+            v for idx, v in enumerate(ping_series)
+            if v > 0 and not (idx < len(self._ping_loss_history) and self._ping_loss_history[idx])
+        ]
         max_ping = max(active_pings) if active_pings else 20.0
         min_ping = min(active_pings) if active_pings else 0.0
         ceiling = max(20.0, max_ping * 1.25)
@@ -343,32 +350,15 @@ class SplitTrafficGraphWidget(QWidget):
         count = len(ping_series)
         last_ping_y: float | None = None
         last_jitter_y: float | None = None
-        last_ping_val: float = ping_series[-1] if count > 0 else 0.0
+        last_is_lost: bool = self._ping_loss_history[-1] if self._ping_loss_history else False
+        last_ping_val: float = ping_series[-1] if (count > 0 and not last_is_lost) else 0.0
         last_jitter_val: float = jitter_series[-1] if len(jitter_series) > 0 else 0.0
+
+        loss_indices: list[int] = []
+        measured_count = 0
 
         if count >= 2:
             step_x = rect.width() / float(count - 1)
-
-            # --- Ping Curve & Area ---
-            ping_line = QPainterPath()
-            ping_area = QPainterPath()
-            ping_area.moveTo(rect.left(), rect.bottom())
-
-            for idx, val in enumerate(ping_series):
-                x = rect.left() + idx * step_x
-                norm_h = min(1.0, max(0.0, val / ceiling))
-                y = rect.bottom() - (norm_h * (rect.height() - 14.0)) - 1.0
-                if idx == 0:
-                    ping_line.moveTo(x, y)
-                else:
-                    ping_line.lineTo(x, y)
-                ping_area.lineTo(x, y)
-                if idx == count - 1:
-                    last_ping_y = y
-
-            ping_area.lineTo(rect.right(), rect.bottom())
-            ping_area.closeSubpath()
-
             ping_col = QColor(self.config.ping_color)
             grad = QLinearGradient(0.0, rect.top(), 0.0, rect.bottom())
             top_fill = QColor(ping_col)
@@ -377,12 +367,63 @@ class SplitTrafficGraphWidget(QWidget):
             bot_fill.setAlpha(15)
             grad.setColorAt(0.0, top_fill)
             grad.setColorAt(1.0, bot_fill)
-            painter.fillPath(ping_area, grad)
 
             ping_pen = QPen(ping_col, 1.5)
             ping_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-            painter.setPen(ping_pen)
-            painter.drawPath(ping_line)
+
+            # --- Ping Curve & Area (broken into segments on packet loss) ---
+            seg_points: list[QPointF] = []
+
+            def _flush_segment(pts: list[QPointF]) -> None:
+                if not pts:
+                    return
+                if len(pts) >= 2:
+                    seg_line = QPainterPath()
+                    seg_area = QPainterPath()
+                    seg_area.moveTo(pts[0].x(), rect.bottom())
+                    for s_i, pt in enumerate(pts):
+                        if s_i == 0:
+                            seg_line.moveTo(pt)
+                        else:
+                            seg_line.lineTo(pt)
+                        seg_area.lineTo(pt)
+                    seg_area.lineTo(pts[-1].x(), rect.bottom())
+                    seg_area.closeSubpath()
+                    painter.fillPath(seg_area, grad)
+                    painter.setPen(ping_pen)
+                    painter.drawPath(seg_line)
+                else:
+                    painter.setBrush(ping_col)
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.drawEllipse(pts[0], 1.6, 1.6)
+
+            for idx, val in enumerate(ping_series):
+                is_lost = idx < len(self._ping_loss_history) and self._ping_loss_history[idx]
+                if is_lost:
+                    loss_indices.append(idx)
+                    measured_count += 1
+                    _flush_segment(seg_points)
+                    seg_points = []
+                    continue
+
+                if val > 0:
+                    measured_count += 1
+                x = rect.left() + idx * step_x
+                norm_h = min(1.0, max(0.0, val / ceiling))
+                y = rect.bottom() - (norm_h * (rect.height() - 14.0)) - 1.0
+                seg_points.append(QPointF(x, y))
+                if idx == count - 1:
+                    last_ping_y = y
+
+            _flush_segment(seg_points)
+
+            # Draw subtle red loss markers at lost ping slots
+            if loss_indices:
+                loss_pen = QPen(QColor(255, 82, 82, 185), 1.6)
+                painter.setPen(loss_pen)
+                for l_idx in loss_indices:
+                    lx = rect.left() + l_idx * step_x
+                    painter.drawLine(QPointF(lx, rect.bottom() - 8.0), QPointF(lx, rect.bottom() - 1.0))
 
             # --- Jitter Curve ---
             jitter_col = QColor(self.config.jitter_color)
@@ -431,16 +472,34 @@ class SplitTrafficGraphWidget(QWidget):
         painter.setPen(QColor(self.config.jitter_color))
         painter.drawText(QPointF(jitter_left, legend_y), "▲ Jitter")
 
-        # Right stats: Min / Max
+        # Right stats: Min / Max (+ Loss %)
+        loss_pct = (len(loss_indices) / measured_count * 100.0) if (loss_indices and measured_count > 0) else 0.0
+        stats_rect = rect.adjusted(4, 2, -5, -2)
         if active_pings:
             stats_text = f"Min: {min_ping:.1f} ms  Max: {max_ping:.1f} ms"
             label_col = QColor(self.config.title_color)
             label_col.setAlpha(135)
             painter.setPen(label_col)
             painter.drawText(
-                rect.adjusted(4, 2, -5, -2),
+                stats_rect,
                 Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
                 stats_text,
+            )
+            if loss_pct > 0.0:
+                loss_text = f"Loss: {loss_pct:.0f}%  "
+                stats_w = fm.horizontalAdvance(stats_text)
+                loss_w = fm.horizontalAdvance(loss_text)
+                painter.setPen(QColor("#FF5252"))
+                painter.drawText(
+                    QPointF(stats_rect.right() - stats_w - loss_w, legend_y),
+                    loss_text,
+                )
+        elif loss_pct > 0.0:
+            painter.setPen(QColor("#FF5252"))
+            painter.drawText(
+                stats_rect,
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+                f"Loss: {loss_pct:.0f}%",
             )
 
         # Right-edge live pill badges for Ping & Jitter
@@ -670,14 +729,17 @@ class SplitTrafficGraphWidget(QWidget):
         # 4. Ping & Jitter Marker Dot (if active)
         val_ping = self._ping_history[idx] if idx < len(self._ping_history) else 0.0
         val_jitter = self._jitter_history[idx] if idx < len(self._jitter_history) else 0.0
-        if ping_rect is not None and (val_ping > 0 or val_jitter > 0):
+        is_ping_lost = idx < len(self._ping_loss_history) and self._ping_loss_history[idx]
+        if ping_rect is not None and (val_ping > 0 or val_jitter > 0 or is_ping_lost):
             active_pings = [p for p in self._ping_history if p > 0]
             max_ping = max(active_pings) if active_pings else 20.0
             active_jitters = [j for j in self._jitter_history if j > 0]
             max_jitter = max(active_jitters) if active_jitters else 5.0
             ping_ceiling = max(30.0, max(max_ping, max_jitter) * 1.25)
 
-            if val_ping > 0:
+            if is_ping_lost:
+                draw_marker_dot(QPointF(x, ping_rect.bottom() - 3.0), QColor("#FF5252"))
+            elif val_ping > 0:
                 norm_ping = min(1.0, max(0.0, val_ping / ping_ceiling))
                 ping_y = ping_rect.bottom() - (norm_ping * (ping_rect.height() - 14.0)) - 1.0
                 draw_marker_dot(QPointF(x, ping_y), QColor(self.config.ping_color))
@@ -695,7 +757,7 @@ class SplitTrafficGraphWidget(QWidget):
         val_pc_down = self._pc_down_history[idx] if idx < len(self._pc_down_history) else 0.0
         val_pc_up = self._pc_up_history[idx] if idx < len(self._pc_up_history) else 0.0
         show_pc = self.config.enable_local_traffic_monitor and (val_pc_down > 0 or val_pc_up > 0)
-        show_ping = ping_rect is not None and (val_ping > 0 or val_jitter > 0)
+        show_ping = ping_rect is not None and (val_ping > 0 or val_jitter > 0 or is_ping_lost)
 
         base_s = max(1.0, self.config.ui_scale)
         badge_w = (185.0 if show_pc else 150.0) * base_s
@@ -776,10 +838,10 @@ class SplitTrafficGraphWidget(QWidget):
         if show_ping:
             painter.setFont(font_sub)
             ping_x = badge_x + pad_x
-            p_str = f"◆ {val_ping:.1f} ms"
+            p_str = "✕ Timeout" if is_ping_lost else f"◆ {val_ping:.1f} ms"
             j_str = f"▲ {val_jitter:.1f} ms"
             w_half = (badge_w - 2 * pad_x) / 2.0
-            painter.setPen(QColor(self.config.ping_color))
+            painter.setPen(QColor("#FF5252") if is_ping_lost else QColor(self.config.ping_color))
             painter.drawText(
                 QRectF(ping_x, curr_y, w_half, line_h),
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,

@@ -7,6 +7,7 @@ import time
 from PySide6.QtCore import QObject, Signal, Slot
 
 from src.api.fritz_monitor import FritzGuestMonitorClient
+from src.api.internet_health import InternetHealthMonitor
 from src.api.local_traffic import LocalTrafficMonitor
 from src.api.models import OnlineCounterStats, TrafficSample
 from src.api.net_health import NetworkHealthMonitor, set_shutting_down
@@ -32,6 +33,12 @@ class PollingWorker(QObject):
             password=self.config.fritz_password,
         )
         self.net_health = NetworkHealthMonitor(endpoint=self.config.ping_endpoint)
+        self.internet_health = InternetHealthMonitor(
+            probe_interval_sec=self.config.health_probe_interval_sec,
+            ip_mode=self.config.health_ip_mode,
+            enable_uncached_dns=self.config.health_uncached_dns,
+            enable_dns_monitor=self.config.enable_dns_monitor,
+        )
         self.local_traffic = LocalTrafficMonitor()
         self._cached_counters = OnlineCounterStats()
         self._counter_tick: int = 0
@@ -46,6 +53,7 @@ class PollingWorker(QObject):
         """Immediately mark worker as stopped to abort pending/future polls during OS shutdown."""
         self._stopped = True
         set_shutting_down(True)
+        self.internet_health.stop()
         try:
             self.guest_client.logout(timeout=0.4)
         except Exception:
@@ -135,12 +143,17 @@ class PollingWorker(QObject):
 
             # Execute network health diagnostics off the GUI thread
             self.net_health.set_endpoint(self.config.ping_endpoint)
+            use_uncached_dns = (
+                self.config.enable_internet_health
+                and self.config.health_uncached_dns
+            )
             ping_val, jitter_val, dns_ip, dns_ms = self.net_health.tick(
                 check_ping=self.config.enable_ping_graph,
-                check_dns=self.config.enable_dns_monitor,
+                check_dns=self.config.enable_dns_monitor and not use_uncached_dns,
             )
             sample.ping_ms = ping_val
             sample.jitter_ms = jitter_val
+            sample.ping_lost = bool(self.config.enable_ping_graph and ping_val is None)
             sample.active_dns_ip = dns_ip
             sample.dns_ms = dns_ms
 
@@ -180,10 +193,53 @@ class PollingWorker(QObject):
                     sample.local_pc_download_bps = min(sample.download_bps, pc_down)
                     sample.local_pc_upload_bps = min(sample.upload_bps, pc_up)
 
+            if self.config.enable_internet_health and not self._stopped:
+                self.internet_health.configure(
+                    probe_interval_sec=self.config.health_probe_interval_sec,
+                    ip_mode=self.config.health_ip_mode,
+                    enable_uncached_dns=self.config.health_uncached_dns,
+                    enable_dns_monitor=self.config.enable_dns_monitor,
+                )
+                line_util = self._compute_line_utilization(sample)
+                router_host = self.upnp.host if sample.box_reachable else ""
+                snapshot = self.internet_health.record_tick(
+                    ping_val,
+                    box_reachable=sample.box_reachable,
+                    physical_link_up=sample.physical_link_up,
+                    wan_connected=sample.wan_connected,
+                    is_local_fallback=sample.is_local_fallback,
+                    router_host=router_host,
+                    line_utilization=line_util,
+                    ping_enabled=self.config.enable_ping_graph,
+                )
+                sample.health = snapshot
+                if self.config.health_uncached_dns and self.config.enable_dns_monitor:
+                    if snapshot.dns_ip:
+                        sample.active_dns_ip = snapshot.dns_ip
+                    sample.dns_ms = snapshot.dns_ms if snapshot.dns_ok else None
+
             if not self._stopped:
                 self.sample_ready.emit(sample)
         finally:
             self._busy = False
+
+    def _compute_line_utilization(self, sample: TrafficSample) -> float:
+        """Compute current WAN utilization ratio in [0.0, 1.0] for baseline bufferbloat guard."""
+        if not sample.is_connected:
+            return 0.0
+        if self.config.auto_link_scale and sample.max_download_bps > 0:
+            max_down = sample.max_download_bps
+        else:
+            max_down = max(1024.0, (self.config.manual_download_mbps * 1_000_000.0) / 8.0)
+
+        if self.config.auto_link_scale and sample.max_upload_bps > 0:
+            max_up = sample.max_upload_bps
+        else:
+            max_up = max(1024.0, (self.config.manual_upload_mbps * 1_000_000.0) / 8.0)
+
+        down_u = sample.download_bps / max_down if max_down > 0 else 0.0
+        up_u = sample.upload_bps / max_up if max_up > 0 else 0.0
+        return max(0.0, min(1.0, max(down_u, up_u)))
 
     @Slot()
     def reset_session(self) -> None:
@@ -203,4 +259,10 @@ class PollingWorker(QObject):
             self.upnp.host,
             self.config.fritz_username,
             self.config.fritz_password,
+        )
+        self.internet_health.configure(
+            probe_interval_sec=self.config.health_probe_interval_sec,
+            ip_mode=self.config.health_ip_mode,
+            enable_uncached_dns=self.config.health_uncached_dns,
+            enable_dns_monitor=self.config.enable_dns_monitor,
         )

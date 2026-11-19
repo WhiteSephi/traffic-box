@@ -174,6 +174,10 @@ class AppConfig:
     ping_endpoint: str = "1.1.1.1"
     show_wan_status_pill: bool = True
     enable_dns_monitor: bool = True
+    enable_internet_health: bool = True
+    health_probe_interval_sec: int = 30
+    health_ip_mode: str = "auto"  # "auto", "ipv4_only", "dual_stack"
+    health_uncached_dns: bool = True
 
     # Colors
     download_color: str = "#FFEA00"
@@ -221,6 +225,8 @@ class AppConfig:
             self.active_view = "graph"
         if self.footer_counter_mode not in ("today", "yesterday", "week", "month", "last_month", "session"):
             self.footer_counter_mode = "today"
+        if self.health_ip_mode not in ("auto", "ipv4_only", "dual_stack"):
+            self.health_ip_mode = "auto"
 
         # Safe int helper
         def _safe_int(val: object, default: int, min_val: int, max_val: int) -> int:
@@ -243,6 +249,7 @@ class AppConfig:
         self.ui_scale_percent = _safe_int(self.ui_scale_percent, 100, 70, 300)
         self.ui_scale_percent = int(round(self.ui_scale_percent / 5.0)) * 5
         self.history_seconds = _safe_int(self.history_seconds, 60, 10, 600)
+        self.health_probe_interval_sec = _safe_int(self.health_probe_interval_sec, 30, 10, 120)
 
         # Safe float helper
         def _safe_float(val: object, default: float, min_val: float, max_val: float) -> float:
@@ -263,6 +270,7 @@ class AppConfig:
             "switch_up_down", "show_as_bits", "show_peak_rate", "show_guest_rate_labels",
             "show_session_totals", "show_connection_tooltip", "auto_link_scale",
             "enable_ping_graph", "show_wan_status_pill", "enable_dns_monitor",
+            "enable_internet_health", "health_uncached_dns",
         )
         for b_field in bool_fields:
             val = getattr(self, b_field, False)

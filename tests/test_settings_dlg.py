@@ -194,6 +194,47 @@ class TestSettingsDialog(unittest.TestCase):
         finally:
             dlg.deleteLater()
 
+    def test_internet_health_settings_load_apply_and_reset(self) -> None:
+        """Verify Network tab loads, toggles, applies, and resets internet health fields."""
+        self.config.enable_internet_health = True
+        self.config.health_ip_mode = "ipv4_only"
+        self.config.health_probe_interval_sec = 45
+        self.config.health_uncached_dns = False
+
+        dlg = SettingsDialog(self.config, self._on_apply)
+        try:
+            self.assertTrue(dlg.chk_internet_health.isChecked())
+            self.assertEqual(dlg.cmb_health_ip_mode.currentData(), "ipv4_only")
+            self.assertEqual(dlg.spin_health_interval.value(), 45)
+            self.assertFalse(dlg.chk_health_uncached_dns.isChecked())
+            self.assertTrue(dlg.cmb_health_ip_mode.isEnabled())
+
+            dlg.chk_internet_health.setChecked(False)
+            self.assertFalse(dlg.cmb_health_ip_mode.isEnabled())
+            self.assertFalse(dlg.spin_health_interval.isEnabled())
+            self.assertFalse(dlg.chk_health_uncached_dns.isEnabled())
+
+            dlg.chk_internet_health.setChecked(True)
+            idx_ds = dlg.cmb_health_ip_mode.findData("dual_stack")
+            dlg.cmb_health_ip_mode.setCurrentIndex(idx_ds)
+            dlg.spin_health_interval.setValue(20)
+            dlg.chk_health_uncached_dns.setChecked(True)
+            dlg._apply_changes()
+
+            self.assertTrue(self.config.enable_internet_health)
+            self.assertEqual(self.config.health_ip_mode, "dual_stack")
+            self.assertEqual(self.config.health_probe_interval_sec, 20)
+            self.assertTrue(self.config.health_uncached_dns)
+
+            dlg._reset_single_tab(3)
+            defaults = AppConfig()
+            self.assertEqual(dlg.chk_internet_health.isChecked(), defaults.enable_internet_health)
+            self.assertEqual(dlg.cmb_health_ip_mode.currentData(), defaults.health_ip_mode)
+            self.assertEqual(dlg.spin_health_interval.value(), defaults.health_probe_interval_sec)
+            self.assertEqual(dlg.chk_health_uncached_dns.isChecked(), defaults.health_uncached_dns)
+        finally:
+            dlg.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()

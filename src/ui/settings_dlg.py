@@ -436,7 +436,7 @@ class SettingsDialog(QDialog):
         net_layout.addWidget(pc_group)
 
         # Internet-Diagnose
-        diag_group = QGroupBox("Internet-Diagnose && Ping")
+        diag_group = QGroupBox("Internet-Diagnose && Erreichbarkeit")
         diag_form = QFormLayout(diag_group)
         diag_form.setContentsMargins(10, 10, 10, 10)
         diag_form.setVerticalSpacing(6)
@@ -446,13 +446,38 @@ class SettingsDialog(QDialog):
         self.cmb_ping_endpoint.setEditable(True)
         self.cmb_ping_endpoint.addItems(["1.1.1.1", "8.8.8.8", "9.9.9.9", "heise.de", "google.com"])
 
-        self.chk_wan_pill = QCheckBox("WAN-Verbindungsstatus anzeigen (✓ WAN OK / ⚠ Kein Sync / ✕ Offline)")
+        self.chk_wan_pill = QCheckBox("Internet- / WAN-Statuspille im Footer anzeigen")
         self.chk_dns_pill = QCheckBox("Aktiven System-DNS-Server überwachen (Antwortzeit in ms)")
+
+        self.chk_internet_health = QCheckBox(
+            "Aktive Internet-Erreichbarkeit prüfen (HTTPS-204, Zombie-WAN & Qualität)"
+        )
+        self.chk_internet_health.toggled.connect(self._on_internet_health_toggled)
+
+        self.cmb_health_ip_mode = QComboBox()
+        self.cmb_health_ip_mode.addItem("Automatisch (IPv4 + IPv6 falls verfügbar)", "auto")
+        self.cmb_health_ip_mode.addItem("Nur IPv4 prüfen", "ipv4_only")
+        self.cmb_health_ip_mode.addItem("Dual-Stack erzwingen (IPv4 & IPv6)", "dual_stack")
+
+        self.spin_health_interval = QSpinBox()
+        self.spin_health_interval.setRange(10, 120)
+        self.spin_health_interval.setSuffix(" Sek.")
+        self.spin_health_interval.setToolTip(
+            "Prüfintervall für HTTPS-204 & Uncached-DNS im Normalbetrieb (bei Störung automatisch 5s-Burst)"
+        )
+
+        self.chk_health_uncached_dns = QCheckBox(
+            "Uncached-DNS per Nonce nutzen (umgeht AdGuard-Cache & schont Query-Log)"
+        )
 
         diag_form.addRow("", self.chk_ping_graph)
         diag_form.addRow("Ping-Ziel (Endpoint):", self.cmb_ping_endpoint)
         diag_form.addRow("", self.chk_wan_pill)
         diag_form.addRow("", self.chk_dns_pill)
+        diag_form.addRow("", self.chk_internet_health)
+        diag_form.addRow("IP-Protokollmodus:", self.cmb_health_ip_mode)
+        diag_form.addRow("Prüfintervall (Normal):", self.spin_health_interval)
+        diag_form.addRow("", self.chk_health_uncached_dns)
         net_layout.addWidget(diag_group)
         net_layout.addStretch(1)
 
@@ -665,7 +690,7 @@ class SettingsDialog(QDialog):
         lbl_cfg_val.setStyleSheet("font-size: 8.5pt;")
 
         lbl_notes = QLabel(
-            "Open Source (MIT) • Keine Telemetrie (Ping-/DNS-Checks optional) • "
+            "Open Source (MIT) • Keine Telemetrie (Ping-/DNS-/Canary-Checks optional) • "
             "<span style='color: #8E9297;'>Kein Produkt der FRITZ! GmbH (ehem. AVM).</span>"
         )
         lbl_notes.setStyleSheet("font-size: 8.5pt;")
@@ -719,6 +744,11 @@ class SettingsDialog(QDialog):
     def _on_local_pc_toggled(self, checked: bool) -> None:
         self.chk_pc_in_graph.setEnabled(checked)
         self.chk_pc_in_header.setEnabled(checked)
+
+    def _on_internet_health_toggled(self, checked: bool) -> None:
+        self.cmb_health_ip_mode.setEnabled(checked)
+        self.spin_health_interval.setEnabled(checked)
+        self.chk_health_uncached_dns.setEnabled(checked)
 
     def _on_test_connection(self) -> None:
         """Test UPnP reachability and Fritz!OS login and show immediate inline feedback."""
@@ -830,6 +860,12 @@ class SettingsDialog(QDialog):
         self.cmb_ping_endpoint.setEditText(self.config.ping_endpoint)
         self.chk_wan_pill.setChecked(self.config.show_wan_status_pill)
         self.chk_dns_pill.setChecked(self.config.enable_dns_monitor)
+        self.chk_internet_health.setChecked(self.config.enable_internet_health)
+        ip_idx = self.cmb_health_ip_mode.findData(self.config.health_ip_mode)
+        self.cmb_health_ip_mode.setCurrentIndex(max(0, ip_idx))
+        self.spin_health_interval.setValue(self.config.health_probe_interval_sec)
+        self.chk_health_uncached_dns.setChecked(self.config.health_uncached_dns)
+        self._on_internet_health_toggled(self.config.enable_internet_health)
 
         self.btn_col_down.hex_color = self.config.download_color
         self.btn_col_up.hex_color = self.config.upload_color
@@ -897,6 +933,10 @@ class SettingsDialog(QDialog):
         self.config.ping_endpoint = self.cmb_ping_endpoint.currentText().strip() or "1.1.1.1"
         self.config.show_wan_status_pill = self.chk_wan_pill.isChecked()
         self.config.enable_dns_monitor = self.chk_dns_pill.isChecked()
+        self.config.enable_internet_health = self.chk_internet_health.isChecked()
+        self.config.health_ip_mode = str(self.cmb_health_ip_mode.currentData() or "auto")
+        self.config.health_probe_interval_sec = self.spin_health_interval.value()
+        self.config.health_uncached_dns = self.chk_health_uncached_dns.isChecked()
 
         self.config.download_color = self.btn_col_down.hex_color
         self.config.upload_color = self.btn_col_up.hex_color
@@ -1009,6 +1049,12 @@ class SettingsDialog(QDialog):
             self.cmb_ping_endpoint.setEditText(defaults.ping_endpoint)
             self.chk_wan_pill.setChecked(defaults.show_wan_status_pill)
             self.chk_dns_pill.setChecked(defaults.enable_dns_monitor)
+            self.chk_internet_health.setChecked(defaults.enable_internet_health)
+            ip_idx = self.cmb_health_ip_mode.findData(defaults.health_ip_mode)
+            self.cmb_health_ip_mode.setCurrentIndex(max(0, ip_idx))
+            self.spin_health_interval.setValue(defaults.health_probe_interval_sec)
+            self.chk_health_uncached_dns.setChecked(defaults.health_uncached_dns)
+            self._on_internet_health_toggled(defaults.enable_internet_health)
         elif tab_idx == 4:  # Farben
             self.btn_col_down.hex_color = defaults.download_color
             self.btn_col_up.hex_color = defaults.upload_color
