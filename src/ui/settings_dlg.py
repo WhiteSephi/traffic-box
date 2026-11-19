@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSlider,
     QSpinBox,
     QTabWidget,
@@ -754,12 +755,13 @@ class SettingsDialog(QDialog):
         hero_vlayout.addLayout(links_grid)
         about_layout.addWidget(hero_group)
 
-        # 2. Compact System & Legal Info Group
+        # 2. Compact System & Legal Info Group (QGridLayout respects heightForWidth for wrapped labels)
         info_group = QGroupBox("System-Diagnose && Rechtliches")
-        info_form = QFormLayout(info_group)
-        info_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        info_form.setContentsMargins(12, 8, 12, 8)
-        info_form.setVerticalSpacing(5)
+        info_grid = QGridLayout(info_group)
+        info_grid.setContentsMargins(12, 12, 12, 10)
+        info_grid.setHorizontalSpacing(14)
+        info_grid.setVerticalSpacing(6)
+        info_grid.setColumnStretch(1, 1)
 
         is_frozen = getattr(sys, "frozen", False)
         build_mode = "Binary" if is_frozen else "Source"
@@ -772,10 +774,12 @@ class SettingsDialog(QDialog):
             f"Python {platform.python_version()} • Qt {qVersion()} • {build_mode}"
         )
         lbl_sys_val.setWordWrap(True)
+        lbl_sys_val.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lbl_sys_val.setStyleSheet("font-size: 8.5pt;")
 
         lbl_cfg_val = QLabel(storage_mode)
         lbl_cfg_val.setWordWrap(True)
+        lbl_cfg_val.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lbl_cfg_val.setToolTip(f"Pfad: {cfg_dir}")
         lbl_cfg_val.setStyleSheet("font-size: 8.5pt;")
 
@@ -785,11 +789,21 @@ class SettingsDialog(QDialog):
         )
         lbl_notes.setWordWrap(True)
         lbl_notes.setTextFormat(Qt.TextFormat.RichText)
+        lbl_notes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lbl_notes.setStyleSheet("font-size: 8.5pt;")
 
-        info_form.addRow("Laufzeit:", lbl_sys_val)
-        info_form.addRow("Speicherort:", lbl_cfg_val)
-        info_form.addRow("Hinweise:", lbl_notes)
+        for row_idx, (key_text, val_lbl) in enumerate(
+            [
+                ("Laufzeit:", lbl_sys_val),
+                ("Speicherort:", lbl_cfg_val),
+                ("Hinweise:", lbl_notes),
+            ]
+        ):
+            lbl_key = QLabel(key_text)
+            lbl_key.setStyleSheet("font-size: 8.5pt;")
+            info_grid.addWidget(lbl_key, row_idx, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            info_grid.addWidget(val_lbl, row_idx, 1)
+
         about_layout.addWidget(info_group)
 
         about_layout.addStretch(1)
