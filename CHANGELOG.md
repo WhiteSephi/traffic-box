@@ -4,6 +4,15 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.18.5] - 2026-11-19
+### Security
+- **PBKDF2-Mindestiterationen beim Fritz!OS-Login (`src/api/fritz_monitor.py`, `tests/test_fritz_monitor.py`):** Untergrenze `MIN_PBKDF2_ITERATIONS = 1_000` neben `MAX_PBKDF2_ITERATIONS = 100_000` in `_solve_pbkdf2_challenge()` ergänzt, sodass manipulierte oder unzulässig schwache Server-Challenges (`iter < 1.000`) abgelehnt werden.
+
+### Changed
+- **Transparenz zu Datenschutz, Sicherheit & Netzwerkverbindungen (`README.md`, `src/api/crypto.py`):**
+  - Neuer Abschnitt `Datenschutz, Sicherheit & Netzwerkverbindungen` in `README.md` mit vollständiger Übersicht aller optionalen ausgehenden Diagnose-Verbindungen (`1.1.1.1`, System-DNS, HTTPS-`204`-Canaries), Erklärungen zur lokalen Datenverarbeitung, Login-/UDN-Härtung sowie einem Multi-PC-/Syncthing-Hinweis zum Portabel-Modus.
+  - Fehlende Testmodule in der `README.md`-Projektstruktur ergänzt und den Modul-Docstring in `src/api/crypto.py` präzisiert (Windows DPAPI vs. Linux At-Rest-Obfuskation + POSIX `0600`/`0700`-Dateirechte).
+
 ## [0.18.4] - 2026-11-19
 ### Fixed
 - **„Über“-Tab Zeilenhöhe in `System-Diagnose & Rechtliches` (`src/ui/settings_dlg.py`):** Von `QFormLayout` auf `QGridLayout` mit `ColumnStretch(1, 1)` umgestellt, da `QFormLayout` die Zeilenhöhe mehrzeiliger `QLabel(wordWrap=True)`-Felder vertikal abgeschnitten hat.

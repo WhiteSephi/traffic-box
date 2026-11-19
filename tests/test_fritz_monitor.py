@@ -45,14 +45,14 @@ class TestFritzMonitor(unittest.TestCase):
         # Step 1: PBKDF2 v2 Challenge response
         xml_step1 = b"""<SessionInfo>
             <SID>0000000000000000</SID>
-            <Challenge>2$5$11223344$5$aabbccdd</Challenge>
+            <Challenge>2$1000$11223344$1000$aabbccdd</Challenge>
             <BlockTime>0</BlockTime>
         </SessionInfo>"""
 
         # Step 2: Valid SID response
         xml_step2 = b"""<SessionInfo>
             <SID>44556677889900aa</SID>
-            <Challenge>2$5$11223344$5$aabbccdd</Challenge>
+            <Challenge>2$1000$11223344$1000$aabbccdd</Challenge>
             <BlockTime>0</BlockTime>
         </SessionInfo>"""
 
@@ -74,7 +74,7 @@ class TestFritzMonitor(unittest.TestCase):
         self.client._sid = "0000000000000000"
         xml_blocked = b"""<SessionInfo>
             <SID>0000000000000000</SID>
-            <Challenge>2$5$11223344$5$aabbccdd</Challenge>
+            <Challenge>2$1000$11223344$1000$aabbccdd</Challenge>
             <BlockTime>12</BlockTime>
         </SessionInfo>"""
 
@@ -107,11 +107,13 @@ class TestFritzMonitor(unittest.TestCase):
             self.assertEqual(mock_open.call_count, 1)
 
     def test_pbkdf2_excessive_iterations_rejected(self) -> None:
-        """Verify PBKDF2 challenges exceeding MAX_PBKDF2_ITERATIONS or invalid salts are rejected."""
-        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$100001$1122$5$aabb", "pw"), "")
-        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$5$1122$100001$aabb", "pw"), "")
-        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$0$1122$5$aabb", "pw"), "")
-        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$5$zzzz$5$aabb", "pw"), "")
+        """Verify PBKDF2 challenges outside [MIN_PBKDF2_ITERATIONS, MAX_PBKDF2_ITERATIONS] or invalid salts are rejected."""
+        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$100001$1122$1000$aabb", "pw"), "")
+        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$1000$1122$100001$aabb", "pw"), "")
+        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$999$1122$1000$aabb", "pw"), "")
+        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$1000$1122$5$aabb", "pw"), "")
+        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$0$1122$1000$aabb", "pw"), "")
+        self.assertEqual(FritzGuestMonitorClient._solve_pbkdf2_challenge("2$1000$zzzz$1000$aabb", "pw"), "")
 
     def test_redirect_blocked(self) -> None:
         """Verify _NoRedirectHandler rejects HTTP 3xx redirects without following."""

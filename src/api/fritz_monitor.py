@@ -19,6 +19,7 @@ from src.api.upnp_client import (
 )
 from src.config import is_valid_host
 
+MIN_PBKDF2_ITERATIONS = 1_000
 MAX_PBKDF2_ITERATIONS = 100_000
 
 
@@ -81,7 +82,10 @@ class FritzGuestMonitorClient:
         except ValueError:
             return ""
 
-        if not (1 <= iter1 <= MAX_PBKDF2_ITERATIONS and 1 <= iter2 <= MAX_PBKDF2_ITERATIONS):
+        if not (
+            MIN_PBKDF2_ITERATIONS <= iter1 <= MAX_PBKDF2_ITERATIONS
+            and MIN_PBKDF2_ITERATIONS <= iter2 <= MAX_PBKDF2_ITERATIONS
+        ):
             return ""
         if not (1 <= len(salt1) <= 64 and 1 <= len(salt2) <= 64):
             return ""

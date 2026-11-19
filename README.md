@@ -83,6 +83,28 @@
 
 ---
 
+## 🔒 Datenschutz, Sicherheit & Netzwerkverbindungen
+
+- **100 % lokal & keine Telemetrie:** TrafficBox überträgt weder Traffic-Werte noch Gerätenamen, Zugangsdaten oder Nutzungsstatistiken an Dritte oder eigene Server. Alle Auswertungen laufen ausschließlich lokal auf deinem Rechner.
+- **Ausgehende Diagnose-Verbindungen (optional abschaltbar unter `Einstellungen → Netzwerk`):**
+
+  | Ziel | Intervall | Zweck | Abschaltbar über |
+  |---|---|---|---|
+  | `1.1.1.1` *(konfigurierbar)* | `1 s` | ICMP-Echo (Fallback TCP `443`/`53`) für Live-Ping & Jitter | `Ping- & Jitter-Graph anzeigen` |
+  | Aktiver System-DNS *(Anfrage an `cloudflare.com` bzw. `tb-<nonce>.tbcheck.cloudflare.com`)* | `30 s` *(bzw. `1 s` ohne Uncached-DNS)* | DNS-Antwortzeit, RCODE- & Hijack-Prüfung | `System-DNS überwachen` / `Uncached-DNS (Nonce) nutzen` |
+  | `cp.cloudflare.com` & `connectivitycheck.gstatic.com` *(Kaltstart-Fallback: `1.1.1.1` / `8.8.8.8`)* | `30 s` *(`5 s` im Störungs-Burst)* | Dual-Stack HTTPS-`204`-Canary & Zombie-WAN-Erkennung | `Aktive Internet-Erreichbarkeit prüfen` |
+
+  *Hinweis: Externe Gegenstellen sehen dabei technisch bedingt ausschließlich deine öffentliche IP-Adresse, das Abfrage-Intervall und den Standard-Header (`User-Agent: TrafficBox`), jedoch keinerlei persönliche oder lokale Netzwerkdaten.*
+
+- **Schutz der FRITZ!Box-Zugangsdaten & Heim-Router-Bindung:**
+  - Der Standardbetrieb über UPnP (`Port 49000`) funktioniert komplett **ohne Passwort**.
+  - Der optionale Fritz!OS-Login (für Online-Zähler & Gäste-WLAN) nutzt ausschließlich **PBKDF2-SHA256 Challenge-Response (`login_sid.lua?version=2`, mit `1.000–100.000` Iterationen)** – das Passwort wird nie im Klartext über das Netzwerk gesendet und unsicheres MD5-Login ist standardmäßig blockiert.
+  - Eine automatische **Heim-Router-Bindung per UDN** (fail-closed) verhindert, dass gespeicherte Zugangsdaten in fremden Netzen an eine fremde FRITZ!Box gesendet werden.
+  - Die Speicherung erfolgt unter **Windows über Windows DPAPI (`CryptProtectData`)** an dein Benutzerkonto gebunden; unter **Linux** über **PBKDF2-HMAC-SHA256 + Encrypt-then-MAC (At-Rest-Obfuskation)** in Kombination mit restriktiven POSIX-Dateirechten (`0600` auf `config.json`, `0700` auf `~/.config/trafficbox`).
+- **Hinweis zu Multi-PC-Sync (Syncthing / Cloud-Ordner):** Wenn du den Projektordner zwischen mehreren PCs synchronisierst, solltest du **keine** `local/config.json` (Portabel-Modus) im synchronisierten Ordner ablegen. Andernfalls überschreiben sich die geräte- bzw. benutzergebundenen DPAPI-/Obfuskations-Secrets gegenseitig und erzeugen Sync-Konflikte. Ohne `local/config.json` verwaltet jedes Gerät seine Konfiguration sauber getrennt in `%APPDATA%\trafficbox\config.json` bzw. `~/.config/trafficbox/config.json`.
+
+---
+
 ## 🧪 Automatisierte Tests
 
 Das Projekt verfügt über eine schlanke Unit-Testsuite auf Basis der Python-Standardbibliothek (`unittest`), die ohne zusätzliche Abhängigkeiten direkt ausgeführt werden kann:
@@ -110,7 +132,7 @@ python -m unittest discover -s tests -v
 │   │   ├── internet_health.py  # Mehrstufige Internet-Qualitäts-, Dual-Stack- & Zombie-WAN-Diagnose
 │   │   ├── net_health.py       # Ping-, Jitter-, Uncached-DNS- & HTTPS-204-Canary-Probes
 │   │   ├── local_traffic.py    # Lokaler PC-Traffic-Monitor (Windows iphlpapi & Linux /proc/net/dev)
-│   │   └── crypto.py           # Passwort-Schutz (Windows DPAPI & Linux PBKDF2-HMAC + 0600-Dateirechte)
+│   │   └── crypto.py           # Passwort-Schutz (Windows DPAPI & Linux PBKDF2-HMAC At-Rest-Obfuskation + 0600-Rechte)
 │   └── ui/
 │       ├── widget.py           # Rahmenloses Haupt-Widget (Header, Prozentbalken, Footer)
 │       ├── graph_canvas.py     # Custom Qt6-Graph mit Oszilloskop-Hover-HUD & Mehrschicht-Flächen
@@ -121,14 +143,20 @@ python -m unittest discover -s tests -v
 │       ├── icons.py            # Vektorgrafiken & Icons (Pfeile, UI-Symbole)
 │       └── tray.py             # System-Tray-Integration & Schnellzugriff-Menü
 ├── tests/                      # Automatisierte Unit-Tests (unittest)
+│   ├── test_autostart.py       # Windows Registry, Linux XDG .desktop & KWin-Regeln
+│   ├── test_compact_mode.py    # Kompakt-/Nur-Graph-Modus, Theme-Awareness, HTML-Escaping & UI-Skalierung
 │   ├── test_config.py          # Konfiguration, Standardwerte & .env-Parser
 │   ├── test_crypto.py          # Ver-/Entschlüsselung & Windows DPAPI Roundtrip
+│   ├── test_edge_snapping.py   # Magnetisches Einrasten an Bildschirm- & Arbeitsbereichsrändern
 │   ├── test_formatters.py      # Raten-, Datenvolumen- & Uptime-Formatierung
+│   ├── test_fritz_monitor.py   # Fritz!OS PBKDF2/MD5-Login, Redirect-Schutz & Online-Zähler
 │   ├── test_health_dialog.py   # Diagnose-Detailfenster, klickbare Pillen & Handlungstipps
 │   ├── test_internet_health.py # 5-Stufen-Statuslogik, Quorum, Hysterese, Baseline & Zombie-WAN
 │   ├── test_local_traffic.py   # Linux /proc/net/dev-Parsing & lokale Ratenberechnung
 │   ├── test_net_health.py      # Ping-Regex, ICMP, DNS-RCODE/Hijack & HTTPS-204-Canaries
+│   ├── test_settings_dlg.py    # Einstellungs-Dialog, Formulare, Themes & Tab-Reset
 │   ├── test_upnp_client.py     # UPnP-Session-Tracking, UDN-Erkennung & 32-Bit-Überlaufschutz
+│   ├── test_worker_fallback.py # Lokaler Traffic-Fallback & UPnP-Cooldown im Worker
 │   └── test_worker_foreign_box.py # Schutz vor Fehl-Logins auf fremden FRITZ!Boxen (Roaming)
 ├── requirements.txt            # Python-Abhängigkeiten (PySide6)
 ├── .env.example                # Vorlage für Umgebungsvariablen

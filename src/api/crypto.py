@@ -1,8 +1,11 @@
 """Cross-platform credential protection helper without third-party dependencies.
 
-On Windows: Uses Windows DPAPI (CryptProtectData / CryptUnprotectData via ctypes in crypt32.dll).
-On Linux / Fallback: Uses PBKDF2-HMAC-SHA256 key derivation with Encrypt-then-MAC
-(HMAC-SHA256 authenticated stream cipher, protected alongside 0600 file permissions).
+On Windows: Uses OS-level Windows DPAPI (CryptProtectData / CryptUnprotectData via ctypes
+in crypt32.dll), cryptographically bound to the current Windows user account.
+On Linux / Fallback: Uses PBKDF2-HMAC-SHA256 (200,000 iterations) with Encrypt-then-MAC
+(HMAC-SHA256) as machine- and user-bound at-rest obfuscation against plaintext leaks,
+relying on strict POSIX permissions (0600 on config.json / 0700 on config dir) for
+access isolation against other local users.
 """
 
 from __future__ import annotations
