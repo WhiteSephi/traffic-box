@@ -228,10 +228,10 @@ class TestCompactMode(unittest.TestCase):
         # Title font should scale from baseline 10pt -> 15pt
         self.assertEqual(self.widget.lbl_title.font().pointSize(), 15)
 
-        # Header buttons height should scale from 26px -> 39px
-        self.assertEqual(self.widget.btn_view_graph.height(), 39)
-        self.assertEqual(self.widget.btn_view_counters.height(), 39)
-        self.assertEqual(self.widget.btn_settings.height(), 39)
+        # Header buttons height should scale from 30px -> 45px
+        self.assertEqual(self.widget.btn_view_graph.height(), 45)
+        self.assertEqual(self.widget.btn_view_counters.height(), 45)
+        self.assertEqual(self.widget.btn_settings.height(), 45)
 
         # Minimum width scales from baseline 260 -> 390
         self.assertEqual(self.widget.minimumWidth(), 390)
@@ -240,7 +240,7 @@ class TestCompactMode(unittest.TestCase):
         self.widget.config.ui_scale_percent = 100
         self.widget._apply_config_visuals()
         self.assertEqual(self.widget.lbl_title.font().pointSize(), 10)
-        self.assertEqual(self.widget.btn_view_graph.height(), 26)
+        self.assertEqual(self.widget.btn_view_graph.height(), 30)
         self.assertEqual(self.widget.minimumWidth(), 260)
 
     def test_tooltip_escapes_html_injection(self) -> None:
@@ -320,7 +320,7 @@ class TestCompactMode(unittest.TestCase):
 
         # 3. Error & Degraded states
         for status, expected_text, expected_color in [
-            (HealthStatus.ZOMBIE_WAN, "✕ Zombie-WAN", "#FF5252"),
+            (HealthStatus.ZOMBIE_WAN, "✕ Kein Internet", "#FF5252"),
             (HealthStatus.DNS_ERROR, "⚠ DNS-Störung", "#FF7043"),
             (HealthStatus.LAN_ERROR, "✕ LAN-Problem", "#BB86FC"),
             (HealthStatus.DEGRADED, "⚠ Nur IPv4", "#FFAB00"),

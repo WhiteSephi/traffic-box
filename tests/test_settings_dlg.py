@@ -121,14 +121,22 @@ class TestSettingsDialog(unittest.TestCase):
             dlg.deleteLater()
 
     def test_about_tab_and_system_info(self) -> None:
-        """Verify 'Über' tab displays version and disables reset button."""
-        dlg = SettingsDialog(self.config, self._on_apply, initial_tab=5)
+        """Verify 'Über' tab displays version, author, and disables reset button."""
+        dlg = SettingsDialog(self.config, self._on_apply, initial_tab=4)
         try:
-            self.assertEqual(dlg.tabs.count(), 6)
-            self.assertEqual(dlg.tabs.tabText(5), "Über")
-            self.assertEqual(dlg.tabs.currentIndex(), 5)
+            self.assertEqual(dlg.tabs.count(), 5)
+            self.assertEqual(dlg.tabs.tabText(4), "Über")
+            self.assertEqual(dlg.tabs.currentIndex(), 4)
             self.assertFalse(dlg.btn_reset.isEnabled())
             self.assertEqual(dlg.lbl_about_version.text(), f"v{__version__}")
+            self.assertIn("WhiteSephi", dlg.lbl_about_author.text())
+
+            # Verify unified Anzeige tab subpage switcher (Darstellung & Layout / Themes & Farben)
+            dlg.tabs.setCurrentIndex(2)
+            self.assertEqual(dlg.display_stack.currentIndex(), 0)
+            dlg._set_display_subpage(1)
+            self.assertEqual(dlg.display_stack.currentIndex(), 1)
+            self.assertTrue(dlg.btn_sub_theme.isChecked())
 
             # Switching back to tab 0 re-enables the reset button
             dlg.tabs.setCurrentIndex(0)

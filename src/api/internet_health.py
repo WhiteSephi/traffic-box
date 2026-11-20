@@ -490,7 +490,7 @@ class HealthEvaluator:
                     reason = f"WAN hängt trotz FRITZ!Box-Sync (> {wan_loss_pct:.0f} % Paketverlust)"
                 else:
                     reason = "WAN hängt trotz FRITZ!Box-Sync! Router meldet Verbunden, aber kein Internetverkehr möglich."
-                return HealthStatus.ZOMBIE_WAN, "Zombie-WAN", reason, False
+                return HealthStatus.ZOMBIE_WAN, "Kein Internet", reason, False
 
             if captive_portal_detected:
                 return (
@@ -509,7 +509,7 @@ class HealthEvaluator:
             return (
                 HealthStatus.OFFLINE,
                 "Offline",
-                "Keine Internetverbindung (alle unabhängigen HTTPS-Probes fehlgeschlagen)",
+                "Keine Internetverbindung (alle HTTPS-Tests fehlgeschlagen)",
                 False,
             )
 

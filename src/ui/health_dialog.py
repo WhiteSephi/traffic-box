@@ -32,7 +32,7 @@ _STATUS_META: dict[HealthStatus, tuple[str, str]] = {
     HealthStatus.STABLE: ("Stabil", "#00E676"),
     HealthStatus.DEGRADED: ("Eingeschränkt", "#FFAB00"),
     HealthStatus.DNS_ERROR: ("DNS-Störung", "#FF7043"),
-    HealthStatus.ZOMBIE_WAN: ("Zombie-WAN", "#FF5252"),
+    HealthStatus.ZOMBIE_WAN: ("Verbindung hängt", "#FF5252"),
     HealthStatus.OFFLINE: ("Offline", "#FF5252"),
     HealthStatus.LAN_ERROR: ("LAN-Problem", "#BB86FC"),
     HealthStatus.UNKNOWN: ("Prüfe…", "#94A3B8"),
@@ -80,11 +80,11 @@ def build_health_advice(sample: TrafficSample) -> tuple[str, list[str]]:
 
     if st == HealthStatus.STABLE:
         bullets = [
-            "Heimnetz, Dual-Stack-HTTPS, Uncached-DNS und Latenz liegen im normalen Bereich — es gibt keinen Handlungsbedarf."
+            "Heimnetz, HTTPS, DNS und Latenz liegen im normalen Bereich — kein Handlungsbedarf."
         ]
         if not h.baseline_ready:
             bullets.append(
-                "Hinweis: TrafficBox lernt noch die Ruhe-Baseline deines Anschlusses (benötigt ca. 15 s geringe Auslastung)."
+                "Hinweis: Normalwert wird noch gelernt (ca. 15 s geringe Auslastung nötig)."
             )
         if not h.ipv6_available:
             bullets.append(
@@ -153,7 +153,7 @@ def build_health_advice(sample: TrafficSample) -> tuple[str, list[str]]:
         return (
             "Verbindungsqualität vorübergehend eingeschränkt",
             [
-                "Die Messwerte weichen aktuell leicht vom Normalbereich ab — über „Jetzt prüfen“ lässt sich sofort eine Gegenprobe starten."
+                "Messwerte weichen leicht vom Normalbereich ab — über „Jetzt prüfen“ direkt erneut testen."
             ],
         )
 
@@ -171,12 +171,12 @@ def build_health_advice(sample: TrafficSample) -> tuple[str, list[str]]:
 
     if st == HealthStatus.ZOMBIE_WAN:
         return (
-            "WAN hängt trotz Router-Sync („Silent Failure“)",
+            "Kein Internet trotz aktiver Router-Verbindung",
             [
-                "Die FRITZ!Box meldet zwar eine bestehende WAN-Verbindung, es kommt aber kein echter Internetverkehr mehr durch.",
-                "Tipp 1: In der Router-Oberfläche „Neu verbinden“ auslösen — das erneuert hängende PPPoE-/Kabel-/AFTR-Sessions oft sofort.",
-                "Tipp 2: Hilft ein Reconnect nicht, Router bzw. Modem ca. 30 Sekunden stromlos neu starten.",
-                "Tipp 3: Bei wiederholtem Auftreten das Router-Ereignislog sichern und den Fehler beim Anbieter melden (Stichwort: Sync aktiv, aber kein Nutzdatenverkehr).",
+                "Die FRITZ!Box meldet zwar „Verbunden“, es kommen aber keine Internet-Daten durch.",
+                "Tipp 1: In der Router-Oberfläche „Neu verbinden“ auslösen.",
+                "Tipp 2: Falls das nicht hilft, Router/Modem ca. 30 Sekunden vom Strom trennen.",
+                "Tipp 3: Bei häufigem Auftreten Ereignislog sichern und dem Anbieter melden.",
             ],
         )
 
@@ -517,16 +517,16 @@ class InternetHealthDialog(QDialog):
             (
                 "#FF7043",
                 "🟠 DNS-Störung",
-                "Direkte HTTPS-204-Probes ins Internet erfolgreich, aber Uncached-DNS über den System-DNS (z. B. AdGuard) schlägt fehl oder wird umgeleitet.",
-                "Internet lebt, aber Domainnamen können nicht mehr frisch aufgelöst werden (Cache kaschiert den Ausfall sonst).",
-                "Abgestürzter lokaler DNS-Dienst (AdGuard/Pi-hole), gestörter Upstream-Resolver oder falsche Systemzeit bei DoT/DoH.",
+                "HTTPS-Tests ins Internet ok, aber direkte DNS-Anfrage (ohne Cache) schlägt fehl oder wird umgeleitet.",
+                "Internet funktioniert, aber Domainnamen werden nicht mehr frisch aufgelöst.",
+                "Gestörter lokaler DNS-Dienst (AdGuard/Pi-hole), Upstream-Resolver oder falsche Systemzeit.",
             ),
             (
                 "#FF5252",
-                "🔴 Offline / Zombie-WAN",
-                "Heimnetz ok, aber beide unabhängigen HTTPS-Canaries (Cloudflare & Google) scheitern oder > 20 % Verlust.",
-                "Kein Nutzdatenverkehr ins Internet möglich. Zeigt „Zombie-WAN“, wenn die FRITZ!Box gleichzeitig noch „Verbunden“ meldet.",
-                "Hängende PPPoE-/Kabel-Session („Silent Failure“), fehlender Router-Sync, Captive Portal oder Provider-Ausfall.",
+                "🔴 Offline / Verbindung hängt",
+                "Heimnetz ok, aber alle HTTPS-Verbindungstests (Cloudflare & Google) scheitern oder > 20 % Verlust.",
+                "Kein Internetverkehr möglich (auch wenn die FRITZ!Box noch „Verbunden“ meldet).",
+                "Hängende Provider-Session, fehlender Router-Sync, Anmeldeportal (Captive Portal) oder Netzausfall.",
             ),
             (
                 "#BB86FC",
@@ -566,10 +566,10 @@ class InternetHealthDialog(QDialog):
         how_layout = QVBoxLayout(how_group)
         how_layout.setContentsMargins(10, 8, 10, 8)
         lbl_how = QLabel(
-            "• <b>Dual-Stack HTTPS-204 & Quorum:</b> Fragt 2 unabhängige Ziele (Cloudflare & Google) mit frischer TLS-Verbindung ohne Keep-Alive ab — ein einzelnes Ziel löst keinen Alarm aus.<br>"
-            "• <b>Uncached-Nonce-DNS:</b> Nutzt eindeutige Subdomains im 30s-Takt (5s-Burst bei Störung), um lokalen AdGuard-/Optimistic-Cache sicher zu umgehen ohne das Log zuzumüllen.<br>"
-            "• <b>15s-Live-Fenster & Idle-Baseline:</b> Lernt die Ruhe-Latenz nur bei geringer Auslastung (&lt; 40 %) und erholt sich nach Downloads innerhalb von ca. 15–20 s.<br>"
-            "• <b>2-Zyklen-Hysterese:</b> Verhindert nervöses Flackern bei kurzen Einzel-Aussetzern."
+            "• <b>Dual-Stack HTTPS (204):</b> Prüft 2 unabhängige Ziele (Cloudflare & Google) — ein einzelnes Ziel löst keinen Alarm aus.<br>"
+            "• <b>Direkte DNS-Prüfung:</b> Fragt Zufalls-Subdomains ab (30 s / 5 s bei Störung), um lokale DNS-Caches zu umgehen.<br>"
+            "• <b>Live-Verlauf & Normalwert:</b> Lernt die Ruhe-Latenz bei geringer Last (&lt; 40 %) und erholt sich nach Downloads in ca. 15–20 s.<br>"
+            "• <b>Verzögerter Alarm:</b> Erst nach 2 Fehlversuchen, um kurze Einzel-Aussetzer abzufangen."
         )
         lbl_how.setWordWrap(True)
         lbl_how.setTextFormat(Qt.TextFormat.RichText)
@@ -613,7 +613,7 @@ class InternetHealthDialog(QDialog):
 
         if h.last_probe_ts > 0:
             ts_str = datetime.fromtimestamp(h.last_probe_ts).strftime("%H:%M:%S")
-            mode_str = "Fast-Burst (5 s)" if h.in_burst_mode else f"Normal ({self.config.health_probe_interval_sec} s)"
+            mode_str = "Schnellprüfung (5 s)" if h.in_burst_mode else f"Normal ({self.config.health_probe_interval_sec} s)"
             self.lbl_probe_meta.setText(f"Zuletzt geprüft: {ts_str} • {mode_str}")
         else:
             self.lbl_probe_meta.setText("Ausstehend…")
@@ -666,10 +666,10 @@ class InternetHealthDialog(QDialog):
             d_ms = f"{sample.dns_ms:.1f} ms".replace(".", ",") if sample.dns_ms is not None else "n/a"
             self.lbl_stage_dns.setText(f"Server {d_ip} • Standard-Check: {d_ms}")
         elif h.dns_ok is None:
-            self.lbl_stage_dns.setText("Warte auf erste Uncached-Messung…")
+            self.lbl_stage_dns.setText("Warte auf erste DNS-Prüfung…")
         elif h.dns_ok:
             d_ms = f"{h.dns_ms:.1f} ms".replace(".", ",") if h.dns_ms is not None else "-"
-            self.lbl_stage_dns.setText(f"Server {h.dns_ip or '-'} • {d_ms} (Nonce, Cache umgangen)")
+            self.lbl_stage_dns.setText(f"Server {h.dns_ip or '-'} • {d_ms} (ohne Cache)")
         else:
             d_err = _format_dns_error(h.dns_error)
             self.lbl_stage_dns.setText(f"Server {h.dns_ip or '-'} • Gestört ({d_err})")
@@ -687,7 +687,7 @@ class InternetHealthDialog(QDialog):
         load_s = f"Down {down_pct:.0f}% • Up {up_pct:.0f}%".replace(".", ",")
         self.lbl_stage_quality.setText(
             f"p85: {p85_s} • Med: {med_s} • Jitter: {jit_s} • Loss: {loss_s}\n"
-            f"Ruhe-Basis: {base_s} • Auslastung: {load_s}"
+            f"Normalwert: {base_s} • Auslastung: {load_s}"
         )
 
         # Advice & Tips

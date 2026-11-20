@@ -719,13 +719,13 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         graph_icon_col = active_text if graph_active else self.config.title_color
         counters_icon_col = active_text if counters_active else self.config.title_color
 
-        btn_icon_sz = max(14, int(round(16.0 * base_scale)))
-        btn_h = max(23, int(round(26.0 * base_scale)))
-        btn_font_px = max(10, int(round(11.5 * base_scale)))
+        btn_icon_sz = max(15, int(round(18.0 * base_scale)))
+        btn_h = max(26, int(round(30.0 * base_scale)))
+        btn_font_px = max(11, int(round(13.0 * base_scale)))
         btn_radius = max(4, int(round(5.0 * base_scale)))
-        pad_v = max(2, int(round(2.0 * base_scale)))
-        pad_h = max(6, int(round(8.0 * base_scale)))
-        settings_sz = max(23, int(round(26.0 * base_scale)))
+        pad_v = max(2, int(round(3.0 * base_scale)))
+        pad_h = max(7, int(round(9.0 * base_scale)))
+        settings_sz = btn_h
 
         self.btn_view_graph.setFixedHeight(btn_h)
         self.btn_view_counters.setFixedHeight(btn_h)
@@ -948,7 +948,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             elif st == HealthStatus.DNS_ERROR:
                 label = "⚠ DNS-Störung"
             elif st == HealthStatus.ZOMBIE_WAN:
-                label = "✕ Zombie-WAN"
+                label = "✕ Kein Internet"
             elif st == HealthStatus.OFFLINE:
                 if sample.box_reachable and not sample.is_local_fallback and not sample.physical_link_up:
                     label = "⚠ Kein Sync"
@@ -1196,7 +1196,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                 HealthStatus.STABLE: "Stabil",
                 HealthStatus.DEGRADED: "Eingeschränkt",
                 HealthStatus.DNS_ERROR: "DNS-Störung",
-                HealthStatus.ZOMBIE_WAN: "Zombie-WAN",
+                HealthStatus.ZOMBIE_WAN: "Kein Internet (Router verbunden)",
                 HealthStatus.OFFLINE: "Offline",
                 HealthStatus.LAN_ERROR: "LAN-Problem",
             }
@@ -1261,7 +1261,7 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                 jit_s = f"{h.wan_jitter_ms:.1f}".replace(".", ",")
                 loss_s = f"{h.wan_loss_pct:.0f} %"
                 base_s = (
-                    f" (Basis {h.baseline_rtt_ms:.0f})"
+                    f" (Normalwert {h.baseline_rtt_ms:.0f})"
                     if (h.baseline_ready and h.baseline_rtt_ms is not None)
                     else ""
                 )

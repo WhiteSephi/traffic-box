@@ -4,6 +4,17 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.19.0] - 2026-11-20
+### Added
+- **„Über“-Tab mit Autor & GitHub-Vektor-Icon (`src/ui/settings_dlg.py`, `src/ui/icons.py`):** Zeigt `von WhiteSephi` samt eigenem Vektor-GitHub-Icon (`create_ui_icon("github")`) im Hero-Bereich und auf dem GitHub-Button.
+
+### Changed
+- **Einstellungen an `SystemBox` angeglichen (`src/ui/settings_dlg.py`):**
+  - Die bisherigen Tabs `Anzeige` und `Design & Themes` sind nun im Tab **„Anzeige“** mit einer segmentierten Umschaltleiste (`Darstellung & Layout` | `Themes & Farben`) zusammengeführt (`5` statt `6` Tabs).
+  - Gruppen- und Feldbezeichnungen (`Fenster & Verhalten`, `Widget-Position sperren`, `Graphen & Signale`) an das Geschwister-Projekt angeglichen.
+- **Größere & proportional skalierende Header-Buttons (`src/ui/widget.py`, `src/ui/icons.py`):** `create_ui_icon()` skaliert die Vektor-Icons (`graph`, `counters`, `settings`) nun relativ zur Zielgröße; die Header-Buttons (`Graph`, `Zähler`, `⚙`) nutzen `30 px` Basishöhe und `18 px` Icons für ein ausgewogeneres Verhältnis zu Titel und Live-Raten.
+- **Verständlichere, kompakte UI-Begriffe (`src/ui/widget.py`, `src/ui/health_dialog.py`, `src/ui/settings_dlg.py`, `src/api/internet_health.py`):** Fach-/Entwickler-Begriffe wie `Zombie-WAN`, `Statuspille`, `Fast-Burst`, `Ruhe-Baseline`, `Canary` und `Uncached-Nonce-DNS` durch klare, knappe Formulierungen (`Kein Internet` / `Verbindung hängt`, `Internet-Status`, `Schnellprüfung`, `Normalwert`, `HTTPS-Tests`, `Direkte DNS-Prüfung (ohne Cache)`) ersetzt.
+
 ## [0.18.5] - 2026-11-19
 ### Security
 - **PBKDF2-Mindestiterationen beim Fritz!OS-Login (`src/api/fritz_monitor.py`, `tests/test_fritz_monitor.py`):** Untergrenze `MIN_PBKDF2_ITERATIONS = 1_000` neben `MAX_PBKDF2_ITERATIONS = 100_000` in `_solve_pbkdf2_challenge()` ergänzt, sodass manipulierte oder unzulässig schwache Server-Challenges (`iter < 1.000`) abgelehnt werden.

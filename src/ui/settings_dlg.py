@@ -12,9 +12,12 @@ from PySide6.QtGui import (
     QCloseEvent,
     QDesktopServices,
     QHideEvent,
+    QIcon,
+    QPalette,
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -32,6 +35,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSlider,
     QSpinBox,
+    QStackedWidget,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -43,6 +47,7 @@ from src.api.upnp_client import FritzUpnpClient
 from src.autostart import is_autostart_enabled, set_autostart
 from src.config import AppConfig, get_config_dir
 from src.ui.color_picker import ColorButton, ModernColorPickerPopup, THEMES, make_swatch_icon
+from src.ui.icons import create_ui_icon
 from src.ui.tray import create_router_icon
 
 
@@ -156,21 +161,21 @@ class SettingsDialog(QDialog):
         sys_form.addRow("Startverzögerung:", self.spin_delay)
         gen_layout.addWidget(sys_group)
 
-        # Fenster & Position
-        win_group = QGroupBox("Fenster-Verhalten && Position")
+        # Fenster & Verhalten (analog SystemBox)
+        win_group = QGroupBox("Fenster && Verhalten")
         win_form = QFormLayout(win_group)
         win_form.setContentsMargins(10, 10, 10, 10)
         win_form.setVerticalSpacing(6)
 
         self.chk_always_on_top = QCheckBox("Immer im Vordergrund")
         self.chk_always_on_top.setToolTip("Hält das Widget dauerhaft über normalen Anwendungsfenstern sichtbar.")
-        self.chk_locked_pos = QCheckBox("Position sperren")
+        self.chk_locked_pos = QCheckBox("Widget-Position sperren")
         self.chk_locked_pos.setToolTip(
-            "Verhindert versehentliches Verschieben und blendet den Größen-Anfasser (Resize-Grip) aus."
+            "Verhindert versehentliches Verschieben per Maus und blendet den Größen-Anfasser aus."
         )
         self.chk_snap_edges = QCheckBox("An Bildschirmrändern einrasten")
         self.chk_snap_edges.setToolTip(
-            "Zieht das Widget beim Verschieben magnetisch an die Kanten des aktuellen Bildschirms."
+            "Richtet das Widget beim Verschieben magnetisch an Bildschirmrändern aus."
         )
 
         win_form.addRow(self.chk_always_on_top)
@@ -290,7 +295,7 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self._wrap_in_scroll(tab_fritz), "FRITZ!Box")
 
         # =========================================================================
-        # TAB 3: Anzeige (Skalierung, Graphen & Raten-Darstellung)
+        # TAB 3: Anzeige (Segment-Umschalter: Darstellung & Layout | Themes & Farben)
         # =========================================================================
         tab_display = QWidget()
         disp_layout = QVBoxLayout(tab_display)
@@ -312,7 +317,7 @@ class SettingsDialog(QDialog):
         self.slider_ui_scale.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.slider_ui_scale.setTickInterval(5)
         self.slider_ui_scale.setToolTip(
-            "Skaliert Schriftgrößen, Buttons, Pillen und Mindestmaße des Widgets (70 % bis 300 % in 5 %-Schritten)."
+            "Globale Schrift- und Widget-Größe in Prozent (70–300 % in 5 %-Schritten)."
         )
 
         self.spin_ui_scale = QSpinBox()
@@ -320,7 +325,7 @@ class SettingsDialog(QDialog):
         self.spin_ui_scale.setSingleStep(5)
         self.spin_ui_scale.setSuffix("%")
         self.spin_ui_scale.setToolTip(
-            "Skaliert Schriftgrößen, Buttons, Pillen und Mindestmaße des Widgets (70 % bis 300 % in 5 %-Schritten)."
+            "Globale Schrift- und Widget-Größe in Prozent (70–300 % in 5 %-Schritten)."
         )
 
         self.slider_ui_scale.valueChanged.connect(
@@ -332,7 +337,7 @@ class SettingsDialog(QDialog):
 
         btn_scale_100 = QPushButton("100% (Standard)")
         btn_scale_100.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_scale_100.setToolTip("Setzt die UI-Skalierung auf 100 % zurück.")
+        btn_scale_100.setToolTip("Setzt die globale UI-Skalierung auf 100 % zurück.")
         btn_scale_100.clicked.connect(lambda: self.spin_ui_scale.setValue(100))
 
         scale_row.addWidget(self.slider_ui_scale, 1)
@@ -344,7 +349,7 @@ class SettingsDialog(QDialog):
         opacity_row = QHBoxLayout()
         self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
         self.slider_opacity.setRange(25, 100)
-        self.slider_opacity.setToolTip("Regelt die Hintergrund-Transparenz des Widgets (25 % bis 100 %).")
+        self.slider_opacity.setToolTip("Hintergrund-Transparenz des Widgets (25–100 %).")
         self.lbl_opacity_val = QLabel("85%")
         self.slider_opacity.valueChanged.connect(
             lambda v: self.lbl_opacity_val.setText(f"{v}%")
@@ -354,7 +359,7 @@ class SettingsDialog(QDialog):
         ui_scale_form.addRow("Deckkraft:", opacity_row)
 
         lbl_scale_hint = QLabel(
-            "Skaliert alle Elemente des Widgets (Header, Raten-Zahlen, DNS-Pille, Buttons & Zähler) für hochauflösende Bildschirme."
+            "Skaliert Schrift, Buttons, Status-Anzeigen und Zähler für hochauflösende Bildschirme."
         )
         lbl_scale_hint.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
         lbl_scale_hint.setWordWrap(True)
@@ -412,7 +417,7 @@ class SettingsDialog(QDialog):
         rates_grid.setVerticalSpacing(6)
 
         self.chk_compact = QCheckBox("Kompakt-Modus")
-        self.chk_compact.setToolTip("Blendet den Graphen aus und zeigt nur die Live-Raten sowie Statuspillen an.")
+        self.chk_compact.setToolTip("Blendet den Graphen aus und zeigt nur Live-Raten und Status-Anzeigen.")
         self.chk_graph_only = QCheckBox("Nur-Graph-Modus")
         self.chk_graph_only.setToolTip("Blendet die oberen Raten-Zahlen aus und maximiert die Fläche für den Live-Graph.")
         self.chk_switch_up_down = QCheckBox("Download oben / Upload unten")
@@ -460,7 +465,55 @@ class SettingsDialog(QDialog):
         disp_layout.addWidget(rates_group)
         disp_layout.addStretch(1)
 
-        self.tabs.addTab(self._wrap_in_scroll(tab_display), "Anzeige")
+        # Container für Tab 3 ("Anzeige") mit Segment-Bar analog SystemBox
+        tab_display_container = QWidget()
+        disp_container_layout = QVBoxLayout(tab_display_container)
+        disp_container_layout.setContentsMargins(0, 8, 0, 0)
+        disp_container_layout.setSpacing(4)
+
+        seg_row = QHBoxLayout()
+        seg_row.setContentsMargins(9, 0, 9, 0)
+
+        seg_bar = QFrame()
+        seg_bar.setObjectName("displaySegmentBar")
+        seg_layout = QHBoxLayout(seg_bar)
+        seg_layout.setContentsMargins(3, 3, 3, 3)
+        seg_layout.setSpacing(3)
+
+        self.btn_sub_display = QPushButton("Darstellung && Layout")
+        self.btn_sub_display.setCheckable(True)
+        self.btn_sub_display.setChecked(True)
+        self.btn_sub_display.setMinimumWidth(165)
+        self.btn_sub_display.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.btn_sub_theme = QPushButton("Themes && Farben")
+        self.btn_sub_theme.setCheckable(True)
+        self.btn_sub_theme.setMinimumWidth(165)
+        self.btn_sub_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._display_seg_group = QButtonGroup(self)
+        self._display_seg_group.setExclusive(True)
+        self._display_seg_group.addButton(self.btn_sub_display, 0)
+        self._display_seg_group.addButton(self.btn_sub_theme, 1)
+        self._display_seg_group.idClicked.connect(self._set_display_subpage)
+
+        seg_layout.addWidget(self.btn_sub_display)
+        seg_layout.addWidget(self.btn_sub_theme)
+        self._style_display_segment_bar(seg_bar)
+
+        seg_row.addWidget(seg_bar)
+        seg_row.addStretch(1)
+        disp_container_layout.addLayout(seg_row)
+
+        self.display_stack = QStackedWidget()
+        self.display_stack.addWidget(self._wrap_in_scroll(tab_display))
+
+        # Subpage 2: Themes & Farben (wird unten befüllt und hinzugefügt)
+        tab_colors = QWidget()
+        self.display_stack.addWidget(self._wrap_in_scroll(tab_colors))
+        disp_container_layout.addWidget(self.display_stack, 1)
+
+        self.tabs.addTab(tab_display_container, "Anzeige")
 
         # =========================================================================
         # TAB 4: Netzwerk (Eigener PC & Diagnose)
@@ -519,18 +572,18 @@ class SettingsDialog(QDialog):
             "Ziel-IP oder Hostname für die sekündliche ICMP-/TCP-Latenzmessung (Standard: 1.1.1.1)."
         )
 
-        self.chk_wan_pill = QCheckBox("Statuspille im Footer anzeigen")
+        self.chk_wan_pill = QCheckBox("Internet-Status im Footer anzeigen")
         self.chk_wan_pill.setToolTip(
-            "Zeigt den Verbindungs- und Qualitätsstatus links im Footer an (Klick öffnet Diagnose-Details & Tipps)."
+            "Zeigt den Verbindungsstatus links im Footer an (Klick öffnet Diagnose-Details)."
         )
         self.chk_dns_pill = QCheckBox("System-DNS überwachen")
         self.chk_dns_pill.setToolTip(
-            "Misst die Antwortzeit des aktiven System-DNS (z. B. AdGuard Home / Router) und zeigt sie rechts im Footer an."
+            "Misst die Antwortzeit des aktiven System-DNS und zeigt sie rechts im Footer an."
         )
 
         self.chk_internet_health = QCheckBox("Aktive Internet-Erreichbarkeit prüfen")
         self.chk_internet_health.setToolTip(
-            "Prüft Dual-Stack-HTTPS (204), Gateway-Ping und Qualität gegen eine Ruhe-Basis – erkennt u. a. Zombie-WAN und DNS-Störungen."
+            "Prüft HTTPS-Verbindung, Router-Ping und Latenz-Normalwert — erkennt Ausfälle und DNS-Störungen."
         )
         self.chk_internet_health.toggled.connect(self._on_internet_health_toggled)
 
@@ -539,7 +592,7 @@ class SettingsDialog(QDialog):
         self.cmb_health_ip_mode.addItem("Nur IPv4 prüfen", "ipv4_only")
         self.cmb_health_ip_mode.addItem("Dual-Stack erzwingen (IPv4 & IPv6)", "dual_stack")
         self.cmb_health_ip_mode.setToolTip(
-            "Automatisch: prüft IPv4 und zusätzlich IPv6, falls eine globale IPv6-Route existiert.\n"
+            "Automatisch: prüft IPv4 und zusätzlich IPv6, falls verfügbar.\n"
             "Nur IPv4 / Dual-Stack: erzwingt die jeweilige Prüfung."
         )
 
@@ -547,12 +600,12 @@ class SettingsDialog(QDialog):
         self.spin_health_interval.setRange(10, 120)
         self.spin_health_interval.setSuffix(" Sek.")
         self.spin_health_interval.setToolTip(
-            "Prüfintervall für HTTPS-204 & Uncached-DNS im Normalbetrieb (schaltet bei Störungen automatisch auf 5s-Burst)."
+            "Prüfintervall im Normalbetrieb (schaltet bei Störungen auf 5-Sekunden-Schnellprüfung um)."
         )
 
-        self.chk_health_uncached_dns = QCheckBox("Uncached-DNS (Nonce) nutzen")
+        self.chk_health_uncached_dns = QCheckBox("Direkte DNS-Prüfung (ohne Cache)")
         self.chk_health_uncached_dns.setToolTip(
-            "Fragt eindeutige Zufalls-Subdomains im Prüfintervall statt jede Sekunde ab – umgeht AdGuard-Cache und reduziert DNS-Queries um ~97 %."
+            "Umgeht lokale DNS-Caches per Zufalls-Subdomain und reduziert DNS-Anfragen im Normalbetrieb."
         )
 
         diag_form.addRow("", self.chk_ping_graph)
@@ -569,15 +622,14 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self._wrap_in_scroll(tab_net), "Netzwerk")
 
         # =========================================================================
-        # TAB 5: Farben (Modernes Theme & Farbpalette)
+        # Subpage 2 in Anzeige: Themes & Farben (analog SystemBox)
         # =========================================================================
-        tab_colors = QWidget()
         col_layout = QVBoxLayout(tab_colors)
         col_layout.setContentsMargins(8, 8, 8, 8)
         col_layout.setSpacing(8)
 
         # Theme Schnellauswahl
-        theme_group = QGroupBox("Theme-Schnellauswahl (Farb-Vorlagen)")
+        theme_group = QGroupBox("Theme-Schnellauswahl")
         theme_layout = QHBoxLayout(theme_group)
         theme_layout.setContentsMargins(10, 8, 10, 8)
         self.cmb_theme = QComboBox()
@@ -585,7 +637,7 @@ class SettingsDialog(QDialog):
         self.cmb_theme.setToolTip("Vordefinierte Farbpaletten für Graphen, Hintergrund und Rahmen.")
         btn_apply_theme = QPushButton("Theme anwenden")
         btn_apply_theme.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_apply_theme.setToolTip("Übernimmt die ausgewählte Vorlage in alle Farbfelder.")
+        btn_apply_theme.setToolTip("Übernimmt die ausgewählte Farbvorlage sofort.")
         btn_apply_theme.clicked.connect(self._apply_selected_theme)
 
         theme_layout.addWidget(QLabel("Vorlage:"))
@@ -597,7 +649,7 @@ class SettingsDialog(QDialog):
         colors_row.setSpacing(10)
 
         # Traffic & Ping Graphen
-        traffic_group = QGroupBox("Traffic && Ping Graphen")
+        traffic_group = QGroupBox("Graphen && Signale")
         traffic_form = QFormLayout(traffic_group)
         traffic_form.setContentsMargins(10, 10, 10, 10)
         traffic_form.setVerticalSpacing(6)
@@ -635,10 +687,8 @@ class SettingsDialog(QDialog):
         col_layout.addLayout(colors_row)
         col_layout.addStretch(1)
 
-        self.tabs.addTab(self._wrap_in_scroll(tab_colors), "Design && Themes")
-
         # =========================================================================
-        # TAB 6: Über (App-Info, Systemdiagnose, Datenschutz & Lizenz)
+        # TAB 5: Über (App-Info, Systemdiagnose, Datenschutz & Lizenz)
         # =========================================================================
         tab_about = self._build_about_tab()
         self.tabs.addTab(self._wrap_in_scroll(tab_about), "Über")
@@ -705,6 +755,23 @@ class SettingsDialog(QDialog):
         name_badge_row.addWidget(self.lbl_about_version)
         name_badge_row.addStretch(1)
 
+        is_dark_pal = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
+        gh_col = "#E2E8F0" if is_dark_pal else "#1E293B"
+        gh_pix_sm = create_ui_icon("github", gh_col, 14)
+
+        author_row = QHBoxLayout()
+        author_row.setContentsMargins(0, 0, 0, 0)
+        author_row.setSpacing(5)
+        lbl_gh_icon = QLabel()
+        lbl_gh_icon.setPixmap(gh_pix_sm)
+        lbl_gh_icon.setFixedSize(14, 14)
+        self.lbl_about_author = QLabel("von <b>WhiteSephi</b>")
+        self.lbl_about_author.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_about_author.setStyleSheet("color: #94A3B8; font-size: 8.5pt;")
+        author_row.addWidget(lbl_gh_icon)
+        author_row.addWidget(self.lbl_about_author)
+        author_row.addStretch(1)
+
         lbl_tagline = QLabel(
             "Schlankes Live-Desktop-Widget für Router-Traffic (UPnP), PC-Anteil, Ping, Jitter & DNS."
         )
@@ -712,6 +779,7 @@ class SettingsDialog(QDialog):
         lbl_tagline.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
 
         title_col.addLayout(name_badge_row)
+        title_col.addLayout(author_row)
         title_col.addWidget(lbl_tagline)
         top_row.addLayout(title_col, 1)
         hero_vlayout.addLayout(top_row)
@@ -720,7 +788,9 @@ class SettingsDialog(QDialog):
         links_grid = QGridLayout()
         links_grid.setSpacing(6)
 
-        self.btn_about_github = QPushButton("🌐 GitHub")
+        self.btn_about_github = QPushButton(" GitHub")
+        self.btn_about_github.setIcon(QIcon(gh_pix_sm))
+        self.btn_about_github.setIconSize(QSize(14, 14))
         self.btn_about_github.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_about_github.setToolTip(self.GITHUB_REPO_URL)
         self.btn_about_github.clicked.connect(
@@ -784,7 +854,7 @@ class SettingsDialog(QDialog):
         lbl_cfg_val.setStyleSheet("font-size: 8.5pt;")
 
         lbl_notes = QLabel(
-            "Open Source (MIT) • Keine Telemetrie (Ping-/DNS-/Canary-Checks optional)<br>"
+            "Open Source (MIT) • Keine Telemetrie (externe Prüfungen optional)<br>"
             "<span style='color: #8E9297;'>Kein Produkt der FRITZ! GmbH (ehem. AVM).</span>"
         )
         lbl_notes.setWordWrap(True)
@@ -809,9 +879,64 @@ class SettingsDialog(QDialog):
         about_layout.addStretch(1)
         return tab_about
 
+    def _style_display_segment_bar(self, bar: QFrame) -> None:
+        """Apply palette-aware high-contrast QSS to the segmented subpage bar (aligned with SystemBox)."""
+        is_dark = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
+        if is_dark:
+            track_bg = "rgba(255, 255, 255, 12)"
+            track_border = "rgba(255, 255, 255, 38)"
+            btn_fg = "rgba(255, 255, 255, 195)"
+            hover_bg = "rgba(255, 255, 255, 20)"
+            checked_bg = "palette(button)"
+            checked_fg = "palette(button-text)"
+        else:
+            track_bg = "rgba(0, 0, 0, 12)"
+            track_border = "rgba(0, 0, 0, 35)"
+            btn_fg = "rgba(0, 0, 0, 195)"
+            hover_bg = "rgba(0, 0, 0, 18)"
+            checked_bg = "palette(base)"
+            checked_fg = "palette(window-text)"
+
+        bar.setStyleSheet(
+            f"""
+            QFrame#displaySegmentBar {{
+                background-color: {track_bg};
+                border: 1px solid {track_border};
+                border-radius: 7px;
+            }}
+            QFrame#displaySegmentBar QPushButton {{
+                background: transparent;
+                color: {btn_fg};
+                border: 1px solid transparent;
+                border-radius: 5px;
+                padding: 5px 14px;
+            }}
+            QFrame#displaySegmentBar QPushButton:hover:!checked {{
+                background-color: {hover_bg};
+                color: palette(window-text);
+            }}
+            QFrame#displaySegmentBar QPushButton:checked {{
+                background-color: {checked_bg};
+                color: {checked_fg};
+                border: 1px solid palette(highlight);
+                font-weight: 600;
+            }}
+            """
+        )
+
+    def _set_display_subpage(self, index: int) -> None:
+        """Switch subpage inside the Display tab and sync segmented toggle state."""
+        if index not in (0, 1):
+            return
+        self.display_stack.setCurrentIndex(index)
+        if index == 0:
+            self.btn_sub_display.setChecked(True)
+        else:
+            self.btn_sub_theme.setChecked(True)
+
     def _on_tab_changed(self, index: int) -> None:
         """Disable tab-reset button when viewing the read-only 'Über' tab."""
-        self.btn_reset.setEnabled(index != 5)
+        self.btn_reset.setEnabled(index != self.tabs.count() - 1)
 
     def _apply_selected_theme(self) -> None:
         """Apply a selected color theme preset across all color buttons."""
@@ -1130,8 +1255,9 @@ class SettingsDialog(QDialog):
             self.lbl_bound_box.setText("Nicht gebunden (wird beim ersten Login automatisch an diesen Heim-Router gebunden)")
             self.lbl_bound_box.setStyleSheet("color: #8E9297; font-size: 8.5pt;")
             self.lbl_test_result.setVisible(False)
-        elif tab_idx == 2:  # Anzeige
+        elif tab_idx == 2:  # Anzeige (Darstellung & Layout + Themes & Farben)
             self.spin_ui_scale.setValue(defaults.ui_scale_percent)
+            self.slider_opacity.setValue(defaults.opacity)
             idx = self.cmb_scale_mode.findData(defaults.scale_mode)
             self.cmb_scale_mode.setCurrentIndex(max(0, idx))
             self.chk_auto_link.setChecked(defaults.auto_link_scale)
@@ -1146,6 +1272,16 @@ class SettingsDialog(QDialog):
             self.chk_session_totals.setChecked(defaults.show_session_totals)
             f_idx = self.cmb_footer_mode.findData(defaults.footer_counter_mode)
             self.cmb_footer_mode.setCurrentIndex(max(0, f_idx))
+            self.btn_col_down.hex_color = defaults.download_color
+            self.btn_col_up.hex_color = defaults.upload_color
+            self.btn_col_guest_down.hex_color = defaults.guest_download_color
+            self.btn_col_guest_up.hex_color = defaults.guest_upload_color
+            self.btn_col_ping.hex_color = defaults.ping_color
+            self.btn_col_jitter.hex_color = defaults.jitter_color
+            self.btn_col_bg.hex_color = defaults.background_color
+            self.btn_col_border.hex_color = defaults.border_color
+            self.btn_col_grid.hex_color = defaults.grid_color
+            self.btn_col_title.hex_color = defaults.title_color
         elif tab_idx == 3:  # Netzwerk
             self.chk_local_fallback.setChecked(defaults.enable_local_fallback)
             self.chk_local_pc.setChecked(defaults.enable_local_traffic_monitor)
@@ -1161,14 +1297,3 @@ class SettingsDialog(QDialog):
             self.spin_health_interval.setValue(defaults.health_probe_interval_sec)
             self.chk_health_uncached_dns.setChecked(defaults.health_uncached_dns)
             self._on_internet_health_toggled(defaults.enable_internet_health)
-        elif tab_idx == 4:  # Farben
-            self.btn_col_down.hex_color = defaults.download_color
-            self.btn_col_up.hex_color = defaults.upload_color
-            self.btn_col_guest_down.hex_color = defaults.guest_download_color
-            self.btn_col_guest_up.hex_color = defaults.guest_upload_color
-            self.btn_col_ping.hex_color = defaults.ping_color
-            self.btn_col_jitter.hex_color = defaults.jitter_color
-            self.btn_col_bg.hex_color = defaults.background_color
-            self.btn_col_border.hex_color = defaults.border_color
-            self.btn_col_grid.hex_color = defaults.grid_color
-            self.btn_col_title.hex_color = defaults.title_color

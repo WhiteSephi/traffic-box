@@ -145,7 +145,7 @@ class TestInternetHealthStates(unittest.TestCase):
         # 2nd consecutive failure confirms ZOMBIE_WAN
         snap3 = mon.run_probe_cycle()
         self.assertEqual(snap3.status, HealthStatus.ZOMBIE_WAN)
-        self.assertEqual(snap3.short_tag, "Zombie-WAN")
+        self.assertEqual(snap3.short_tag, "Kein Internet")
         self.assertIn("FRITZ!Box-Sync", snap3.reason)
 
         # Recovery also uses hysteresis (requires 2 consecutive healthy cycles)

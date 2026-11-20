@@ -33,7 +33,7 @@ class TestBuildHealthAdvice(unittest.TestCase):
             TrafficSample(health=InternetHealthSnapshot(status=HealthStatus.STABLE, baseline_ready=True, ipv6_available=True))
         )
         self.assertIn("stabil", h_ok.lower())
-        self.assertTrue(any("keinen handlungsbedarf" in x.lower() for x in b_ok))
+        self.assertTrue(any("kein handlungsbedarf" in x.lower() for x in b_ok))
 
         # 2. DEGRADED - Bufferbloat under high utilization
         h_bb, b_bb = build_health_advice(
@@ -93,7 +93,7 @@ class TestBuildHealthAdvice(unittest.TestCase):
         h_zmb, b_zmb = build_health_advice(
             TrafficSample(health=InternetHealthSnapshot(status=HealthStatus.ZOMBIE_WAN))
         )
-        self.assertIn("WAN hängt", h_zmb)
+        self.assertIn("Kein Internet", h_zmb)
         self.assertTrue(any("Neu verbinden" in x for x in b_zmb))
 
         # 9. OFFLINE variants (Captive Portal, No Sync, Generic)
@@ -175,7 +175,7 @@ class TestInternetHealthDialogAndPill(unittest.TestCase):
             )
             dlg.update_from_sample(sample, down_pct=15.0, up_pct=5.0)
             self.assertEqual(dlg.lbl_status_title.text(), "DNS-Störung")
-            self.assertIn("Fast-Burst (5 s)", dlg.lbl_probe_meta.text())
+            self.assertIn("Schnellprüfung (5 s)", dlg.lbl_probe_meta.text())
             self.assertIn("192.168.178.1", dlg.lbl_stage_lan.text())
             self.assertIn("IPv4 2/2", dlg.lbl_stage_https.text())
             self.assertIn("SERVFAIL", dlg.lbl_stage_dns.text())
