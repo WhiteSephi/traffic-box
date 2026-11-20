@@ -4,6 +4,10 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.19.1] - 2026-11-20
+### Fixed
+- **Theme „Minimalist Monochrome (Weiß & Grau)“ (`src/ui/color_picker.py`):** Blaustichige Farben (`#90CAF9`, `#80D8FF`, `#37474F` usw.) durch echte, neutrale Weiß- und Grautöne (`#FFFFFF`, `#A3A3A3`, `#D4D4D4`, `#737373`, `#E5E5E5`, `#8C8C8C`, `#404040`, `#262626`, `#F5F5F5`) ersetzt.
+
 ## [0.19.0] - 2026-11-20
 ### Added
 - **„Über“-Tab mit Autor & GitHub-Vektor-Icon (`src/ui/settings_dlg.py`, `src/ui/icons.py`):** Zeigt `von WhiteSephi` samt eigenem Vektor-GitHub-Icon (`create_ui_icon("github")`) im Hero-Bereich und auf dem GitHub-Button.
