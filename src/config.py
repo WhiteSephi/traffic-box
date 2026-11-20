@@ -182,6 +182,7 @@ class AppConfig:
     health_probe_interval_sec: int = 30
     health_ip_mode: str = "auto"  # "auto", "ipv4_only", "dual_stack"
     health_uncached_dns: bool = True
+    debug_logging: bool = False
 
     # Colors
     download_color: str = "#FFEA00"
@@ -278,7 +279,7 @@ class AppConfig:
             "switch_up_down", "show_as_bits", "show_peak_rate", "show_guest_rate_labels",
             "show_session_totals", "show_connection_tooltip", "auto_link_scale",
             "enable_ping_graph", "show_wan_status_pill", "enable_dns_monitor",
-            "enable_internet_health", "health_uncached_dns",
+            "enable_internet_health", "health_uncached_dns", "debug_logging",
         )
         for b_field in bool_fields:
             val = getattr(self, b_field, False)

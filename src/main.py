@@ -11,6 +11,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from src.config import AppConfig
+from src.logger import setup_logging
 from src.ui.widget import TrafficBox
 
 
@@ -36,6 +37,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Run a short headless verification of UI & UPnP client and exit.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose debug logging into the rotating log file.",
+    )
     return parser.parse_args(argv)
 
 
@@ -60,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.host:
         config.fritzbox_host = args.host.strip()
         config.sanitize()
+
+    setup_logging(debug=bool(config.debug_logging or args.debug))
 
     widget = TrafficBox(config)
     widget.show()

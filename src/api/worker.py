@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -13,6 +14,8 @@ from src.api.models import OnlineCounterStats, TrafficSample
 from src.api.net_health import NetworkHealthMonitor, set_shutting_down
 from src.api.upnp_client import FritzUpnpClient
 from src.config import AppConfig
+
+logger = logging.getLogger("trafficbox.worker")
 
 
 class PollingWorker(QObject):
@@ -84,8 +87,20 @@ class PollingWorker(QObject):
                     self.upnp.host, self.config.fritz_username, self.config.fritz_password
                 )
                 self._last_upnp_probe_ts = now
+                prev_unreachable = self._box_unreachable
                 sample = self.upnp.fetch_sample()
                 self._box_unreachable = not sample.box_reachable
+                if self._box_unreachable != prev_unreachable:
+                    if self._box_unreachable:
+                        logger.warning(
+                            "FRITZ!Box unreachable (%s)",
+                            sample.error_message or sample.connection_status,
+                        )
+                    else:
+                        logger.info(
+                            "FRITZ!Box reachable again (status=%s)",
+                            sample.connection_status,
+                        )
             if self._stopped:
                 return
 
@@ -220,6 +235,8 @@ class PollingWorker(QObject):
 
             if not self._stopped:
                 self.sample_ready.emit(sample)
+        except Exception:
+            logger.exception("Unexpected error during polling cycle")
         finally:
             self._busy = False
 

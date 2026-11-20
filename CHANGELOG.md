@@ -4,6 +4,14 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.20.0] - 2026-11-20
+### Added
+- **Datensparsames Rotating-File-Logging & GitHub-Fehlerbericht (`src/logger.py`, `src/config.py`, `src/main.py`, `src/api/worker.py`, `src/ui/settings_dlg.py`):**
+  - Rotierende lokale Log-Datei (`logs/trafficbox.log`, max. `3 x 1 MB`) inklusive Erfassung unbehandelter Python-/Thread-Exceptions und Qt-Warnungen.
+  - Eingebauter `PrivacyRedactionFilter`, der Home-Pfade (`~`), nicht-standardmäßige IPv4-Adressen (`<IP>`) und Credential-/SID-Parameter (`***`) automatisch maskiert.
+  - Neuer Bereich **„Diagnose & Protokollierung“** im Tab **Allgemein** (Toggle für *Erweitertes Debug-Logging*, *Log-Ordner öffnen*, *Diagnose-Bericht kopieren*) sowie CLI-Flag `--debug`.
+  - Der Button **„🐛 Fehler melden“** im Tab **Über** öffnet nun zuerst einen transparenten Vorschau- & Bestätigungsdialog und füllt auf Wunsch des Nutzers ein neues GitHub-Issue mit den anonymisierten System- und Log-Daten voraus (inkl. Zwischenablage-Fallback bei langen Logs).
+
 ## [0.19.2] - 2026-11-20
 ### Changed
 - **Direkte Theme-Auswahl ohne doppelte Bestätigung (`src/ui/settings_dlg.py`, `src/ui/color_picker.py`):**

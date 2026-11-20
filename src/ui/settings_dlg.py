@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -46,6 +47,12 @@ from src.api.fritz_monitor import FritzGuestMonitorClient
 from src.api.upnp_client import FritzUpnpClient
 from src.autostart import is_autostart_enabled, set_autostart
 from src.config import AppConfig, get_config_dir
+from src.logger import (
+    build_github_issue_url,
+    collect_diagnostics_report,
+    get_log_dir,
+    set_debug_logging,
+)
 from src.ui.color_picker import ColorButton, ModernColorPickerPopup, THEMES, make_swatch_icon
 from src.ui.icons import create_ui_icon
 from src.ui.tray import create_router_icon
@@ -182,6 +189,40 @@ class SettingsDialog(QDialog):
         win_form.addRow(self.chk_locked_pos)
         win_form.addRow(self.chk_snap_edges)
         gen_layout.addWidget(win_group)
+
+        # Diagnose & Protokollierung
+        diag_group = QGroupBox("Diagnose && Protokollierung")
+        diag_layout = QVBoxLayout(diag_group)
+        diag_layout.setContentsMargins(10, 10, 10, 10)
+        diag_layout.setSpacing(6)
+
+        self.chk_debug_logging = QCheckBox("Erweitertes Debug-Logging aktivieren")
+        self.chk_debug_logging.setToolTip(
+            "Schreibt detaillierte Diagnose-Ereignisse in eine rotierende Log-Datei "
+            "(max. 3 MB, ohne Passwörter, Benutzernamen oder private IP-Adressen)."
+        )
+        diag_layout.addWidget(self.chk_debug_logging)
+
+        diag_btn_row = QHBoxLayout()
+        diag_btn_row.setSpacing(8)
+        self.btn_open_logs = QPushButton("📂 Log-Ordner öffnen")
+        self.btn_open_logs.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_logs.setToolTip("Öffnet das Verzeichnis mit der lokalen Log-Datei.")
+        self.btn_open_logs.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_log_dir())))
+        )
+        self.btn_copy_diag = QPushButton("📋 Diagnose-Bericht kopieren")
+        self.btn_copy_diag.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_copy_diag.setToolTip(
+            "Kopiert anonymisierte System-Infos und die letzten Log-Zeilen in die Zwischenablage."
+        )
+        self.btn_copy_diag.clicked.connect(self._copy_diagnostics_to_clipboard)
+        diag_btn_row.addWidget(self.btn_open_logs)
+        diag_btn_row.addWidget(self.btn_copy_diag)
+        diag_btn_row.addStretch(1)
+        diag_layout.addLayout(diag_btn_row)
+
+        gen_layout.addWidget(diag_group)
         gen_layout.addStretch(1)
 
         self.tabs.addTab(self._wrap_in_scroll(tab_general), "Allgemein")
@@ -819,10 +860,10 @@ class SettingsDialog(QDialog):
 
         self.btn_about_issues = QPushButton("🐛 Fehler melden")
         self.btn_about_issues.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_about_issues.setToolTip(self.GITHUB_ISSUES_URL)
-        self.btn_about_issues.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl(self.GITHUB_ISSUES_URL))
+        self.btn_about_issues.setToolTip(
+            "Öffnet die GitHub-Issue-Seite (optional mit anonymisiertem Diagnose-Bericht)."
         )
+        self.btn_about_issues.clicked.connect(self._on_report_bug_clicked)
 
         self.btn_about_config_dir = QPushButton("📂 Konfig-Ordner")
         self.btn_about_config_dir.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1096,6 +1137,7 @@ class SettingsDialog(QDialog):
         self.chk_always_on_top.setChecked(self.config.always_on_top)
         self.chk_locked_pos.setChecked(self.config.locked_pos)
         self.chk_snap_edges.setChecked(self.config.snap_to_edges)
+        self.chk_debug_logging.setChecked(self.config.debug_logging)
         self.chk_switch_up_down.setChecked(self.config.switch_up_down)
         self.chk_show_bits.setChecked(self.config.show_as_bits)
         self.chk_compact.setChecked(self.config.compact_mode)
@@ -1173,6 +1215,8 @@ class SettingsDialog(QDialog):
         self.config.always_on_top = self.chk_always_on_top.isChecked()
         self.config.locked_pos = self.chk_locked_pos.isChecked()
         self.config.snap_to_edges = self.chk_snap_edges.isChecked()
+        self.config.debug_logging = self.chk_debug_logging.isChecked()
+        set_debug_logging(self.config.debug_logging)
         self.config.switch_up_down = self.chk_switch_up_down.isChecked()
         self.config.show_as_bits = self.chk_show_bits.isChecked()
         self.config.compact_mode = self.chk_compact.isChecked()
@@ -1332,3 +1376,90 @@ class SettingsDialog(QDialog):
             self.spin_health_interval.setValue(defaults.health_probe_interval_sec)
             self.chk_health_uncached_dns.setChecked(defaults.health_uncached_dns)
             self._on_internet_health_toggled(defaults.enable_internet_health)
+
+    def _copy_diagnostics_to_clipboard(self) -> None:
+        """Copy an anonymized system & log diagnostics report to the clipboard."""
+        report = collect_diagnostics_report(self.config, qt_version=qVersion())
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(report)
+        QMessageBox.information(
+            self,
+            "Diagnose-Bericht kopiert",
+            "Der anonymisierte Diagnose-Bericht wurde in die Zwischenablage kopiert.\n"
+            "Passwörter, Benutzernamen und private IP-Adressen wurden automatisch entfernt.",
+        )
+
+    def _on_report_bug_clicked(self) -> None:
+        """Ask the user whether to include anonymized diagnostics before opening GitHub Issues."""
+        report = collect_diagnostics_report(self.config, qt_version=qVersion())
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Fehler auf GitHub melden")
+        dlg.resize(560, 400)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        lbl_intro = QLabel(
+            "Möchtest du die folgenden anonymisierten System- und Log-Daten an deinen "
+            "GitHub-Fehlerbericht anhängen?\n"
+            "Es findet kein automatischer Upload statt — du kannst den Bericht auf GitHub "
+            "vor dem Absenden prüfen und bearbeiten."
+        )
+        lbl_intro.setWordWrap(True)
+        layout.addWidget(lbl_intro)
+
+        preview = QPlainTextEdit()
+        preview.setReadOnly(True)
+        preview.setPlainText(report)
+        preview.setStyleSheet("font-family: Consolas, monospace; font-size: 8.5pt;")
+        layout.addWidget(preview, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_with_diag = QPushButton("Mit Diagnose-Daten auf GitHub melden")
+        btn_with_diag.setDefault(True)
+        btn_without_diag = QPushButton("Ohne Diagnose-Daten öffnen")
+        btn_cancel = QPushButton("Abbrechen")
+
+        choice = {"mode": "cancel"}
+
+        def _accept_with_diag() -> None:
+            choice["mode"] = "with_diag"
+            dlg.accept()
+
+        def _accept_without_diag() -> None:
+            choice["mode"] = "without_diag"
+            dlg.accept()
+
+        btn_with_diag.clicked.connect(_accept_with_diag)
+        btn_without_diag.clicked.connect(_accept_without_diag)
+        btn_cancel.clicked.connect(dlg.reject)
+
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_without_diag)
+        btn_row.addWidget(btn_with_diag)
+        layout.addLayout(btn_row)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        if choice["mode"] == "without_diag":
+            QDesktopServices.openUrl(QUrl(self.GITHUB_ISSUES_URL))
+            return
+
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(report)
+
+        issue_url, truncated = build_github_issue_url(report, self.GITHUB_ISSUES_URL)
+        QDesktopServices.openUrl(QUrl(issue_url))
+        if truncated:
+            QMessageBox.information(
+                self,
+                "Diagnose-Bericht in Zwischenablage",
+                "Da der Log-Ausschnitt sehr lang war, wurde der vollständige Diagnose-Bericht "
+                "zusätzlich in die Zwischenablage kopiert (auf GitHub mit Strg+V einfügbar).",
+            )
