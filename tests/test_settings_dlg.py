@@ -93,6 +93,13 @@ class TestSettingsDialog(unittest.TestCase):
             self.assertEqual(dlg.btn_col_up.hex_color, preset["up"])
             self.assertEqual(dlg.btn_col_bg.hex_color, preset["bg"])
             self.assertEqual(dlg.btn_col_border.hex_color, preset["border"])
+
+            dlg._sync_theme_dropdown_from_buttons()
+            self.assertEqual(dlg.cmb_theme.currentText(), theme_name)
+
+            dlg.btn_col_down.hex_color = "#123456"
+            dlg._sync_theme_dropdown_from_buttons()
+            self.assertEqual(dlg.cmb_theme.currentText(), "Benutzerdefiniert")
         finally:
             dlg.deleteLater()
 

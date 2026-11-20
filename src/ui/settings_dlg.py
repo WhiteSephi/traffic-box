@@ -633,16 +633,15 @@ class SettingsDialog(QDialog):
         theme_layout = QHBoxLayout(theme_group)
         theme_layout.setContentsMargins(10, 8, 10, 8)
         self.cmb_theme = QComboBox()
-        self.cmb_theme.addItems(list(THEMES.keys()))
-        self.cmb_theme.setToolTip("Vordefinierte Farbpaletten für Graphen, Hintergrund und Rahmen.")
-        btn_apply_theme = QPushButton("Theme anwenden")
-        btn_apply_theme.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_apply_theme.setToolTip("Übernimmt die ausgewählte Farbvorlage sofort.")
-        btn_apply_theme.clicked.connect(self._apply_selected_theme)
+        self.cmb_theme.addItems(list(THEMES.keys()) + ["Benutzerdefiniert"])
+        self.cmb_theme.setToolTip(
+            "Wählt eine Farbvorlage direkt in die Farbfelder darunter. "
+            "Speichern über „Übernehmen“ oder „OK“."
+        )
+        self.cmb_theme.activated.connect(self._apply_selected_theme)
 
         theme_layout.addWidget(QLabel("Vorlage:"))
         theme_layout.addWidget(self.cmb_theme, 1)
-        theme_layout.addWidget(btn_apply_theme)
         col_layout.addWidget(theme_group)
 
         colors_row = QHBoxLayout()
@@ -683,6 +682,20 @@ class SettingsDialog(QDialog):
         theme_form.addRow("Raster (Grid):", self.btn_col_grid)
         theme_form.addRow("Titelfarbe:", self.btn_col_title)
         colors_row.addWidget(theme_box)
+
+        for btn_col in (
+            self.btn_col_down,
+            self.btn_col_up,
+            self.btn_col_guest_down,
+            self.btn_col_guest_up,
+            self.btn_col_ping,
+            self.btn_col_jitter,
+            self.btn_col_bg,
+            self.btn_col_border,
+            self.btn_col_grid,
+            self.btn_col_title,
+        ):
+            btn_col.color_changed.connect(self._sync_theme_dropdown_from_buttons)
 
         col_layout.addLayout(colors_row)
         col_layout.addStretch(1)
@@ -955,6 +968,26 @@ class SettingsDialog(QDialog):
         self.btn_col_grid.hex_color = theme["grid"]
         self.btn_col_title.hex_color = theme["title"]
 
+    def _sync_theme_dropdown_from_buttons(self) -> None:
+        """Select matching theme preset in cmb_theme or 'Benutzerdefiniert'."""
+        current = {
+            "down": self.btn_col_down.hex_color,
+            "up": self.btn_col_up.hex_color,
+            "guest_down": self.btn_col_guest_down.hex_color,
+            "guest_up": self.btn_col_guest_up.hex_color,
+            "ping": self.btn_col_ping.hex_color,
+            "jitter": self.btn_col_jitter.hex_color,
+            "bg": self.btn_col_bg.hex_color,
+            "border": self.btn_col_border.hex_color,
+            "grid": self.btn_col_grid.hex_color,
+            "title": self.btn_col_title.hex_color,
+        }
+        for name, preset in THEMES.items():
+            if all(current[k].upper() == preset[k].upper() for k in current):
+                self.cmb_theme.setCurrentText(name)
+                return
+        self.cmb_theme.setCurrentText("Benutzerdefiniert")
+
     @staticmethod
     def _wrap_in_scroll(content_widget: QWidget) -> QScrollArea:
         scroll = QScrollArea()
@@ -1108,6 +1141,7 @@ class SettingsDialog(QDialog):
         self.btn_col_border.hex_color = self.config.border_color
         self.btn_col_grid.hex_color = self.config.grid_color
         self.btn_col_title.hex_color = self.config.title_color
+        self._sync_theme_dropdown_from_buttons()
 
         self.chk_guest.setChecked(self.config.enable_guest_monitor)
         self.txt_user.setText(self.config.fritz_username)
@@ -1282,6 +1316,7 @@ class SettingsDialog(QDialog):
             self.btn_col_border.hex_color = defaults.border_color
             self.btn_col_grid.hex_color = defaults.grid_color
             self.btn_col_title.hex_color = defaults.title_color
+            self._sync_theme_dropdown_from_buttons()
         elif tab_idx == 3:  # Netzwerk
             self.chk_local_fallback.setChecked(defaults.enable_local_fallback)
             self.chk_local_pc.setChecked(defaults.enable_local_traffic_monitor)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -201,6 +201,8 @@ class ModernColorPickerPopup(QDialog):
 class ColorButton(QPushButton):
     """Button that displays a modern color swatch and opens the dark popover."""
 
+    color_changed = Signal(str)
+
     def __init__(self, hex_color: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._color = hex_color.upper() if hex_color.startswith("#") else f"#{hex_color.upper()}"
@@ -252,6 +254,7 @@ class ColorButton(QPushButton):
 
     def _set_color(self, new_color: str) -> None:
         self.hex_color = new_color
+        self.color_changed.emit(self.hex_color)
 
 
 THEMES: dict[str, dict[str, str]] = {

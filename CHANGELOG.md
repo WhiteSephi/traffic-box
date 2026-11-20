@@ -4,6 +4,12 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.19.2] - 2026-11-20
+### Changed
+- **Direkte Theme-Auswahl ohne doppelte Bestätigung (`src/ui/settings_dlg.py`, `src/ui/color_picker.py`):**
+  - Der überflüssige Button `Theme anwenden` wurde entfernt; die Auswahl einer Vorlage im Dropdown übernimmt die Farben direkt in die Farbfelder, sodass nur noch einmal mit `Übernehmen` oder `OK` bestätigt werden muss.
+  - Das Dropdown erkennt beim Öffnen automatisch das passende Theme-Preset (oder zeigt `Benutzerdefiniert`, wenn einzelne Farben über `ColorButton.color_changed` angepasst wurden).
+
 ## [0.19.1] - 2026-11-20
 ### Fixed
 - **Theme „Minimalist Monochrome (Weiß & Grau)“ (`src/ui/color_picker.py`):** Blaustichige Farben (`#90CAF9`, `#80D8FF`, `#37474F` usw.) durch echte, neutrale Weiß- und Grautöne (`#FFFFFF`, `#A3A3A3`, `#D4D4D4`, `#737373`, `#E5E5E5`, `#8C8C8C`, `#404040`, `#262626`, `#F5F5F5`) ersetzt.
