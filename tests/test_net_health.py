@@ -237,14 +237,15 @@ class TestNetHealth(unittest.TestCase):
 
     def test_windows_detect_dns_prefers_iphlpapi_over_winreg(self) -> None:
         """Verify Windows DNS detection uses active iphlpapi DNS before winreg adapter fallback."""
+        fake_winreg = MagicMock()
         with (
             patch("src.api.net_health.sys.platform", "win32"),
             patch("src.api.net_health._detect_windows_dns_iphlpapi", return_value="192.168.178.2") as mock_iph,
-            patch("winreg.OpenKey") as mock_reg,
+            patch.dict("sys.modules", {"winreg": fake_winreg}),
         ):
             self.assertEqual(detect_active_os_dns(), "192.168.178.2")
             mock_iph.assert_called_once()
-            mock_reg.assert_not_called()
+            fake_winreg.OpenKey.assert_not_called()
 
 
 if __name__ == "__main__":
