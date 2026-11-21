@@ -65,6 +65,12 @@ class SettingsDialog(QDialog):
     GITHUB_RELEASES_URL = "https://github.com/WhiteSephi/traffic-box/releases"
     GITHUB_ISSUES_URL = "https://github.com/WhiteSephi/traffic-box/issues"
 
+    TAB_GENERAL = 0
+    TAB_FRITZBOX = 1
+    TAB_DISPLAY = 2
+    TAB_NETWORK = 3
+    TAB_ABOUT = 4
+
     def __init__(
         self,
         config: AppConfig,

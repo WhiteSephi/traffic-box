@@ -258,7 +258,9 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         self.center_stack = QStackedWidget(self)
         self.graph_widget = SplitTrafficGraphWidget(self.config, self)
         self.counter_view = OnlineCounterView(
-            self.config, on_open_settings=self.open_settings_dialog, parent=self
+            self.config,
+            on_open_settings=lambda: self.open_settings_dialog(SettingsDialog.TAB_FRITZBOX),
+            parent=self,
         )
         self.center_stack.addWidget(self.graph_widget)
         self.center_stack.addWidget(self.counter_view)

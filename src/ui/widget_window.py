@@ -348,7 +348,7 @@ class TrafficBoxWindowMixin:
         menu.addSeparator()
 
         act_about = QAction("Über TrafficBox...", self)
-        act_about.triggered.connect(lambda: self.open_settings_dialog(5))
+        act_about.triggered.connect(lambda: self.open_settings_dialog(SettingsDialog.TAB_ABOUT))
         menu.addAction(act_about)
 
         act_quit = QAction("Beenden", self)
@@ -469,7 +469,7 @@ class TrafficBoxWindowMixin:
         self._health_dlg = InternetHealthDialog(
             self.config,
             on_recheck=self.request_health_probe.emit,
-            on_open_settings=lambda: self.open_settings_dialog(3),
+            on_open_settings=lambda: self.open_settings_dialog(SettingsDialog.TAB_NETWORK),
             parent=None,
             initial_tab=tab_idx,
         )

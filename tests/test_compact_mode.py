@@ -427,6 +427,129 @@ class TestCompactMode(unittest.TestCase):
         self.assertIn("&lt;img src=x&gt;", tip_lan)
         self.assertNotIn("<img", tip_lan)
 
+    def test_context_menu_all_actions_and_tabs(self) -> None:
+        """Verify all context menu actions, submenus, and settings tab targets work."""
+        from unittest.mock import patch
+        from src.ui.settings_dlg import SettingsDialog
+
+        try:
+            self.widget.show()
+            with patch.object(self.widget, "quit_application") as mock_quit:
+                menu = self.widget._build_context_menu()
+                actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
+
+                # 1. "Über TrafficBox..." must open the Über tab (index 4)
+                actions["Über TrafficBox..."].trigger()
+                dlg = self.widget._settings_dlg
+                self.assertIsNotNone(dlg)
+                assert dlg is not None
+                self.assertEqual(dlg.tabs.currentIndex(), SettingsDialog.TAB_ABOUT)
+                self.assertEqual(dlg.tabs.tabText(dlg.tabs.currentIndex()), "Über")
+
+                # 2. "Einstellungen..." must switch an open dialog back to Allgemein (index 0)
+                actions["Einstellungen..."].trigger()
+                self.assertEqual(dlg.tabs.currentIndex(), SettingsDialog.TAB_GENERAL)
+                self.assertEqual(dlg.tabs.tabText(dlg.tabs.currentIndex()), "Allgemein")
+
+                # 3. Online-Zähler settings link must open FRITZ!Box tab (index 1)
+                self.widget.counter_view.on_open_settings()
+                self.assertEqual(dlg.tabs.currentIndex(), SettingsDialog.TAB_FRITZBOX)
+                self.assertEqual(dlg.tabs.tabText(dlg.tabs.currentIndex()), "FRITZ!Box")
+
+                # 4. "Internet-Diagnose & Details..." + its Settings button -> Netzwerk (index 3)
+                actions["Internet-Diagnose && Details..."].trigger()
+                hdlg = self.widget._health_dlg
+                self.assertIsNotNone(hdlg)
+                assert hdlg is not None
+                assert hdlg._on_open_settings is not None
+                hdlg._on_open_settings()
+                self.assertEqual(dlg.tabs.currentIndex(), SettingsDialog.TAB_NETWORK)
+                self.assertEqual(dlg.tabs.tabText(dlg.tabs.currentIndex()), "Netzwerk")
+
+                # 5. Submenu "Graph-Skalierung"
+                scale_sub = {
+                    a.text(): a for a in actions["Graph-Skalierung"].menu().actions() if not a.isSeparator()
+                }
+                scale_sub["Dynamisch (Auto-Peak)"].trigger()
+                self.assertEqual(self.widget.config.scale_mode, "dynamic")
+                scale_sub["Fix auf Leitungskapazität"].trigger()
+                self.assertEqual(self.widget.config.scale_mode, "fixed")
+                scale_sub["Wurzel-Skala (Smart)"].trigger()
+                self.assertEqual(self.widget.config.scale_mode, "sqrt")
+
+                # 6. Submenu "Footer-Zähler (Zeitraum)" & toggle
+                footer_sub = {
+                    a.text(): a
+                    for a in actions["Footer-Zähler (Zeitraum)"].menu().actions()
+                    if not a.isSeparator()
+                }
+                footer_sub["Aktuelle Woche (Online-Zähler)"].trigger()
+                self.assertEqual(self.widget.config.footer_counter_mode, "week")
+                self.assertTrue(self.widget.config.show_session_totals)
+                footer_sub["Seit Widget-Start (ohne Login)"].trigger()
+                self.assertEqual(self.widget.config.footer_counter_mode, "session")
+                footer_sub["Ausblenden (deaktiviert)"].trigger()
+                self.assertFalse(self.widget.config.show_session_totals)
+
+                # Re-opening menu reflects deactivated state and re-enables footer
+                menu_after_hide = self.widget._build_context_menu()
+                actions_after_hide = {
+                    a.text(): a for a in menu_after_hide.actions() if not a.isSeparator()
+                }
+                self.assertIn("Footer-Zähler (Deaktiviert)", actions_after_hide)
+                self.assertFalse(actions_after_hide["Footer-Zähler anzeigen"].isChecked())
+                actions_after_hide["Footer-Zähler anzeigen"].trigger()
+                self.assertTrue(self.widget.config.show_session_totals)
+
+                # 7. Checkable display & window toggles
+                actions["Als Bit/s anzeigen (Mbit/s)"].trigger()
+                self.assertTrue(self.widget.config.show_as_bits)
+
+                actions["Kompakt-Modus (nur Zahlen)"].trigger()
+                self.assertTrue(self.widget.config.compact_mode)
+                self.assertFalse(self.widget.config.graph_only_mode)
+
+                actions["Nur-Graph-Modus (Zahlen ausblenden)"].trigger()
+                self.assertTrue(self.widget.config.graph_only_mode)
+                self.assertFalse(self.widget.config.compact_mode)
+
+                orig_top = self.widget.config.always_on_top
+                actions["Immer im Vordergrund"].trigger()
+                self.assertNotEqual(self.widget.config.always_on_top, orig_top)
+
+                orig_lock = self.widget.config.locked_pos
+                actions["Position sperren"].trigger()
+                self.assertNotEqual(self.widget.config.locked_pos, orig_lock)
+
+                # 8. Session reset signal
+                reset_emitted = False
+
+                def _on_reset() -> None:
+                    nonlocal reset_emitted
+                    reset_emitted = True
+
+                self.widget.request_reset_session.connect(_on_reset)
+                actions["Zähler „Seit Widget-Start“ zurücksetzen"].trigger()
+                self.assertTrue(reset_emitted)
+
+                # 9. Visibility & Quit actions
+                actions["Widget ausblenden"].trigger()
+                self.assertFalse(self.widget.isVisible())
+                menu_hidden = self.widget._build_context_menu()
+                hidden_actions = {a.text(): a for a in menu_hidden.actions() if not a.isSeparator()}
+                hidden_actions["Widget einblenden"].trigger()
+                self.assertTrue(self.widget.isVisible())
+
+                actions["Beenden"].trigger()
+                mock_quit.assert_called_once()
+        finally:
+            if self.widget._settings_dlg is not None:
+                self.widget._settings_dlg.close()
+                self.widget._settings_dlg.deleteLater()
+            if self.widget._health_dlg is not None:
+                self.widget._health_dlg.close()
+                self.widget._health_dlg.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()
