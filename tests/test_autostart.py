@@ -150,7 +150,12 @@ class TestAutostart(unittest.TestCase):
                 self.assertIn("[SystemBox-Taskbar]", content)
                 self.assertIn("[TrafficBox-Position]", content)
                 self.assertIn("position=1377,368", content)
-                self.assertTrue((cfg_dir / ".kwinrulesrc.lock").is_file())
+                try:
+                    import fcntl  # noqa: F401
+                except ImportError:
+                    pass
+                else:
+                    self.assertTrue((cfg_dir / ".kwinrulesrc.lock").is_file())
 
     def test_windows_fallback_handles_quotes_safely(self):
         fake_root = Path(r"C:\User's Dir\Traffic;Box")
