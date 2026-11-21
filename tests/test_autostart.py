@@ -126,6 +126,32 @@ class TestAutostart(unittest.TestCase):
                 self.assertIn("[TrafficBox-Position]", content)
                 self.assertIn("position=999,888", content)
 
+    def test_sync_kwin_position_rule_merges_order_only_general(self):
+        """Preserve rules from Plasma 6 kwinrulesrc that only defines Order= (e.g. SystemBox)."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cfg_dir = Path(tmp_dir) / ".config"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            fake_kwinrules = cfg_dir / "kwinrulesrc"
+            fake_kwinrules.write_text(
+                "[General]\nOrder=SystemBox-Taskbar\n\n"
+                "[SystemBox-Taskbar]\nDescription=SystemBox Hide from Taskbar\n"
+                "skiptaskbar=true\nskiptaskbarrule=2\n",
+                encoding="utf-8",
+            )
+            with patch.dict("os.environ", {"XDG_CONFIG_HOME": str(cfg_dir)}), patch.object(
+                sys, "platform", "linux"
+            ), patch("shutil.which", return_value=None):
+                res = sync_kwin_position_rule(1377, 368)
+                self.assertTrue(res)
+                content = fake_kwinrules.read_text(encoding="utf-8")
+                self.assertIn("count=2", content)
+                self.assertIn("rules=SystemBox-Taskbar,TrafficBox-Position", content)
+                self.assertIn("Order=SystemBox-Taskbar,TrafficBox-Position", content)
+                self.assertIn("[SystemBox-Taskbar]", content)
+                self.assertIn("[TrafficBox-Position]", content)
+                self.assertIn("position=1377,368", content)
+                self.assertTrue((cfg_dir / ".kwinrulesrc.lock").is_file())
+
     def test_windows_fallback_handles_quotes_safely(self):
         fake_root = Path(r"C:\User's Dir\Traffic;Box")
         with patch.object(sys, "frozen", False, create=True), patch.object(

@@ -151,12 +151,26 @@ class TestCompactMode(unittest.TestCase):
         self.assertTrue(self.widget._save_pos_timer.isActive())
 
     def test_window_flags_skip_taskbar(self) -> None:
-        """Verify window has Tool and Frameless flags to remain hidden from taskbars across OSes."""
+        """Verify window has Tool and Frameless flags and dispatches EWMH skip-taskbar on XCB."""
+        from unittest.mock import patch
         from PySide6.QtCore import Qt
 
         flags = self.widget.windowFlags()
         self.assertTrue(bool(flags & Qt.WindowType.FramelessWindowHint))
         self.assertTrue(bool(flags & Qt.WindowType.Tool))
+
+        # Under non-xcb (e.g. offscreen / wayland), _apply_x11_skip_taskbar must not invoke X11
+        with patch("src.ui.widget_window._send_x11_skip_taskbar_client_message") as mock_x11:
+            self.widget.show()
+            self.widget._apply_x11_skip_taskbar()
+            mock_x11.assert_not_called()
+
+        # Under xcb on Linux, _apply_x11_skip_taskbar must dispatch the EWMH ClientMessage
+        with patch("src.ui.widget_window.sys.platform", "linux"), patch.object(
+            _app, "platformName", return_value="xcb"
+        ), patch("src.ui.widget_window._send_x11_skip_taskbar_client_message", return_value=True) as mock_x11:
+            self.widget._apply_x11_skip_taskbar()
+            mock_x11.assert_called_once()
 
     def test_context_menu_footer_counter_states(self) -> None:
         """Verify context menu accurately reflects active vs deactivated footer counter."""

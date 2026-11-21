@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -28,6 +28,93 @@ from PySide6.QtWidgets import (
 from src.autostart import sync_kwin_position_rule
 from src.ui.health_dialog import InternetHealthDialog
 from src.ui.settings_dlg import SettingsDialog
+
+
+def _send_x11_skip_taskbar_client_message(wid: int) -> bool:
+    """Send an EWMH _NET_WM_STATE ClientMessage via libX11 to add SKIP_TASKBAR & SKIP_PAGER.
+
+    Unlike ``xprop -set _NET_WM_STATE``, a ClientMessage is honored by KWin and other
+    EWMH-compliant window managers after the window is mapped and preserves existing
+    states such as ``_NET_WM_STATE_ABOVE``.
+    """
+    import ctypes
+
+    try:
+        x11 = ctypes.CDLL("libX11.so.6")
+    except OSError:
+        return False
+
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x11.XInternAtom.restype = ctypes.c_ulong
+    x11.XSendEvent.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_int,
+        ctypes.c_long,
+        ctypes.c_void_p,
+    ]
+    x11.XSendEvent.restype = ctypes.c_int
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XFlush.restype = ctypes.c_int
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.restype = ctypes.c_int
+
+    dpy = x11.XOpenDisplay(None)
+    if not dpy:
+        return False
+
+    try:
+        root = x11.XDefaultRootWindow(dpy)
+        net_wm_state = x11.XInternAtom(dpy, b"_NET_WM_STATE", 0)
+        skip_taskbar = x11.XInternAtom(dpy, b"_NET_WM_STATE_SKIP_TASKBAR", 0)
+        skip_pager = x11.XInternAtom(dpy, b"_NET_WM_STATE_SKIP_PAGER", 0)
+        if not (net_wm_state and skip_taskbar and skip_pager):
+            return False
+
+        class _XClientMessageData(ctypes.Union):
+            _fields_ = [("l", ctypes.c_long * 5)]
+
+        class _XClientMessageEvent(ctypes.Structure):
+            _fields_ = [
+                ("type", ctypes.c_int),
+                ("serial", ctypes.c_ulong),
+                ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p),
+                ("window", ctypes.c_ulong),
+                ("message_type", ctypes.c_ulong),
+                ("format", ctypes.c_int),
+                ("data", _XClientMessageData),
+            ]
+
+        class _XEvent(ctypes.Union):
+            _fields_ = [
+                ("xclient", _XClientMessageEvent),
+                ("pad", ctypes.c_long * 24),
+            ]
+
+        ev = _XEvent()
+        ev.xclient.type = 33  # ClientMessage
+        ev.xclient.send_event = 1
+        ev.xclient.display = dpy
+        ev.xclient.window = int(wid)
+        ev.xclient.message_type = net_wm_state
+        ev.xclient.format = 32
+        ev.xclient.data.l[0] = 1  # _NET_WM_STATE_ADD
+        ev.xclient.data.l[1] = skip_taskbar
+        ev.xclient.data.l[2] = skip_pager
+        ev.xclient.data.l[3] = 1  # source indication: normal application
+        ev.xclient.data.l[4] = 0
+
+        # SubstructureRedirectMask (0x100000) | SubstructureNotifyMask (0x080000)
+        status = x11.XSendEvent(dpy, root, 0, 0x180000, ctypes.byref(ev))
+        x11.XFlush(dpy)
+        return bool(status)
+    finally:
+        x11.XCloseDisplay(dpy)
 
 
 class VisualSizeGrip(QSizeGrip):
@@ -188,37 +275,50 @@ class TrafficBoxWindowMixin:
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
         self._apply_x11_skip_taskbar()
+        if sys.platform.startswith("linux"):
+            QTimer.singleShot(150, self._apply_x11_skip_taskbar)
 
     def _apply_x11_skip_taskbar(self) -> None:
         """Ensure _NET_WM_STATE_SKIP_TASKBAR is set on X11 / XWayland surfaces to hide from taskbars."""
-        if sys.platform.startswith("linux"):
-            wid = self.winId()
-            if wid:
-                import shutil
-                import subprocess
+        if not sys.platform.startswith("linux") or not self.isVisible():
+            return
 
-                xprop_bin = shutil.which("xprop")
-                if xprop_bin:
-                    try:
-                        subprocess.run(
-                            [
-                                xprop_bin,
-                                "-id",
-                                str(int(wid)),
-                                "-f",
-                                "_NET_WM_STATE",
-                                "32a",
-                                "-set",
-                                "_NET_WM_STATE",
-                                "_NET_WM_STATE_SKIP_TASKBAR, _NET_WM_STATE_SKIP_PAGER",
-                            ],
-                            check=False,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            timeout=0.5,
-                        )
-                    except Exception:
-                        pass
+        app = QApplication.instance()
+        if app is None or app.platformName() != "xcb":
+            return
+
+        wid = self.winId()
+        if not wid:
+            return
+
+        if _send_x11_skip_taskbar_client_message(int(wid)):
+            return
+
+        import shutil
+        import subprocess
+
+        xprop_bin = shutil.which("xprop")
+        if xprop_bin:
+            try:
+                subprocess.run(
+                    [
+                        xprop_bin,
+                        "-id",
+                        str(int(wid)),
+                        "-f",
+                        "_NET_WM_STATE",
+                        "32a",
+                        "-set",
+                        "_NET_WM_STATE",
+                        "_NET_WM_STATE_SKIP_TASKBAR, _NET_WM_STATE_SKIP_PAGER",
+                    ],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=0.5,
+                )
+            except Exception:
+                pass
 
     def resizeEvent(self, event: object) -> None:
         super().resizeEvent(event)

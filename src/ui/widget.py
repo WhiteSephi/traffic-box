@@ -367,9 +367,6 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
         h = self._get_compact_height() if self.config.compact_mode else max(min_h, self.config.widget_height)
         self.resize(w, h)
 
-        if sys.platform == "linux" and self.config.pos_x >= 0 and self.config.pos_y >= 0:
-            sync_kwin_position_rule(self.config.pos_x, self.config.pos_y)
-
         target_pos = QPoint(self.config.pos_x, self.config.pos_y)
         is_on_screen = False
         if self.config.pos_x >= 0 and self.config.pos_y >= 0:
@@ -379,6 +376,8 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
                     break
 
         if is_on_screen:
+            if sys.platform == "linux":
+                sync_kwin_position_rule(target_pos.x(), target_pos.y())
             self.move(target_pos)
             # Re-apply position slightly deferred after mapping to override aggressive compositor centering
             QTimer.singleShot(150, lambda: self.move(target_pos))
@@ -387,6 +386,8 @@ class TrafficBox(TrafficBoxWindowMixin, QWidget):
             if screen:
                 avail = screen.availableGeometry()
                 default_pos = QPoint(avail.right() - w - 24, avail.bottom() - h - 24)
+                if sys.platform == "linux":
+                    sync_kwin_position_rule(default_pos.x(), default_pos.y())
                 self.move(default_pos)
                 QTimer.singleShot(150, lambda: self.move(default_pos))
 

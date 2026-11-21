@@ -4,6 +4,13 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.0.1] - 2026-11-21
+### Fixed
+- **Linux / KDE Plasma Taskleisten-Ausblendung:**
+  - `sync_kwin_position_rule()` mit exklusivem File-Lock (`fcntl.flock` auf `.kwinrulesrc.lock`) abgesichert und `Order=`/`rules=`-Zusammenführung für Plasma 6 korrigiert, damit parallele Autostarts (z. B. mit `SystemBox`) die KWin-Regel nicht mehr überschreiben.
+  - `_apply_x11_skip_taskbar()` nutzt unter X11/XWayland (`xcb`) nun eine EWMH-konforme `_NET_WM_STATE_ADD`-`ClientMessage` via `libX11.so.6` statt `xprop -set`, wodurch `_NET_WM_STATE_SKIP_TASKBAR` / `_NET_WM_STATE_SKIP_PAGER` zuverlässig nach dem Mapping greifen und `_NET_WM_STATE_ABOVE` erhalten bleibt.
+  - KWin-Regel wird beim Erststart nun auch für die berechnete Standardposition synchronisiert.
+
 ## [1.0.0] - 2026-11-21
 ### Added
 - **Live-Traffic-Monitoring (passwortfrei per UPnP):**
