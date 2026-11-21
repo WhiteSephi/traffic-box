@@ -4,6 +4,20 @@ Alle relevanten Änderungen an diesem Projekt werden in dieser Datei dokumentier
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.0.0] - 2026-11-21
+### Added
+- **Erstes öffentliches Major-Release (`v1.0.0`) & MIT-Lizenz (`LICENSE`):** Offizielle MIT-Lizenzdatei ergänzt und Version auf `1.0.0` angehoben.
+- **Automatisierte Tests & Release-Builds (`.github/workflows/ci.yml`, `.github/workflows/release.yml`):** GitHub Actions führt die komplette Unit-Testsuite plattformübergreifend (Linux & Windows) aus und erstellt bei Release-Tags (`v*`) automatisch die Standalone-`TrafficBox.exe` samt `SHA256SUMS.txt`.
+- **Versioniertes App-Icon (`assets/app_icon.ico`, `TrafficBox.spec`):** Anwendungs-Icon fest in `assets/` eingebunden, sodass öffentliche & CI-Builds das Icon automatisch mitverpacken.
+
+### Changed
+- **Dokumentation & Vorschau-Screenshots (`README.md`, `assets/preview_*.png`):**
+  - Installationsanleitung stark vereinfacht (direkter Windows-Binary-Download über GitHub Releases ganz oben inkl. SmartScreen- & SHA256-Hinweis, kompakte Linux-/CachyOS-Anleitung, Systemanforderungen, vollständige Projektstruktur und Lizenz-/Markenhinweis).
+  - Vorschau-Screenshots auf das aktuelle `v1.0.0`-Layout (große Header-Buttons, Graph-Legenden, Status-Pill `✓ Stabil`, vollständiger Footer-Zähler und 5-Tab-Einstellungsdialog) aktualisiert.
+
+### Fixed
+- **Vollständige Test-Isolation (`src/logger.py`, `tests/test_logger.py`):** `read_recent_logs()` fängt Dateisystem-Zugriffsfehler bereits bei `is_file()` sauber ab und `test_collect_diagnostics_report_excludes_credentials` mockt lokale Log-Zugriffe, sodass alle `128` Unit-Tests vollständig isoliert laufen.
+
 ## [0.20.0] - 2026-11-20
 ### Added
 - **Datensparsames Rotating-File-Logging & GitHub-Fehlerbericht (`src/logger.py`, `src/config.py`, `src/main.py`, `src/api/worker.py`, `src/ui/settings_dlg.py`):**

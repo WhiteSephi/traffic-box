@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from src.config import AppConfig
 from src.logger import (
@@ -44,9 +45,11 @@ class LoggerTests(unittest.TestCase):
             fritz_password="your-secret-password-here",
             debug_logging=True,
         )
-        report = collect_diagnostics_report(cfg, qt_version="6.8.0", max_log_lines=20)
+        with patch("src.logger.read_recent_logs", return_value="INFO TrafficBox ready"):
+            report = collect_diagnostics_report(cfg, qt_version="6.8.0", max_log_lines=20)
 
         self.assertIn("TrafficBox v", report)
+        self.assertIn("INFO TrafficBox ready", report)
         self.assertIn("Custom-Host=True", report)
         self.assertIn("Debug-Log=True", report)
         self.assertNotIn("198.51.100.10", report)

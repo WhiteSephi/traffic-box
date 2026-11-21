@@ -202,9 +202,9 @@ def set_debug_logging(enabled: bool) -> None:
 def read_recent_logs(max_lines: int = 120) -> str:
     """Read and redact the tail of the current log file."""
     log_file = get_log_file()
-    if not log_file.is_file():
-        return "(Noch keine Log-Einträge vorhanden.)"
     try:
+        if not log_file.is_file():
+            return "(Noch keine Log-Einträge vorhanden.)"
         lines = log_file.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError as exc:
         return f"(Log-Datei konnte nicht gelesen werden: {redact_sensitive_text(str(exc))})"
